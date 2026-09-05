@@ -1,0 +1,56 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild[Ll]og.*
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+.idea/
+*.swp
+
+## Test / coverage output
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+## BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+## Mutation testing (dotnet stryker) - the HTML report is an artefact, not source
+StrykerOutput/
+
+## Load-test reports (labs/Labs.LoadTests)
+load-reports/
+
+
+## Secrets - NEVER commit these
+appsettings.Local.json
+appsettings.*.Local.json
+*.pfx
+*.p12
+.env
+.env.*
+!.env.example
+
+## Mail written by the development transport (Mailing:Transport = File).
+## Real messages to real-looking addresses; never commit them.
+**/App_Data/mail/
+
+## Docker volumes
+.containers/
+
+## macOS / Windows cruft
+.DS_Store
+Thumbs.db

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+
+  // The `http` and `https` profiles set no connection strings at all: they inherit
+  // appsettings.Development.json, which points at a NATIVE SQL Server and needs no containers.
+  // The `docker` profile is the opt-in override for the docker-compose stack.
+  //
+  // Covered in: course/module-00-setup/02-running-the-stack.md
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5199",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7278;http://localhost:5199",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+
+    // Requires `docker compose up -d` first. The double underscore is how .NET maps an
+    // environment variable onto a nested configuration key: ConnectionStrings__SqlServer
+    // overrides ConnectionStrings:SqlServer, and environment variables sit ABOVE
+    // appsettings.Development.json in the configuration precedence order.
+    "docker": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5199",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__SqlServer": "Server=localhost,1433;Database=LogiFlow;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=True;Encrypt=True",
+        "ConnectionStrings__Redis": "localhost:6380",
+        "Otlp__Endpoint": "http://localhost:18889",
+
+        // Mailpit, from the same compose file. Every message the application sends is captured
+        // and readable at http://localhost:8025 - the real SMTP path, with nothing able to
+        // leave the machine. This is the transport to develop templates against.
+        "Mailing__Transport": "Smtp",
+        "Mailing__Smtp__Host": "localhost",
+        "Mailing__Smtp__Port": "1025"
+      }
+    }
+  }
+}

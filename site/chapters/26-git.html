@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>26 · Git — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="26-git">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 26</p>
+<h1>Git</h1>
+<p class="lede">
+  Listed last, and marked optional, which in practice means assumed. Git is the tool you touch most
+  often after the compiler, and the one where a moment of confusion costs a colleague an afternoon.
+  Learn the model, and the commands stop needing memorising.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Utilizzo di Git per il controllo di versione."</em> Treat it as mandatory. Nobody will
+  ask you to explain <code>git commit</code>; they may well ask what you do when a rebase goes
+  wrong.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-model">The model &mdash; three places, not one</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You are packing a parcel to post.
+  </p>
+  <ul>
+    <li>Your <strong>desk</strong> is covered in things &mdash; that is your working folder.</li>
+    <li>You put some of them in a <strong>box</strong>, but do not seal it yet. That is
+        <em>staging</em>: choosing what goes in.</li>
+    <li>You <strong>seal and label</strong> the box. That is a <em>commit</em> &mdash; and now it
+        cannot change.</li>
+    <li>You take it to the <strong>post office</strong>. That is <em>push</em>.</li>
+  </ul>
+  <p>
+    Everything on your desk and in the box is still only yours. Nobody else sees a thing until the
+    last step.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 240" role="img" aria-labelledby="git-title">
+    <title id="git-title">The four places a change can be in Git</title>
+    <defs>
+      <marker id="a16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="56" width="170" height="76" rx="9" class="d-panel"/>
+    <rect x="20" y="56" width="170" height="76" rx="9" class="d-stroke"/>
+    <text x="105" y="82" class="d-text" text-anchor="middle">Working tree</text>
+    <text x="105" y="102" class="d-small" text-anchor="middle">your files, edited</text>
+    <text x="105" y="120" class="d-mono" text-anchor="middle">git status</text>
+
+    <path d="M192 94 L246 94" class="d-arrow" stroke-width="1.8" marker-end="url(#a16)"/>
+    <text x="219" y="86" class="d-mono" text-anchor="middle" style="font-size:11px">add</text>
+
+    <rect x="248" y="56" width="170" height="76" rx="9" class="d-panel"/>
+    <rect x="248" y="56" width="170" height="76" rx="9" class="d-stroke"/>
+    <text x="333" y="82" class="d-text" text-anchor="middle">Staging area</text>
+    <text x="333" y="102" class="d-small" text-anchor="middle">what the next commit</text>
+    <text x="333" y="118" class="d-small" text-anchor="middle">will contain</text>
+
+    <path d="M420 94 L474 94" class="d-arrow" stroke-width="1.8" marker-end="url(#a16)"/>
+    <text x="447" y="86" class="d-mono" text-anchor="middle" style="font-size:11px">commit</text>
+
+    <rect x="476" y="56" width="170" height="76" rx="9" class="d-brand" opacity=".92"/>
+    <text x="561" y="82" class="d-white" text-anchor="middle">Local repository</text>
+    <text x="561" y="102" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">sealed history</text>
+    <text x="561" y="120" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">on your machine only</text>
+
+    <path d="M648 94 L702 94" class="d-arrow" stroke-width="1.8" marker-end="url(#a16)"/>
+    <text x="675" y="86" class="d-mono" text-anchor="middle" style="font-size:11px">push</text>
+
+    <rect x="704" y="56" width="116" height="76" rx="9" class="d-panel"/>
+    <rect x="704" y="56" width="116" height="76" rx="9" class="d-stroke"/>
+    <text x="762" y="88" class="d-text" text-anchor="middle">Remote</text>
+    <text x="762" y="110" class="d-small" text-anchor="middle">everyone sees it</text>
+
+    <path d="M762 140 L762 176 L105 176 L105 140" class="d-arrow" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#a16)"/>
+    <text x="434" y="194" class="d-mono" text-anchor="middle" style="font-size:11px">git pull  (fetch + merge)</text>
+
+    <text x="20" y="226" class="d-small">Everything left of &ldquo;push&rdquo; is private and reversible. That is why committing early and often costs nothing.</text>
+  </svg>
+  <figcaption>Three local states and one shared one. Almost every Git command moves a change between two of these boxes.</figcaption>
+</figure>
+
+<h2 id="daily">The daily commands</h2>
+
+<div class="code-head">what you type every day</div>
+<pre><code>git status                          <span class="cm"># where am I? Run this constantly.</span>
+git switch -c feature/order-export  <span class="cm"># new branch, and move to it</span>
+
+git add src/LogiFlow.Api/           <span class="cm"># stage specific paths…</span>
+git add -p                          <span class="cm"># …or review hunk by hunk — the habit worth building</span>
+
+git commit -m <span class="st">"Add CSV export for orders"</span>
+git push -u origin feature/order-export
+
+git switch main
+git pull                            <span class="cm"># fetch + merge from the remote</span>
+
+git log --oneline --graph --decorate -20
+git diff                            <span class="cm"># working tree vs staged</span>
+git diff --staged                   <span class="cm"># staged vs last commit</span></code></pre>
+
+<p class="subtle">
+  <code>git switch</code> and <code>git restore</code> replaced the overloaded
+  <code>git checkout</code>, which did both jobs and was the source of endless confusion. Use the
+  newer ones; expect to see <code>checkout</code> in older documentation and older colleagues'
+  fingers.
+</p>
+
+<h2 id="branching">Branching</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 What a branch actually is</div>
+  <p>
+    A branch is not a copy of anything. It is a <strong>41-byte file containing a commit
+    hash</strong> &mdash; a movable label pointing at one commit. Committing moves the label
+    forward. That is why creating and deleting branches is instant, and why "we do not branch, it
+    is too expensive" (a real thing people say, carried over from older systems) is simply untrue
+    in Git.
+  </p>
+  <p>
+    <code>HEAD</code> is another pointer, pointing at the branch you are currently on. "Detached
+    HEAD" just means it points directly at a commit instead of at a branch.
+  </p>
+</div>
+
+<h3>Merge or rebase?</h3>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mr-title">
+    <title id="mr-title">Merge preserves the branch shape; rebase replays commits onto the tip</title>
+    <defs>
+      <marker id="a16b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">MERGE — history records that a branch existed</text>
+    <g class="d-arrow" stroke-width="2">
+      <path d="M46 76 L126 76"/><path d="M146 76 L226 76"/><path d="M246 76 L406 76"/>
+      <path d="M246 76 L306 124"/><path d="M326 124 L406 84" marker-end="url(#a16b)"/>
+      <path d="M326 124 L386 124"/>
+    </g>
+    <circle cx="40" cy="76" r="9" class="d-brand"/>
+    <circle cx="136" cy="76" r="9" class="d-brand"/>
+    <circle cx="236" cy="76" r="9" class="d-brand"/>
+    <circle cx="416" cy="76" r="11" class="d-brand"/>
+    <text x="416" y="56" class="d-small" text-anchor="middle">merge commit</text>
+    <circle cx="316" cy="124" r="9" class="d-panel" stroke="currentColor"/>
+    <circle cx="316" cy="124" r="9" class="d-stroke"/>
+    <circle cx="396" cy="124" r="9" class="d-stroke"/>
+    <text x="356" y="152" class="d-small" text-anchor="middle">your two commits, unchanged</text>
+    <text x="470" y="80" class="d-small">✓ nothing is rewritten, ✓ true history</text>
+    <text x="470" y="100" class="d-small">✗ the graph becomes a braid on a busy repo</text>
+
+    <text x="20" y="196" class="d-text" style="font-weight:700">REBASE — your commits are re-created on top</text>
+    <g class="d-arrow" stroke-width="2">
+      <path d="M46 244 L126 244"/><path d="M146 244 L226 244"/>
+      <path d="M246 244 L326 244"/><path d="M346 244 L426 244" marker-end="url(#a16b)"/>
+    </g>
+    <circle cx="40" cy="244" r="9" class="d-brand"/>
+    <circle cx="136" cy="244" r="9" class="d-brand"/>
+    <circle cx="236" cy="244" r="9" class="d-brand"/>
+    <circle cx="336" cy="244" r="9" class="d-stroke"/>
+    <circle cx="436" cy="244" r="9" class="d-stroke"/>
+    <text x="386" y="272" class="d-small" text-anchor="middle">same changes, NEW hashes</text>
+    <text x="500" y="240" class="d-small">✓ a clean straight line</text>
+    <text x="500" y="260" class="d-small">✗ history is rewritten — never on a shared branch</text>
+  </svg>
+  <figcaption>Merge keeps the story; rebase tidies it. The difference only becomes dangerous once a branch is shared.</figcaption>
+</figure>
+
+<div class="code-head">both, and the safe rule</div>
+<pre><code><span class="cm"># bring main into your branch — safe, always</span>
+git switch feature/x
+git merge main
+
+<span class="cm"># or replay your commits on top of main — tidier history</span>
+git rebase main
+
+<span class="cm"># after resolving conflicts during a rebase:</span>
+git add &lt;files&gt;
+git rebase --continue
+<span class="cm"># or, at any point:</span>
+git rebase --abort            <span class="cm"># puts everything back. Nothing is lost.</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The golden rule of rebasing</div>
+  <p>
+    <strong>Never rebase a branch that someone else has pulled.</strong> Rebasing creates new
+    commits with new hashes, so a colleague&rsquo;s copy and yours no longer share history &mdash;
+    and their next pull produces a horrible tangle of duplicated commits.
+  </p>
+  <p>
+    Rebase your own unpushed work freely. On a shared branch, merge. If you must force-push your
+    own feature branch after a rebase, use <code>--force-with-lease</code>, which refuses if
+    someone else pushed in the meantime. Plain <code>--force</code> silently destroys their work.
+  </p>
+</div>
+
+<h2 id="conflicts">Conflicts</h2>
+
+<p>
+  A conflict is not an error. It is Git saying <em>"two people changed the same lines and I will
+  not guess."</em>
+</p>
+
+<div class="code-head">what you see, and what to do</div>
+<pre><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+    <span class="kw">var</span> total = lines.Sum(l =&gt; l.Price * l.Quantity);
+=======
+    <span class="kw">var</span> total = lines.Sum(l =&gt; l.NetPrice) * (1 + vatRate);
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature/vat</code></pre>
+<pre><code><span class="cm"># Above the ======= is YOUR side; below it is theirs.</span>
+<span class="cm"># Edit the file into what it should ACTUALLY be — often neither version —</span>
+<span class="cm"># delete all three markers, then:</span>
+git add src/Order.cs
+git commit                    <span class="cm"># or: git rebase --continue</span>
+
+git merge --abort             <span class="cm"># escape hatch: undo the whole merge</span></code></pre>
+
+<p class="subtle">
+  The most common mistake is resolving mechanically &mdash; picking one side to make the markers go
+  away &mdash; without reading what the other person was trying to do. A conflict is a conversation,
+  and sometimes the honest resolution is to walk over and ask.
+</p>
+
+<h2 id="undo">Undoing things</h2>
+
+<p>The table people actually need. Note which of these are safe.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Situation</th><th>Command</th><th>Safe?</th></tr></thead>
+  <tbody>
+    <tr><td>Discard changes to one file</td><td><code>git restore &lt;file&gt;</code></td><td>⚠ the edits are gone</td></tr>
+    <tr><td>Unstage, keep the edits</td><td><code>git restore --staged &lt;file&gt;</code></td><td>✓</td></tr>
+    <tr><td>Fix the last commit message</td><td><code>git commit --amend</code></td><td>✓ if not pushed</td></tr>
+    <tr><td>Undo the last commit, keep the changes</td><td><code>git reset --soft HEAD~1</code></td><td>✓</td></tr>
+    <tr><td>Undo the last commit, discard the changes</td><td><code>git reset --hard HEAD~1</code></td><td>⚠⚠ destructive</td></tr>
+    <tr><td>Undo a <em>pushed</em> commit</td><td><code>git revert &lt;hash&gt;</code></td><td>✓ <strong>the right answer</strong> &mdash; adds an inverse commit</td></tr>
+    <tr><td>Park work in progress</td><td><code>git stash</code> / <code>git stash pop</code></td><td>✓</td></tr>
+    <tr><td>Take one commit from another branch</td><td><code>git cherry-pick &lt;hash&gt;</code></td><td>✓</td></tr>
+    <tr><td>Who changed this line, and why</td><td><code>git blame &lt;file&gt;</code></td><td>✓</td></tr>
+    <tr><td><strong>I have lost a commit</strong></td><td><code>git reflog</code></td><td>✓ <strong>read this section</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">git reflog — the command that saves you</div>
+  <p>
+    Git records every position <code>HEAD</code> has held, including ones no branch points at any
+    more. A bad <code>reset --hard</code>, a rebase gone wrong, a branch deleted by mistake &mdash;
+    almost all of it is recoverable for about 90 days:
+  </p>
+  <pre style="margin:.7em 0"><code>git reflog                    <span class="cm"># find the commit you were on before the mistake</span>
+git reset --hard HEAD@{3}     <span class="cm"># go back to it</span></code></pre>
+  <p>
+    Knowing this exists is the difference between a bad ten minutes and a lost day. It is also a
+    genuinely good thing to mention when asked about Git.
+  </p>
+</div>
+
+<h2 id="pull-requests">Pull requests and branching strategy</h2>
+
+<p>
+  The unit of collaboration. Azure DevOps calls it a <em>pull request</em> too
+  (<a href="30-azure-devops-cicd.html">chapter 30</a>).
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Strategy</th><th>Shape</th><th>Fits</th></tr></thead>
+  <tbody>
+    <tr><td><strong>GitHub Flow / trunk-based</strong></td>
+        <td><code>main</code> plus short-lived feature branches, merged within days</td>
+        <td>Continuous deployment. The modern default.</td></tr>
+    <tr><td><strong>GitFlow</strong></td>
+        <td><code>main</code>, <code>develop</code>, <code>feature/*</code>, <code>release/*</code>, <code>hotfix/*</code></td>
+        <td>Scheduled releases and supported versions &mdash; still common in Italian enterprise shops.</td></tr>
+    <tr><td><strong>Release branches</strong></td>
+        <td>Trunk plus a branch per supported version</td>
+        <td>Shipping software customers install themselves.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">a commit message worth reading</div>
+<pre><code>Fix order total when a discount is applied twice
+
+The discount was subtracted in both PriceCalculator and OrderTotals,
+so any order with a coupon was undercharged by the discount amount.
+Removed the duplicate in OrderTotals and added a regression test.
+
+Fixes #482</code></pre>
+
+<p>
+  Subject in the imperative, under about 50 characters, no full stop. Blank line. Body explaining
+  <strong>why</strong>, because the <em>what</em> is already in the diff. Six months from now, this
+  message is the only record of the reasoning.
+</p>
+
+<div class="code-head">.gitignore — for .NET, the essentials</div>
+<pre><code>bin/
+obj/
+.vs/
+*.user
+appsettings.Development.json    <span class="cm"># if it contains anything real</span>
+*.env</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ A committed secret is a leaked secret</div>
+  <p>
+    Deleting it in the next commit does not help &mdash; it remains in the history, and if it was
+    pushed, in everyone&rsquo;s clone. The only correct response is to
+    <strong>rotate the credential immediately</strong>, and then, separately, consider rewriting
+    history. Say it in that order in an interview; the rotation is the part that matters.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Cause a conflict deliberately, in a scratch folder. Ten minutes, and it removes the fear.</p>
+  <pre><code>git init conflict-demo &amp;&amp; <span class="kw">cd</span> conflict-demo
+<span class="kw">echo</span> <span class="st">"line one"</span> &gt; file.txt
+git add . &amp;&amp; git commit -m <span class="st">"Initial commit"</span>
+
+git switch -c feature
+<span class="kw">echo</span> <span class="st">"feature version"</span> &gt; file.txt
+git commit -am <span class="st">"Change on feature"</span>
+
+git switch main
+<span class="kw">echo</span> <span class="st">"main version"</span> &gt; file.txt
+git commit -am <span class="st">"Change on main"</span>
+
+git merge feature            <span class="cm"># ← conflict. Open the file and look at the markers.</span></code></pre>
+  <p>Then, in the same repository:</p>
+  <ol>
+    <li>Resolve it, commit, and read <code>git log --graph --oneline</code>.</li>
+    <li><code>git reset --hard HEAD~1</code> to "lose" the merge, then recover it with
+        <code>git reflog</code>.</li>
+    <li>Make a commit, push it nowhere, and undo it with <code>reset --soft</code>. Then make
+        another and undo it with <code>revert</code>. Compare the two histories &mdash; that
+        comparison is the answer to a common interview question.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Working tree &rarr; staging &rarr; local repository &rarr; remote. Every command moves
+        between two of these.</li>
+    <li>A branch is a pointer, not a copy. Creating one is free.</li>
+    <li>Commit small and often. Push when it is coherent.</li>
+    <li>Subject line imperative and short; the body explains <em>why</em>.</li>
+    <li>Rebase your own unpublished work. Merge anything shared.</li>
+    <li>Never rewrite public history. <code>--force-with-lease</code>, never bare
+        <code>--force</code>.</li>
+    <li><code>revert</code> to undo something already pushed; <code>reset</code> only locally.</li>
+    <li><code>git reflog</code> recovers almost anything. Learn it before you need it.</li>
+    <li>Read what the other side was doing before resolving a conflict.</li>
+    <li>Never commit secrets. If you do, rotate the credential first and clean history second.</li>
+    <li><code>git status</code> constantly. It is free and it prevents most mistakes.</li>
+    <li><code>git add -p</code> makes you read your own diff before anyone else does.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between merge and rebase?"</p>
+  <p class="a">
+    Merge creates a commit joining two histories and preserves the branch shape; rebase replays
+    your commits on top of another branch, producing new hashes and a linear history. Then the rule
+    that shows judgement: never rebase anything others have pulled.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>reset</code> or <code>revert</code>?"</p>
+  <p class="a">
+    <code>reset</code> moves the branch pointer and rewrites local history &mdash; fine before
+    pushing. <code>revert</code> adds a new commit undoing an old one, which is the only safe
+    option once something is shared.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You committed a password. What now?"</p>
+  <p class="a">
+    Rotate the credential immediately &mdash; it must be assumed compromised. Then remove it from
+    history with <code>git filter-repo</code> or BFG and force-push with coordination, and add the
+    file to <code>.gitignore</code> with a secret-scanning check in CI. Leading with rotation is
+    what makes the answer credible.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you handle a conflict?"</p>
+  <p class="a">
+    Read both sides, understand the two intentions, write the version that is actually correct,
+    remove the markers, test it, then continue the merge or rebase. Mention <code>--abort</code>:
+    knowing there is always a way back is what stops people panicking.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What branching strategy have you used?"</p>
+  <p class="a">
+    Describe the real one and why it fitted &mdash; trunk-based with short-lived branches for
+    continuous deployment, GitFlow where releases are scheduled and old versions supported. Having
+    an opinion, with a reason, beats naming the fashionable one.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

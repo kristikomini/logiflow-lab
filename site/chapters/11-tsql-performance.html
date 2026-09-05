@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 · Indexes, plans and transactions — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="11-tsql-performance">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 2 &mdash; Data <span>&rsaquo;</span> Chapter 11</p>
+<h1>Indexes, plans and transactions</h1>
+<p class="lede">
+  Anyone can write a <code>WHERE</code> clause. Explaining why it does a table scan, and what
+  happens when two people submit the same order at the same moment, is the thing that separates a
+  candidate with three years of experience from one with one year repeated three times.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Buona conoscenza di T-SQL e dei principali RDBMS."</em> This chapter is where "buona"
+  becomes visible. It is also the chapter that explains why they needed
+  <a href="20-redis-caching.html">Redis</a>.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="indexes">Indexes</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A book about animals, five hundred pages, no order. To find "elephant" you turn every page.
+    That is a <strong>scan</strong>.
+  </p>
+  <p>
+    Now someone adds an index at the back: every animal in alphabetical order with its page number.
+    You flip to E, read "elephant &mdash; page 312", and go straight there. That is a
+    <strong>seek</strong>.
+  </p>
+  <p>
+    The catch: every time a new animal is added to the book, someone must also write it into the
+    index. Finding gets faster; adding gets slower. That is the whole trade, and it never goes away.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    An index is a B-tree keyed on one or more columns, with pointers back to the rows. Depth is
+    typically 3&ndash;4 levels even for millions of rows, so a <strong>seek</strong> is a handful
+    of page reads regardless of table size &mdash; O(log n) versus the O(n) of a
+    <strong>scan</strong>.
+  </p>
+  <p>
+    The cost is real: every <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> must
+    maintain every affected index, and each index consumes storage and memory. A table with twelve
+    indexes has a write path twelve times more expensive than it needs to be. Indexing is a
+    deliberate trade, not a default.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 340" role="img" aria-labelledby="btree-title">
+    <title id="btree-title">A B-tree seek compared with a full table scan</title>
+    <defs>
+      <marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">SEEK — 3 page reads</text>
+
+    <rect x="150" y="38" width="150" height="30" rx="6" class="d-brand" opacity=".92"/>
+    <text x="225" y="58" class="d-white" text-anchor="middle" style="font-size:11.5px">root: 1 … 1M</text>
+
+    <path d="M200 70 L120 100" class="d-arrow" stroke-width="1.6" marker-end="url(#a8)"/>
+    <path d="M250 70 L330 100" class="d-arrow" stroke-width="1.6" marker-end="url(#a8)"/>
+
+    <rect x="40" y="102" width="150" height="30" rx="6" class="d-panel"/>
+    <rect x="40" y="102" width="150" height="30" rx="6" class="d-stroke"/>
+    <text x="115" y="122" class="d-mono" text-anchor="middle">1 … 500K</text>
+
+    <rect x="260" y="102" width="150" height="30" rx="6" class="d-brand" opacity=".92"/>
+    <text x="335" y="122" class="d-white" text-anchor="middle" style="font-size:11.5px">500K … 1M</text>
+
+    <path d="M310 134 L250 164" class="d-arrow" stroke-width="1.6" marker-end="url(#a8)"/>
+    <path d="M360 134 L420 164" class="d-arrow" stroke-width="1.6" marker-end="url(#a8)"/>
+
+    <rect x="180" y="166" width="140" height="30" rx="6" class="d-panel"/>
+    <rect x="180" y="166" width="140" height="30" rx="6" class="d-stroke"/>
+    <text x="250" y="186" class="d-mono" text-anchor="middle">500K … 750K</text>
+
+    <rect x="350" y="166" width="140" height="30" rx="6" class="d-brand" opacity=".92"/>
+    <text x="420" y="186" class="d-white" text-anchor="middle" style="font-size:11.5px">750K … 1M</text>
+
+    <path d="M420 198 L420 226" class="d-arrow" stroke-width="1.6" marker-end="url(#a8)"/>
+    <rect x="340" y="228" width="160" height="30" rx="6" class="d-fill"/>
+    <rect x="340" y="228" width="160" height="30" rx="6" class="d-stroke"/>
+    <text x="420" y="248" class="d-mono" text-anchor="middle">row 812,455 ✓</text>
+
+    <text x="20" y="290" class="d-small">One million rows, three reads. Ten million rows — still</text>
+    <text x="20" y="308" class="d-small">three or four. That is what O(log n) buys you.</text>
+
+    <!-- scan -->
+    <text x="560" y="24" class="d-text" style="font-weight:700">SCAN — every page</text>
+    <rect x="560" y="38" width="256" height="220" rx="8" class="d-panel"/>
+    <rect x="560" y="38" width="256" height="220" rx="8" class="d-stroke"/>
+    <g class="d-stroke" stroke-width="1">
+      <rect x="574" y="52"  width="228" height="14" rx="3"/>
+      <rect x="574" y="72"  width="228" height="14" rx="3"/>
+      <rect x="574" y="92"  width="228" height="14" rx="3"/>
+      <rect x="574" y="112" width="228" height="14" rx="3"/>
+      <rect x="574" y="132" width="228" height="14" rx="3"/>
+      <rect x="574" y="152" width="228" height="14" rx="3"/>
+      <rect x="574" y="172" width="228" height="14" rx="3"/>
+      <rect x="574" y="192" width="228" height="14" rx="3"/>
+      <rect x="574" y="212" width="228" height="14" rx="3"/>
+      <rect x="574" y="232" width="228" height="14" rx="3"/>
+    </g>
+    <text x="688" y="284" class="d-small" text-anchor="middle">read all of them, every time</text>
+    <text x="688" y="304" class="d-small" text-anchor="middle">and it gets worse as the table grows</text>
+  </svg>
+  <figcaption>Seek versus scan. In an execution plan, this is the first thing to look for.</figcaption>
+</figure>
+
+<h3>Clustered and non-clustered</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th>Clustered</th><th>Non-clustered</th></tr></thead>
+  <tbody>
+    <tr><td>What it is</td><td>The table itself, physically sorted by the key</td><td>A separate sorted copy of some columns, pointing back</td></tr>
+    <tr><td>How many</td><td>One &mdash; the data can only be in one order</td><td>Many (within reason)</td></tr>
+    <tr><td>Default</td><td>Created on the primary key</td><td>You create them deliberately</td></tr>
+    <tr><td>Analogy</td><td>The book, printed in alphabetical order</td><td>The index at the back</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">creating indexes that earn their keep</div>
+<pre><code><span class="cm">-- Composite index. Column ORDER is not arbitrary.</span>
+<span class="kw">CREATE INDEX</span> IX_Orders_Customer_Created
+    <span class="kw">ON</span> dbo.Orders (CustomerId, CreatedAtUtc);
+
+<span class="cm">-- Covering index: INCLUDE carries extra columns in the leaf pages, so the</span>
+<span class="cm">-- query is answered entirely from the index — no lookup back to the table.</span>
+<span class="kw">CREATE INDEX</span> IX_Orders_Status_Covering
+    <span class="kw">ON</span> dbo.Orders (Status)
+    <span class="kw">INCLUDE</span> (CustomerId, Total, CreatedAtUtc);
+
+<span class="cm">-- Filtered index: only index the rows anyone queries. Stays small even when</span>
+<span class="cm">-- the table holds ten years of delivered orders.</span>
+<span class="kw">CREATE INDEX</span> IX_Orders_Open
+    <span class="kw">ON</span> dbo.Orders (CreatedAtUtc)
+    <span class="kw">WHERE</span> Status <span class="kw">IN</span> (2, 3);</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 The leftmost-prefix rule</div>
+  <p>
+    An index on <code>(CustomerId, CreatedAtUtc)</code> is a phone book sorted by
+    (Surname, FirstName). It serves:
+  </p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Query</th><th>Result</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><code>WHERE CustomerId = @c</code></td><td><strong>seek</strong></td><td>"all the Rossis"</td></tr>
+      <tr><td><code>WHERE CustomerId = @c ORDER BY CreatedAtUtc</code></td><td><strong>seek</strong></td><td>"the Rossis, already in order"</td></tr>
+      <tr><td><code>WHERE CustomerId = @c AND CreatedAtUtc &gt; @d</code></td><td><strong>seek</strong></td><td>"the Rossis since March"</td></tr>
+      <tr><td><code>WHERE CreatedAtUtc &gt; @d</code></td><td><strong>scan</strong> ⚠</td><td>"everyone called Marco" &mdash; the second column is only sorted <em>within</em> a surname</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><strong>Rule of thumb: equality columns first, then range and sort columns.</strong></p>
+</div>
+
+<h3>SARGability &mdash; how to accidentally disable your own index</h3>
+
+<div class="code-head">the same filter, indexed and not</div>
+<pre><code><span class="cm">-- ✗ a function on the COLUMN: the engine must compute it for every row</span>
+<span class="kw">WHERE YEAR</span>(o.CreatedAtUtc) = 2026
+<span class="kw">WHERE</span> <span class="kw">UPPER</span>(c.Name) = <span class="st">'ROSSI'</span>
+<span class="kw">WHERE</span> o.OrderNumber <span class="kw">LIKE</span> <span class="st">'%2026%'</span>          <span class="cm">-- leading wildcard: unusable</span>
+<span class="kw">WHERE</span> <span class="kw">CAST</span>(o.CustomerId <span class="kw">AS NVARCHAR</span>) = @id  <span class="cm">-- implicit conversions do this too</span>
+
+<span class="cm">-- ✓ leave the column alone; transform the PARAMETER instead</span>
+<span class="kw">WHERE</span> o.CreatedAtUtc &gt;= <span class="st">'2026-01-01'</span> <span class="kw">AND</span> o.CreatedAtUtc &lt; <span class="st">'2027-01-01'</span>
+<span class="kw">WHERE</span> c.Name = <span class="st">'Rossi'</span>            <span class="cm">-- default collation is case-insensitive anyway</span>
+<span class="kw">WHERE</span> o.OrderNumber <span class="kw">LIKE</span> <span class="st">'2026%'</span>  <span class="cm">-- trailing wildcard can still seek</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The one that catches everyone</div>
+  <p>
+    An <code>NVARCHAR</code> parameter compared against a <code>VARCHAR</code> column causes an
+    <em>implicit conversion</em> on the column &mdash; and instantly turns a seek into a scan on a
+    table that has a perfectly good index. It is invisible in the query text and obvious in the
+    execution plan, which is precisely why you learn to read plans.
+  </p>
+</div>
+
+<h2 id="plans">Reading an execution plan</h2>
+
+<p>
+  In SSMS: <strong>Ctrl+M</strong> then run, or <strong>Ctrl+L</strong> for the estimated plan.
+  Read it right to left. Four things to look for, in order:
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>What you see</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Clustered Index Scan</strong> / <strong>Table Scan</strong> on a big table</td>
+        <td>No usable index, or you broke SARGability. Where you start.</td></tr>
+    <tr><td><strong>Key Lookup</strong></td>
+        <td>The index found the rows but not all the columns, so it goes back to the table once per row. Fix with <code>INCLUDE</code>.</td></tr>
+    <tr><td>A fat arrow</td>
+        <td>Arrow thickness is row count. A fat arrow early means you are filtering too late.</td></tr>
+    <tr><td>Estimated rows ≫ actual rows</td>
+        <td>Stale statistics &mdash; the optimiser chose a plan for a table shape that no longer exists. <code>UPDATE STATISTICS</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">measure, do not guess</div>
+<pre><code><span class="kw">SET STATISTICS IO, TIME ON</span>;
+<span class="cm">-- your query here</span>
+
+<span class="cm">-- "logical reads" is the number to watch: it is the count of 8 KB pages touched,</span>
+<span class="cm">-- and unlike elapsed time it does not change with cache state or machine load.</span>
+<span class="cm">-- Before an index: logical reads 14,882.  After: 6.  That is the whole story.</span></code></pre>
+
+<h2 id="temp">Temp tables and table variables</h2>
+
+<p>
+  Both hold intermediate results, both live in <code>tempdb</code>, and choosing wrongly is a
+  common cause of a query that is fast on ten rows and hopeless on a hundred thousand. The
+  difference that matters is <strong>whether the optimiser knows how many rows are in there</strong>.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th><code>#temp</code> — temp table</th><th><code>@table</code> — table variable</th></tr></thead>
+  <tbody>
+    <tr><td>Statistics</td><td><strong>Yes</strong> — the optimiser sees the real row count</td><td><strong>No</strong> — historically estimated at one row</td></tr>
+    <tr><td>Indexes</td><td>Any, added after creation</td><td>Only what you declare inline</td></tr>
+    <tr><td>Survives a <code>ROLLBACK</code></td><td>No — it is transactional</td><td><strong>Yes</strong> — which is occasionally exactly what you want</td></tr>
+    <tr><td>Visible to a called procedure</td><td>Yes</td><td>No — scoped to the batch</td></tr>
+    <tr><td>Good for</td><td>Many rows, joins, anything needing an index</td><td>A handful of rows, passed around</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The one-row estimate</div>
+  <p>
+    Load 200,000 rows into a table variable and join it to a large table, and the optimiser plans as
+    though there were <em>one</em> row &mdash; so it picks a nested loop and executes it two hundred
+    thousand times. The plan looks tidy; the query does not finish. Swapping
+    <code>@t</code> for <code>#t</code> is often a one-character fix with a thousand-fold effect,
+    and it is worth trying before anything cleverer.
+  </p>
+  <p class="subtle">
+    SQL Server 2019 improved this with deferred compilation for table variables under compatibility
+    level 150, so the estimate is taken after population. Know that it exists; plenty of production
+    databases still run lower, and the rule of thumb below is unaffected.
+  </p>
+</div>
+
+<p>
+  <strong>The rule of thumb:</strong> a few rows you are passing along &mdash; a table variable.
+  Anything you will join, filter or index &mdash; a temp table. And the rollback row is not
+  trivia: a table variable survives a rolled-back transaction, which is how you keep a record of
+  <em>why</em> something failed when the transaction that failed took everything else with it.
+</p>
+
+<h2 id="transactions">Transactions and ACID</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Moving money between two piggy banks: take &euro;10 out of one, put &euro;10 into the other.
+    If the phone rings <em>between</em> those two steps and you never finish, &euro;10 has vanished
+    from the world.
+  </p>
+  <p>
+    A transaction is a promise that both steps count as <strong>one</strong> step. Either both
+    happen or neither does. There is no "in between" that anyone else can ever observe.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <ul>
+    <li><strong>Atomicity</strong> &mdash; all statements commit, or none do.</li>
+    <li><strong>Consistency</strong> &mdash; constraints hold before and after.</li>
+    <li><strong>Isolation</strong> &mdash; concurrent transactions do not see each other&rsquo;s
+        partial work. <em>How much</em> is configurable, and that is the interesting part.</li>
+    <li><strong>Durability</strong> &mdash; once committed, it survives a power cut, because the
+        write-ahead log was flushed first.</li>
+  </ul>
+</div>
+
+<div class="code-head">the shape, with error handling</div>
+<pre><code><span class="kw">BEGIN TRANSACTION</span>;
+<span class="kw">BEGIN TRY</span>
+    <span class="kw">UPDATE</span> dbo.Accounts <span class="kw">SET</span> Balance = Balance - 10 <span class="kw">WHERE</span> Id = 1;
+    <span class="kw">UPDATE</span> dbo.Accounts <span class="kw">SET</span> Balance = Balance + 10 <span class="kw">WHERE</span> Id = 2;
+    <span class="kw">COMMIT</span>;
+<span class="kw">END TRY</span>
+<span class="kw">BEGIN CATCH</span>
+    <span class="kw">IF</span> @@TRANCOUNT &gt; 0 <span class="kw">ROLLBACK</span>;
+    <span class="kw">THROW</span>;                   <span class="cm">-- rethrow; do not swallow</span>
+<span class="kw">END CATCH</span>;</code></pre>
+
+<h3>Isolation levels</h3>
+<p>
+  Each level trades correctness against concurrency. Know the default and know the two you would
+  actually change it to.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Level</th><th>Dirty read</th><th>Non-repeatable read</th><th>Phantom</th><th>Notes</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>READ UNCOMMITTED</td><td>possible</td><td>possible</td><td>possible</td>
+        <td>Same as <code>WITH (NOLOCK)</code>. Can read rows that are rolled back seconds later.</td></tr>
+    <tr><td><strong>READ COMMITTED</strong></td><td>no</td><td>possible</td><td>possible</td>
+        <td><strong>The SQL Server default.</strong></td></tr>
+    <tr><td>REPEATABLE READ</td><td>no</td><td>no</td><td>possible</td><td>Holds shared locks to the end.</td></tr>
+    <tr><td>SERIALIZABLE</td><td>no</td><td>no</td><td>no</td><td>Safest, least concurrent. Range locks.</td></tr>
+    <tr><td>SNAPSHOT</td><td>no</td><td>no</td><td>no</td>
+        <td>Readers never block writers &mdash; uses row versions in <code>tempdb</code>. Often the right answer.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>WITH (NOLOCK)</code> is not "make it fast"</div>
+  <p>
+    It is scattered through Italian enterprise codebases as a performance incantation. What it
+    actually does is permit <strong>dirty reads</strong>: you can read data that is rolled back a
+    moment later, read a row twice, or miss a row entirely if a page split moves it mid-scan. It is
+    acceptable on an approximate dashboard. On an invoice total it is a bug waiting for an
+    auditor. If the real problem is readers blocking writers, the correct answer is
+    <strong>SNAPSHOT isolation</strong>. Saying that in an interview lands very well.
+  </p>
+</div>
+
+<h2 id="deadlocks">Deadlocks and concurrency</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 250" role="img" aria-labelledby="dead-title">
+    <title id="dead-title">Two transactions deadlocking by taking locks in opposite order</title>
+    <defs>
+      <marker id="a8b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="40" y="40" width="230" height="80" rx="9" class="d-panel"/>
+    <rect x="40" y="40" width="230" height="80" rx="9" class="d-stroke"/>
+    <text x="155" y="66" class="d-text" text-anchor="middle">Transaction A</text>
+    <text x="155" y="88" class="d-mono" text-anchor="middle">1. locks Orders</text>
+    <text x="155" y="108" class="d-mono" text-anchor="middle">2. wants Stock …</text>
+
+    <rect x="570" y="40" width="230" height="80" rx="9" class="d-panel"/>
+    <rect x="570" y="40" width="230" height="80" rx="9" class="d-stroke"/>
+    <text x="685" y="66" class="d-text" text-anchor="middle">Transaction B</text>
+    <text x="685" y="88" class="d-mono" text-anchor="middle">1. locks Stock</text>
+    <text x="685" y="108" class="d-mono" text-anchor="middle">2. wants Orders …</text>
+
+    <rect x="330" y="150" width="180" height="34" rx="8" class="d-brand" opacity=".92"/>
+    <text x="420" y="172" class="d-white" text-anchor="middle">Orders (locked by A)</text>
+
+    <rect x="330" y="30" width="180" height="34" rx="8" class="d-brand" opacity=".92"/>
+    <text x="420" y="52" class="d-white" text-anchor="middle">Stock (locked by B)</text>
+
+    <path d="M272 90 L326 56" class="d-arrow" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a8b)"/>
+    <text x="286" y="86" class="d-small">waits</text>
+    <path d="M568 90 L514 164" class="d-arrow" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#a8b)"/>
+    <text x="530" y="120" class="d-small">waits</text>
+
+    <text x="420" y="216" class="d-small" text-anchor="middle">Neither can proceed. SQL Server detects the cycle and kills the cheaper one:</text>
+    <text x="420" y="234" class="d-small" text-anchor="middle">error 1205 — &ldquo;chosen as the deadlock victim&rdquo;.</text>
+  </svg>
+  <figcaption>A deadlock is a cycle, not slowness. The fix is ordering, not more hardware.</figcaption>
+</figure>
+
+<p><strong>Three defences, in order of value:</strong></p>
+<ol>
+  <li><strong>Always take locks in the same order</strong> across the codebase. Alphabetical by
+      table name is arbitrary and works. This prevents most deadlocks outright.</li>
+  <li><strong>Keep transactions short.</strong> Never call an HTTP API or wait for user input
+      inside one.</li>
+  <li><strong>Retry.</strong> Error 1205 is transient by definition &mdash; the victim can simply
+      try again, and often succeeds immediately.</li>
+</ol>
+
+<h3>Optimistic concurrency &mdash; the lost update</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Two people open the same shared document. Anna changes the title, Marco changes the title
+    differently, both press save. Marco saved last, so Anna&rsquo;s change is gone &mdash; and
+    nobody was told.
+  </p>
+  <p>
+    The fix is a version number on the page. Marco&rsquo;s save says "I am updating version 4",
+    but the page is already at version 5, so his save is refused and he is shown what changed.
+  </p>
+</div>
+
+<div class="code-head">rowversion — the standard solution</div>
+<pre><code><span class="cm">-- SQL Server increments this automatically on every UPDATE</span>
+<span class="kw">ALTER TABLE</span> dbo.Orders <span class="kw">ADD</span> RowVersion <span class="ty">ROWVERSION</span>;</code></pre>
+<pre><code><span class="cm">// EF Core: mark it, and concurrent updates now throw instead of silently losing data</span>
+builder.Property(o =&gt; o.RowVersion).IsRowVersion();
+
+<span class="kw">try</span>
+{
+    <span class="kw">await</span> db.SaveChangesAsync(ct);
+}
+<span class="kw">catch</span> (<span class="ty">DbUpdateConcurrencyException</span>)
+{
+    <span class="cm">// somebody else changed this row since we loaded it →</span>
+    <span class="cm">// reload, show the conflict, or merge. Never just overwrite.</span>
+}</code></pre>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Two SSMS query windows side by side. This is the single most useful ten minutes you can spend
+    on this chapter.
+  </p>
+  <pre><code><span class="cm">-- Window 1: open a transaction and do NOT commit</span>
+<span class="kw">BEGIN TRANSACTION</span>;
+<span class="kw">UPDATE</span> dbo.Orders <span class="kw">SET</span> Total = 999 <span class="kw">WHERE</span> Id = 1;
+
+<span class="cm">-- Window 2: now try to read it</span>
+<span class="kw">SELECT</span> Total <span class="kw">FROM</span> dbo.Orders <span class="kw">WHERE</span> Id = 1;         <span class="cm">-- ← hangs. Blocked.</span>
+<span class="kw">SELECT</span> Total <span class="kw">FROM</span> dbo.Orders <span class="kw">WITH</span> (<span class="kw">NOLOCK</span>) <span class="kw">WHERE</span> Id = 1;  <span class="cm">-- ← returns 999</span>
+
+<span class="cm">-- Window 1:</span>
+<span class="kw">ROLLBACK</span>;
+<span class="cm">-- Window 2 read 999. That number never existed. That is a dirty read.</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then create a table with a million rows, query it unindexed with
+    <code>SET STATISTICS IO ON</code>, add the index, and compare the logical reads. Watching
+    14,882 become 6 is more persuasive than any explanation.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-07-sql-and-transactions/README.md">Module 07</a> is the full
+    version of this chapter &mdash; the course names it as the one that gets you hired. Index
+    configuration lives in
+    <a href="../../src/LogiFlow.Infrastructure/Persistence/Configurations/">Persistence/Configurations</a>.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>An index makes reads fast and writes slower. Every one must be justified.</li>
+    <li>One clustered index &mdash; it <em>is</em> the table. Many non-clustered ones.</li>
+    <li>Composite index column order: equality first, then range and sort. Leftmost prefix only.</li>
+    <li>A function on a column, a leading <code>%</code>, or an implicit type conversion each kill
+        index usage. Transform the parameter, not the column.</li>
+    <li><code>INCLUDE</code> turns a Key Lookup into a covering index &mdash; often the single
+        highest-value fix available.</li>
+    <li>Read plans right to left. Look for scans on large tables, key lookups, and fat arrows.</li>
+    <li><code>SET STATISTICS IO ON</code>, and compare <em>logical reads</em>. Time lies; page
+        counts do not.</li>
+    <li>READ COMMITTED is the default. SNAPSHOT is usually the right answer when readers block
+        writers.</li>
+    <li><code>NOLOCK</code> permits dirty reads. Never on anything financial.</li>
+    <li>Deadlocks come from inconsistent lock ordering. Fix the order, keep transactions short,
+        retry on 1205.</li>
+    <li>Never hold a transaction open across a network call or user input.</li>
+    <li>Use <code>rowversion</code> for optimistic concurrency. Silently overwriting somebody
+        else&rsquo;s edit is data loss, not a merge.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between a clustered and a non-clustered index?"</p>
+  <p class="a">
+    The clustered index <em>is</em> the table, stored in key order &mdash; one per table. A
+    non-clustered index is a separate sorted structure with pointers back, and you can have many.
+    Add that a non-clustered index missing a needed column causes a Key Lookup, fixed with
+    <code>INCLUDE</code>.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"This query is slow. Walk me through what you do."</p>
+  <p class="a">
+    Look at the actual execution plan; check for a scan on a large table; check whether the
+    predicate is SARGable; check for key lookups; check estimated versus actual rows for stale
+    statistics. Then measure with <code>SET STATISTICS IO</code> before and after &mdash; and say
+    explicitly that you would not add an index without measuring, because of the write cost.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What are the isolation levels, and what is the default?"</p>
+  <p class="a">
+    Read uncommitted, read committed (the default in SQL Server), repeatable read, serializable,
+    plus snapshot. Map each to the anomaly it prevents: dirty read, non-repeatable read, phantom.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What causes a deadlock and how do you fix it?"</p>
+  <p class="a">
+    Two transactions acquiring the same locks in opposite orders. Fix by standardising lock order,
+    shortening transactions and retrying the victim. Note that a deadlock is a <em>cycle</em>, not
+    a timeout &mdash; SQL Server detects it and kills one side deliberately.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Two users edit the same order at once. What happens?"</p>
+  <p class="a">
+    Without protection, last write wins and the first edit is lost silently. With a
+    <code>rowversion</code> column and EF Core's concurrency token, the second save throws
+    <code>DbUpdateConcurrencyException</code> and you can reload and show the conflict. That is
+    optimistic concurrency; pessimistic locking is the alternative and scales far worse.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

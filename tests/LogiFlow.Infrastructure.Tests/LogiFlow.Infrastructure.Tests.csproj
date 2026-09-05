@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests over Infrastructure that need no infrastructure.
+
+    That sounds like a contradiction and is the point: the retry policy, the redirect guard,
+    the options validation and the MIME construction are all decisions, not I/O, and they are
+    the parts most likely to be wrong. Testing them here keeps them out of the integration
+    suite, which needs a SQL Server and takes seconds rather than milliseconds.
+
+    What is NOT here: anything that touches the database. The claim statement in
+    EmailDeliveryService is T-SQL with locking hints and belongs in
+    LogiFlow.Api.IntegrationTests, against a real server, because a fake cannot tell you
+    whether READPAST does what you think.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogiFlow.Infrastructure\LogiFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NSubstitute" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="NSubstitute" />
+  </ItemGroup>
+
+</Project>

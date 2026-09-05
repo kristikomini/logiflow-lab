@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Area riservata — LogiFlow Academy</title>
+<meta name="description" content="Your LogiFlow Academy account: sync state, the figures the leaderboard sees, and every button that touches your own data.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="account">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main auth-main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Area riservata</p>
+    <h1>Area riservata</h1>
+    <p class="lede">
+      Your account, your sync and your data, in one place. The Italian name is on purpose:
+      <em>area riservata</em> is the sign on the door of the signed-in half of every Italian
+      site you are about to meet &mdash; INPS, Agenzia delle Entrate, and every
+      <em>gestionale</em> you are ever asked to maintain. It is worth recognising before an
+      interviewer says it.
+    </p>
+
+    <div id="auth-host"></div>
+
+    <div class="box kid">
+      <div class="box-title">🧒 Two copies of the same homework book</div>
+      <p>
+        You did page four at home and page seven at your grandmother's, in two different copies
+        of the same book. Now you want one book. The wrong way is to keep the newer copy and
+        throw the other away &mdash; that loses a whole page of work for no reason.
+      </p>
+      <p>
+        So instead you go through it page by page and keep the better version of each: the
+        higher mark, the longer answer, every drawing from either copy. That is exactly what
+        happens every time this site syncs, and it is why answering questions on a phone can
+        never delete what you did on the laptop.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 The merge, and why last-write-wins is wrong here</div>
+      <p>
+        Two devices editing the same document is the <em>normal</em> case for a study tool, not
+        the exception. Last-write-wins &mdash; the default almost everywhere &mdash; would
+        silently discard one of the two, and the loss is unrecoverable: nobody notices a missing
+        month of spaced-repetition history until the cards stop coming back.
+      </p>
+      <p>
+        So <code>merge()</code> in <code>site/assets/account.js</code> combines the two
+        field by field, and every rule is deliberately the conservative one: the higher XP, the
+        better chapter score, the union of notes and badges, the schedule that has progressed
+        further &mdash; but the <em>sum</em> of lapses, because a card you have failed on two
+        machines really is a card you keep failing. Nothing is ever removed by a merge. A stale
+        note is a nuisance; a deleted year of study is not.
+      </p>
+      <p>
+        On top of that sits ordinary optimistic concurrency: the browser sends back the
+        <code>baseRevision</code> it read, and a write built on a revision the server has since
+        moved past is rejected rather than applied. That is the same conflict problem as EF
+        Core's <code>DbUpdateConcurrencyException</code>, and the same answer &mdash;
+        <a href="chapters/12-ef-core.html">12 &middot; EF Core</a>.
+      </p>
+    </div>
+
+    <div class="box trap">
+      <div class="box-title">⚠ Read this before you rely on it</div>
+      <p>
+        <strong>Lose the recovery code and the account is gone.</strong> There is no mail
+        transport, so there is no reset link and nothing else that could verify you. If you
+        never wrote the code down, issue a new one from this page <em>now</em>, while you are
+        still signed in and it is still free to do.
+      </p>
+      <p>
+        <strong>The leaderboard is not an audit.</strong> The server re-derives the figures from
+        your document instead of believing a summary from the browser, which stops the cheapest
+        cheat &mdash; but anyone can edit their own local profile and sync it. It is a nudge.
+      </p>
+      <p>
+        <strong>One instance only.</strong> The schema is created with
+        <code>EnsureCreatedAsync()</code>, not migrations, which is the right trade for a
+        single-instance tutorial service and the wrong one almost anywhere else. Two instances
+        starting at once is a race, and the runtime account would have to hold
+        schema-altering rights it should never have &mdash;
+        <a href="chapters/30-azure-devops-cicd.html">30 &middot; Azure DevOps and CI/CD</a>.
+      </p>
+    </div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/auth-page.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  if (window.LFAuthPage) window.LFAuthPage.mountAccount(document.getElementById("auth-host"));
+})();
+</script>
+</body>
+</html>

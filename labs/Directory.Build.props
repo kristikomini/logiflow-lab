@@ -1,0 +1,16 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      Lab projects are full of `throw new NotImplementedException()` stubs that you
+      are meant to fill in. Warnings-as-errors would make the repo un-buildable
+      until every exercise is solved, so it is deliberately relaxed here.
+    -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1998;CS8618;CS0649;CS0169;EnableGenerateDocumentationFile</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

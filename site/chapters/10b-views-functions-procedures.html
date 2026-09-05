@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10b · Views, functions and stored procedures — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="10b-views-functions-procedures">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 2 &mdash; Data <span>&rsaquo;</span> Chapter 10b</p>
+<h1>Views, functions and stored procedures</h1>
+<p class="lede">
+  Chapter 10 taught you to write a query. This one is about the three ways a team saves a query
+  <em>inside the database</em> &mdash; what each is for, which one is a performance trap that looks
+  helpful, and how to call them from C# without fighting EF Core.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p>
+    <em>"Nozioni base di stored procedure, viste o funzioni SQL."</em> A requirements bullet that
+    names all three by name. That phrasing tells you something: on this team, logic lives in the
+    database as well as in C#, and somebody expects you to open SSMS and read it.
+  </p>
+  <p class="subtle">
+    Chapter 00 read the same signal from a different advert &mdash; T-SQL named before any ORM
+    means people here write SQL by hand.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="three-objects">Three objects, three jobs</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>You have a recipe book. There are three kinds of entry in it.</p>
+  <ul>
+    <li>A <strong>view</strong> is a labelled shortcut: <em>"the good ingredients"</em> means the
+        four things on the top shelf. Saying the label is exactly the same as listing all four
+        &mdash; it saves your breath, not your time.</li>
+    <li>A <strong>function</strong> answers one small question and hands back the answer:
+        <em>"how much does this weigh?"</em> You use it inside other recipes.</li>
+    <li>A <strong>stored procedure</strong> is a whole recipe: do this, then that, then if it went
+        wrong put it back. It does things, rather than just answering.</li>
+  </ul>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th></th><th>View</th><th>Function</th><th>Stored procedure</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Takes parameters</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Usable inside a <code>SELECT</code></td><td>Yes &mdash; like a table</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Can change data</td><td>Rarely, with limits</td><td>No &mdash; forbidden</td><td>Yes</td></tr>
+    <tr><td>Can contain transactions, control flow</td><td>No</td><td>Limited</td><td>Yes</td></tr>
+    <tr><td>Returns</td><td>A result set</td><td>A value or a table</td><td>Zero or more result sets</td></tr>
+    <tr><td>Called from EF Core by</td><td><code>ToView()</code></td><td><code>HasDbFunction()</code></td><td><code>FromSql…</code> / <code>ExecuteSql…</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  The line that decides between them: <strong>a function answers, a procedure acts.</strong> If it
+  needs a transaction, it is a procedure. If it belongs inside a <code>WHERE</code> clause, it is a
+  function or a view.
+</p>
+
+<h2 id="views">Views &mdash; a saved SELECT, not a saved result</h2>
+
+<div class="code-head">a view over the schema from chapter 09</div>
+<pre><code><span class="kw">CREATE OR ALTER VIEW</span> dbo.vw_OrderSummary
+<span class="kw">AS</span>
+<span class="kw">SELECT</span>   o.Id,
+         o.OrderNumber,
+         o.CreatedAtUtc,
+         c.Id           <span class="kw">AS</span> CustomerId,
+         c.Name         <span class="kw">AS</span> CustomerName,
+         <span class="ty">SUM</span>(l.Quantity * l.UnitPrice) <span class="kw">AS</span> Total
+<span class="kw">FROM</span>     dbo.Orders o
+<span class="kw">JOIN</span>     dbo.Customers c <span class="kw">ON</span> c.Id = o.CustomerId
+<span class="kw">JOIN</span>     dbo.OrderLines l <span class="kw">ON</span> l.OrderId = o.Id
+<span class="kw">GROUP BY</span> o.Id, o.OrderNumber, o.CreatedAtUtc, c.Id, c.Name;
+<span class="kw">GO</span>
+
+<span class="cm">-- and now it behaves like a table</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> dbo.vw_OrderSummary <span class="kw">WHERE</span> Total &gt; 1000;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ A view does not make anything faster</div>
+  <p>
+    This is the misconception the question is designed to catch. A normal view stores <strong>no
+    data</strong>. At execution the engine expands the definition into your query and optimises the
+    whole thing as one statement &mdash; so <code>SELECT * FROM vw_OrderSummary WHERE Total &gt;
+    1000</code> costs exactly what the full query costs. You have saved typing, not work.
+  </p>
+  <p>
+    Worse, views nest. A view over a view over a view produces a query touching twelve tables to
+    return two columns, and nobody notices because each layer looks reasonable. If a query is
+    mysteriously slow, expand every view in it before you look anywhere else.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>What a view <em>is</em> good for &mdash; three real reasons, all about contracts:</p>
+  <ul>
+    <li><strong>A stable interface over an unstable schema.</strong> Ten reports select from
+        <code>vw_OrderSummary</code>. You split <code>Orders</code> into two tables and fix the view.
+        The reports never notice.</li>
+    <li><strong>A security boundary.</strong> Grant <code>SELECT</code> on the view and not on the
+        base table, and a user can see order totals without seeing the customer's payment columns.
+        This is real, enforced by the engine, and a good interview answer.</li>
+    <li><strong>Naming a join everybody gets wrong.</strong> If four people have written the same
+        five-table join and two of them wrote it as an inner join by accident, put it in a view once.</li>
+  </ul>
+</div>
+
+<h3 id="updatable">Updatable views, and <code>WITH CHECK OPTION</code></h3>
+
+<p>
+  You can sometimes <code>INSERT</code> or <code>UPDATE</code> through a view, but only when the
+  engine can map each row back to exactly one row of one base table &mdash; so no aggregates, no
+  <code>GROUP BY</code>, no <code>DISTINCT</code>, no <code>UNION</code>, and the write must touch
+  columns from a single table. <code>vw_OrderSummary</code> above fails on every count.
+</p>
+
+<div class="code-head">the surprise WITH CHECK OPTION prevents</div>
+<pre><code><span class="kw">CREATE OR ALTER VIEW</span> dbo.vw_ActiveCustomers
+<span class="kw">AS</span>
+<span class="kw">SELECT</span> Id, Name, IsActive <span class="kw">FROM</span> dbo.Customers <span class="kw">WHERE</span> IsActive = 1
+<span class="kw">WITH CHECK OPTION</span>;   <span class="cm">-- without this line, the UPDATE below succeeds</span>
+<span class="kw">GO</span>
+
+<span class="cm">-- Without CHECK OPTION: this works, and the row silently vanishes from the
+-- view you just updated it through. With it: the UPDATE is rejected.</span>
+<span class="kw">UPDATE</span> dbo.vw_ActiveCustomers <span class="kw">SET</span> IsActive = 0 <span class="kw">WHERE</span> Id = 42;</code></pre>
+
+<h3 id="indexed-views">Indexed views &mdash; the one that <em>does</em> store data</h3>
+
+<p>
+  Add <code>WITH SCHEMABINDING</code> and a unique clustered index and the view stops being a
+  shortcut and becomes real, persisted, automatically-maintained data. This is SQL Server's
+  materialised view.
+</p>
+
+<div class="code-head">a materialised aggregate</div>
+<pre><code><span class="kw">CREATE OR ALTER VIEW</span> dbo.vw_CustomerTotals
+<span class="kw">WITH SCHEMABINDING</span>            <span class="cm">-- required, and note the two-part dbo. names below</span>
+<span class="kw">AS</span>
+<span class="kw">SELECT</span>   o.CustomerId,
+         <span class="ty">SUM</span>(o.Total)   <span class="kw">AS</span> Total,
+         <span class="ty">COUNT_BIG</span>(*)   <span class="kw">AS</span> OrderCount   <span class="cm">-- COUNT_BIG, not COUNT. Required.</span>
+<span class="kw">FROM</span>     dbo.Orders o
+<span class="kw">GROUP BY</span> o.CustomerId;
+<span class="kw">GO</span>
+
+<span class="kw">CREATE UNIQUE CLUSTERED INDEX</span> IX_vw_CustomerTotals
+    <span class="kw">ON</span> dbo.vw_CustomerTotals(CustomerId);   <span class="cm">-- this is what materialises it</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ What it costs</div>
+  <ul>
+    <li><strong>Every write to <code>Orders</code> now also maintains this index</strong>, inside
+        the same transaction. You have moved cost from reads to writes. On a table written far more
+        often than the aggregate is read, that is a bad trade.</li>
+    <li><strong><code>SCHEMABINDING</code> locks the base tables.</strong> You cannot drop or alter a
+        column the view references until you drop the view. That is a feature for correctness and a
+        genuine friction at deployment time &mdash; your migration has to drop and recreate it.</li>
+    <li><strong>The rules are strict:</strong> no outer joins, no subqueries, no
+        <code>DISTINCT</code>, deterministic expressions only, and <code>COUNT_BIG(*)</code>
+        whenever you aggregate.</li>
+    <li><strong>Automatic matching is an Enterprise feature.</strong> On other editions the
+        optimiser will not silently substitute the indexed view into a query against the base
+        tables &mdash; you must reference the view and add <code>WITH (NOEXPAND)</code>.</li>
+  </ul>
+</div>
+
+<h2 id="procedures">Stored procedures, properly</h2>
+
+<p>
+  Chapter 10 showed you one. Here is the version with everything a real one has, and every line is
+  there for a reason.
+</p>
+
+<div class="code-head">dbo.usp_PlaceOrder — a procedure that acts</div>
+<pre><code><span class="kw">CREATE OR ALTER PROCEDURE</span> dbo.usp_PlaceOrder
+    @CustomerId  <span class="ty">INT</span>,
+    @OrderNumber <span class="ty">NVARCHAR</span>(32),
+    @OrderId     <span class="ty">INT</span> <span class="kw">OUTPUT</span>          <span class="cm">-- give the caller back the new id</span>
+<span class="kw">AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">SET</span> NOCOUNT <span class="kw">ON</span>;      <span class="cm">-- stop "(1 row affected)" chatter on every statement.
+                          -- Not cosmetic: those messages are network round-trips,
+                          -- and some clients mistake them for result sets.</span>
+    <span class="kw">SET</span> XACT_ABORT <span class="kw">ON</span>;   <span class="cm">-- on any error, kill the transaction. Without it a
+                          -- statement can fail and leave the transaction OPEN,
+                          -- holding locks, until the connection is reset.</span>
+
+    <span class="kw">BEGIN TRY</span>
+        <span class="kw">BEGIN TRANSACTION</span>;
+
+        <span class="kw">IF NOT EXISTS</span> (<span class="kw">SELECT</span> 1 <span class="kw">FROM</span> dbo.Customers <span class="kw">WHERE</span> Id = @CustomerId)
+            <span class="kw">THROW</span> 50001, <span class="st">'Customer does not exist.'</span>, 1;
+
+        <span class="kw">INSERT INTO</span> dbo.Orders (CustomerId, OrderNumber, CreatedAtUtc, Total)
+        <span class="kw">VALUES</span> (@CustomerId, @OrderNumber, <span class="ty">SYSUTCDATETIME</span>(), 0);
+
+        <span class="kw">SET</span> @OrderId = <span class="ty">SCOPE_IDENTITY</span>();   <span class="cm">-- SCOPE_IDENTITY, never @@IDENTITY:
+                                          -- @@IDENTITY crosses into triggers.</span>
+
+        <span class="kw">COMMIT TRANSACTION</span>;
+    <span class="kw">END TRY</span>
+    <span class="kw">BEGIN CATCH</span>
+        <span class="cm">-- XACT_STATE() = -1 means uncommittable: rollback is the only option.</span>
+        <span class="kw">IF</span> <span class="ty">XACT_STATE</span>() &lt;&gt; 0 <span class="kw">ROLLBACK TRANSACTION</span>;
+        <span class="kw">THROW</span>;   <span class="cm">-- re-raise with the ORIGINAL error and line number.
+                 -- RAISERROR here would lose both.</span>
+    <span class="kw">END CATCH</span>
+<span class="kw">END</span>;</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong><code>THROW</code> versus <code>RAISERROR</code>.</strong> <code>THROW</code> with no
+    arguments inside a <code>CATCH</code> re-raises the original error unchanged &mdash; message,
+    number, line. <code>RAISERROR</code> cannot do that; it always produces a new error, so the
+    stack trace effectively stops at your <code>CATCH</code>. Same idea as
+    <code>throw;</code> versus <code>throw ex;</code> in C# (chapter 07), and interviewers who know
+    T-SQL like the parallel.
+  </p>
+  <p>
+    <strong>Return value versus <code>OUTPUT</code>.</strong> <code>RETURN</code> in a procedure can
+    only return an <code>INT</code>, and by convention it means a status code, not data. Anything
+    that is data goes in an <code>OUTPUT</code> parameter or a result set. Using
+    <code>RETURN</code> for a row count is a classic legacy habit that confuses every new reader.
+  </p>
+</div>
+
+<h3 id="sniffing">Parameter sniffing &mdash; "it was fast yesterday"</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A courier learns the route to your street the first time they deliver to it, and then uses that
+    same route for every delivery in the city. It was a great route &mdash; for your street.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    SQL Server compiles a procedure's plan on first execution, using the parameter values it was
+    <em>given that time</em>, then caches and reuses it. If the first call was
+    <code>@CustomerId = 7</code> (three orders) the plan will use an index seek and a nested loop.
+    The same plan applied to the customer with 400,000 orders is catastrophic &mdash; and nothing
+    changed in your code, which is why the report says "it was fast yesterday".
+  </p>
+  <p>The fixes, roughly in the order you should reach for them:</p>
+  <ol>
+    <li><strong>Fix the indexes first.</strong> Sniffing hurts most when both plans are bad.</li>
+    <li><code><strong>OPTION (RECOMPILE)</strong></code> on the offending statement &mdash; a fresh
+        plan every time. Correct plan, small CPU cost per call. Usually the right answer for a
+        procedure called occasionally with wildly varying selectivity.</li>
+    <li><code><strong>OPTIMIZE FOR UNKNOWN</strong></code> &mdash; ignore the actual value and use
+        average statistics. Deliberately mediocre for everyone, which is sometimes exactly what you
+        want.</li>
+    <li>Split into two procedures when there are genuinely two shapes of query.</li>
+  </ol>
+  <p class="subtle">
+    Worth knowing: SQL Server 2022 added Parameter Sensitive Plan optimisation, which keeps several
+    plans for a sensitive predicate. It reduces the problem; it does not remove the interview
+    question.
+  </p>
+</div>
+
+<h2 id="functions">Functions &mdash; one of these three is a trap</h2>
+
+<h3 id="scalar">Scalar functions: the one that quietly destroys performance</h3>
+
+<div class="code-head">✗ looks tidy, behaves terribly</div>
+<pre><code><span class="kw">CREATE OR ALTER FUNCTION</span> dbo.fn_OrderTotal(@OrderId <span class="ty">INT</span>)
+<span class="kw">RETURNS</span> <span class="ty">DECIMAL</span>(18,2)
+<span class="kw">AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">RETURN</span> (<span class="kw">SELECT</span> <span class="ty">SUM</span>(Quantity * UnitPrice)
+            <span class="kw">FROM</span> dbo.OrderLines <span class="kw">WHERE</span> OrderId = @OrderId);
+<span class="kw">END</span>;
+<span class="kw">GO</span>
+
+<span class="cm">-- One million orders. This calls the function ONE MILLION TIMES,
+-- once per row, each one its own little query.</span>
+<span class="kw">SELECT</span> Id, dbo.fn_OrderTotal(Id) <span class="kw">FROM</span> dbo.Orders;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Why it is worse than it looks</div>
+  <ul>
+    <li><strong>Row-by-row execution.</strong> The function is invoked per row rather than folded
+        into the set operation the engine is good at.</li>
+    <li><strong>The optimiser cannot see inside it.</strong> It costs the call at roughly nothing,
+        so the execution plan looks <em>cheap</em> while the query takes four minutes. The plan lies
+        to you &mdash; which is why this is so hard to find.</li>
+    <li><strong>Historically it forced the whole query to run single-threaded</strong>, removing
+        parallelism from an otherwise parallel plan.</li>
+    <li><strong>In a <code>WHERE</code> clause it also kills SARGability</strong> (chapter 11): no
+        index seek is possible on <code>WHERE dbo.fn_Something(Col) = 5</code>.</li>
+  </ul>
+  <p class="subtle">
+    SQL Server 2019 added <em>scalar UDF inlining</em>, which rewrites many of these into the
+    surrounding query automatically. It needs compatibility level 150, it does not apply to every
+    function, and plenty of production databases run lower. Know that it exists; do not rely on it.
+  </p>
+</div>
+
+<h3 id="itvf">Inline table-valued functions: the good one</h3>
+
+<p>
+  A single <code>RETURN (SELECT …)</code>, no <code>BEGIN</code>, no variables. The optimiser
+  expands it into the calling query exactly like a view &mdash; so it is, in effect,
+  <strong>a view that takes parameters</strong>, and it is the right default whenever you were
+  reaching for a function.
+</p>
+
+<div class="code-head">✓ the same idea, done correctly</div>
+<pre><code><span class="kw">CREATE OR ALTER FUNCTION</span> dbo.fn_OrdersForCustomer(@CustomerId <span class="ty">INT</span>)
+<span class="kw">RETURNS TABLE</span>          <span class="cm">-- no BEGIN/END. That is what makes it inline.</span>
+<span class="kw">AS</span>
+<span class="kw">RETURN</span>
+(
+    <span class="kw">SELECT</span> o.Id, o.OrderNumber, o.Total
+    <span class="kw">FROM</span>   dbo.Orders o
+    <span class="kw">WHERE</span>  o.CustomerId = @CustomerId
+);
+<span class="kw">GO</span>
+
+<span class="cm">-- composable, and the optimiser sees straight through it</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> dbo.fn_OrdersForCustomer(42) <span class="kw">WHERE</span> Total &gt; 100;
+
+<span class="cm">-- and it joins, per row, with APPLY — still one set-based plan</span>
+<span class="kw">SELECT</span> c.Name, o.OrderNumber
+<span class="kw">FROM</span>   dbo.Customers c
+<span class="kw">CROSS APPLY</span> dbo.fn_OrdersForCustomer(c.Id) o;</code></pre>
+
+<h3 id="mstvf">Multi-statement table-valued functions: the middle child</h3>
+
+<p>
+  If it declares <code>RETURNS @t TABLE (…)</code> and has a <code>BEGIN</code>, it builds the whole
+  result into a table variable first. The optimiser cannot see through it and historically guessed
+  a fixed row count &mdash; one row, then a hundred &mdash; which produces exactly the wrong join
+  strategy when the real answer is a million. Interleaved execution improved this in SQL Server
+  2017. <strong>If you can rewrite it as an inline TVF, do.</strong>
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 210" role="img" aria-labelledby="fn-title">
+    <title id="fn-title">How the three function types are executed</title>
+    <rect x="20" y="30" width="256" height="160" rx="9" class="d-panel"/>
+    <rect x="20" y="30" width="256" height="160" rx="9" class="d-stroke"/>
+    <text x="40" y="56" class="d-text" style="font-weight:700">Scalar</text>
+    <text x="40" y="82" class="d-small">Called once per row.</text>
+    <text x="40" y="102" class="d-small">Optimiser sees a black box</text>
+    <text x="40" y="120" class="d-small">and costs it at ~zero.</text>
+    <text x="40" y="150" class="d-mono" style="font-size:12px">✗ the plan lies</text>
+    <text x="40" y="172" class="d-small">avoid, or inline (2019+)</text>
+
+    <rect x="292" y="30" width="256" height="160" rx="9" class="d-panel"/>
+    <rect x="292" y="30" width="256" height="160" rx="9" class="d-stroke"/>
+    <text x="312" y="56" class="d-text" style="font-weight:700">Multi-statement TVF</text>
+    <text x="312" y="82" class="d-small">Materialises into a table</text>
+    <text x="312" y="102" class="d-small">variable, then joins.</text>
+    <text x="312" y="120" class="d-small">Cardinality is guessed.</text>
+    <text x="312" y="150" class="d-mono" style="font-size:12px">~ usually rewritable</text>
+
+    <rect x="564" y="30" width="256" height="160" rx="9" class="d-brand" opacity=".14"/>
+    <rect x="564" y="30" width="256" height="160" rx="9" class="d-stroke"/>
+    <text x="584" y="56" class="d-text" style="font-weight:700">Inline TVF</text>
+    <text x="584" y="82" class="d-small">Expanded into the calling</text>
+    <text x="584" y="102" class="d-small">query, like a view.</text>
+    <text x="584" y="120" class="d-small">Real statistics, real plan.</text>
+    <text x="584" y="150" class="d-mono" style="font-size:12px">✓ the default choice</text>
+    <text x="584" y="172" class="d-small">a view that takes parameters</text>
+  </svg>
+  <figcaption>The difference is not syntax preference. It is whether the optimiser can see what you wrote.</figcaption>
+</figure>
+
+<h2 id="triggers">Triggers &mdash; the fourth object, deliberately left out</h2>
+
+<p>
+  A trigger runs automatically when a table is written to. This repository has none, and being able
+  to say <em>why</em> is more useful than being able to write one.
+</p>
+
+<div class="code-head">what one looks like, so you can read it in a legacy schema</div>
+<pre><code><span class="kw">CREATE OR ALTER TRIGGER</span> dbo.trg_Orders_Audit
+<span class="kw">ON</span> dbo.Orders <span class="kw">AFTER UPDATE</span>
+<span class="kw">AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">SET</span> NOCOUNT <span class="kw">ON</span>;
+    <span class="cm">-- `inserted` and `deleted` are the new and old rows. Note they are TABLES:
+    -- a trigger fires ONCE PER STATEMENT, not once per row. Code written as
+    -- though it were per-row is the classic trigger bug — it silently handles
+    -- only the first row of a multi-row UPDATE.</span>
+    <span class="kw">INSERT INTO</span> dbo.OrderAudit (OrderId, OldStatus, NewStatus, ChangedAtUtc)
+    <span class="kw">SELECT</span> i.Id, d.Status, i.Status, <span class="ty">SYSUTCDATETIME</span>()
+    <span class="kw">FROM</span> inserted i <span class="kw">JOIN</span> deleted d <span class="kw">ON</span> d.Id = i.Id
+    <span class="kw">WHERE</span> i.Status &lt;&gt; d.Status;
+<span class="kw">END</span>;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Why this codebase has none</div>
+  <ul>
+    <li>
+      <strong>Action at a distance.</strong> An <code>UPDATE</code> that also writes two other
+      tables, and nothing at the call site says so. The next reader debugs the C# for an hour
+      before thinking to look in the schema.
+    </li>
+    <li>
+      <strong>It is inside your transaction.</strong> A slow trigger makes every write slow and
+      widens every lock; a failing trigger rolls back a statement the caller believed was simple.
+    </li>
+    <li>
+      <strong>It breaks EF Core's fast path.</strong> EF uses an <code>OUTPUT</code> clause to read
+      back generated values, and SQL Server forbids that on a table with triggers &mdash; so saving
+      throws until you declare <code>.ToTable(t =&gt; t.HasTrigger("trg_…"))</code>, which switches
+      EF to a slower, less batched strategy for that table. A trigger added by a DBA can therefore
+      break an application nobody touched.
+    </li>
+  </ul>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 When a trigger is still the right answer</div>
+  <p>
+    When you do <strong>not control every writer</strong>. If rows arrive from an integration job,
+    a nightly import and someone in SSMS as well as from your API, then auditing in the application
+    only audits the polite callers. The database is the one place all of them pass through &mdash;
+    the same argument chapter 20 makes about cache invalidation for a write path you do not own.
+  </p>
+  <p>
+    Say that, and then say the alternative you would prefer: <strong>temporal tables</strong>
+    (<code>SYSTEM_VERSIONING</code>) give you full row history maintained by the engine with no
+    procedural code to get wrong, and they are the modern answer to "who changed this and when".
+  </p>
+</div>
+
+<h2 id="from-csharp">Calling them from C#</h2>
+
+<p>
+  This is the half that most SQL tutorials skip and every real ticket needs.
+</p>
+
+<div class="code-head">ADO.NET — a procedure with an OUTPUT parameter</div>
+<pre><code><span class="kw">await using var</span> conn = <span class="kw">new</span> <span class="ty">SqlConnection</span>(connectionString);
+<span class="kw">await using var</span> cmd  = <span class="kw">new</span> <span class="ty">SqlCommand</span>(<span class="st">"dbo.usp_PlaceOrder"</span>, conn)
+{
+    CommandType = <span class="ty">CommandType</span>.StoredProcedure   <span class="cm">// forget this and it tries to run
+                                              // the NAME as a SQL statement</span>
+};
+
+cmd.Parameters.Add(<span class="st">"@CustomerId"</span>,  <span class="ty">SqlDbType</span>.Int).Value          = customerId;
+cmd.Parameters.Add(<span class="st">"@OrderNumber"</span>, <span class="ty">SqlDbType</span>.NVarChar, 32).Value = orderNumber;
+
+<span class="kw">var</span> idParam = cmd.Parameters.Add(<span class="st">"@OrderId"</span>, <span class="ty">SqlDbType</span>.Int);
+idParam.Direction = <span class="ty">ParameterDirection</span>.Output;
+
+<span class="kw">await</span> conn.OpenAsync(ct);
+<span class="kw">await</span> cmd.ExecuteNonQueryAsync(ct);
+
+<span class="kw">var</span> newId = (<span class="kw">int</span>)idParam.Value;   <span class="cm">// only populated AFTER execution</span></code></pre>
+
+<div class="code-head">EF Core — the three shapes</div>
+<pre><code><span class="cm">// 1. Procedure returning rows that match an entity.
+//    Interpolation here is parameterised, deliberately (chapter 10).</span>
+<span class="kw">var</span> orders = <span class="kw">await</span> db.Orders
+    .FromSqlInterpolated($<span class="st">"EXEC dbo.usp_GetCustomerOrders {customerId}"</span>)
+    .ToListAsync(ct);
+
+<span class="cm">// 2. Procedure returning a shape that is not an entity.
+//    Declare a keyless type — see the model configuration below.</span>
+<span class="kw">var</span> rows = <span class="kw">await</span> db.OrderSummaries
+    .FromSqlInterpolated($<span class="st">"EXEC dbo.usp_Summary {from}"</span>)
+    .ToListAsync(ct);
+
+<span class="cm">// 3. Procedure that just does something.</span>
+<span class="kw">await</span> db.Database.ExecuteSqlInterpolatedAsync(
+    $<span class="st">"EXEC dbo.usp_ArchiveOrders {cutoffUtc}"</span>, ct);</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ You cannot compose LINQ on top of a procedure</div>
+  <pre><code><span class="cm">// ✗ throws. EF cannot wrap EXEC in a subquery, so there is nothing to add
+//   a WHERE or an ORDER BY to.</span>
+db.Orders.FromSqlInterpolated($<span class="st">"EXEC dbo.usp_GetOrders {id}"</span>)
+         .Where(o =&gt; o.Total &gt; 100)
+         .OrderBy(o =&gt; o.CreatedAtUtc);
+
+<span class="cm">// ✓ either filter inside the procedure, or materialise first and accept
+//   that the filtering now happens in your process (chapter 06's rule).</span>
+        .AsEnumerable().Where(o =&gt; o.Total &gt; 100);</code></pre>
+  <p>
+    A <em>view</em> or an <em>inline TVF</em> composes perfectly &mdash; which is a concrete reason
+    to prefer them when the thing is a query rather than an action.
+  </p>
+</div>
+
+<div class="code-head">mapping a view and a function in the model</div>
+<pre><code><span class="kw">protected override void</span> OnModelCreating(<span class="ty">ModelBuilder</span> b)
+{
+    <span class="cm">// A view: read-only, no key, no migration generated for it —
+    // you create the view yourself with migrationBuilder.Sql(...).</span>
+    b.Entity&lt;<span class="ty">OrderSummary</span>&gt;()
+        .HasNoKey()
+        .ToView(<span class="st">"vw_OrderSummary"</span>);
+
+    <span class="cm">// An inline TVF, callable INSIDE a LINQ query. This is the one that
+    // makes database logic composable from C#.</span>
+    b.HasDbFunction(() =&gt; OrdersForCustomer(<span class="kw">default</span>))
+     .HasName(<span class="st">"fn_OrdersForCustomer"</span>);
+}
+
+<span class="kw">public</span> <span class="ty">IQueryable</span>&lt;<span class="ty">Order</span>&gt; OrdersForCustomer(<span class="kw">int</span> customerId)
+    =&gt; FromExpression(() =&gt; OrdersForCustomer(customerId));
+
+<span class="cm">// …and now this translates to SQL, filter and all:</span>
+<span class="kw">var</span> big = <span class="kw">await</span> db.OrdersForCustomer(42)
+                 .Where(o =&gt; o.Total &gt; 100)
+                 .ToListAsync(ct);</code></pre>
+
+<div class="box note">
+  <div class="box-title">When Dapper is the better tool</div>
+  <p>
+    If a procedure returns three result sets, or a shape that changes by parameter, EF Core will
+    fight you. Dapper reads a procedure into a POCO in one line and handles multiple result sets
+    natively. Chapter 12 makes the general argument; this is the specific case where a team that
+    otherwise uses EF Core keeps Dapper around, and saying so shows judgement rather than
+    tool loyalty.
+  </p>
+</div>
+
+<h2 id="where-logic">So where should the logic live?</h2>
+
+<p>
+  You will be asked this, and there is no correct answer &mdash; there is a considered one. Argue
+  both sides:
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Logic in the database</th><th>Logic in C#</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>One place, whoever calls it &mdash; the API, the nightly job, the report tool, the person in SSMS.</td>
+      <td>One language, one repository, one review process.</td>
+    </tr>
+    <tr>
+      <td>Set-based work stays next to the data. Updating a million rows should not travel over a network.</td>
+      <td>Testable without a database. Debuggable with a debugger.</td>
+    </tr>
+    <tr>
+      <td>Can be fixed in production without a deployment.</td>
+      <td>Versioned with the code that calls it; a migration is reviewable and repeatable.</td>
+    </tr>
+    <tr>
+      <td class="subtle">…which is also the problem: changed without review, invisible to source control.</td>
+      <td class="subtle">…which is also the problem: a row-by-row loop in C# where one <code>UPDATE</code> would do.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  The defensible position, and the one this repository takes: <strong>business rules in the domain,
+  set-based data work in the database.</strong> An invariant like "an order cannot ship twice"
+  belongs in C# where it is tested (chapter 23). Archiving two million rows belongs in a procedure,
+  because pulling them into memory to send them back is absurd. And whatever a team already does,
+  <em>consistency beats your preference</em> &mdash; say that too.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Against the schema from chapter 09:</p>
+  <ol>
+    <li>Write <code>vw_CustomerOrderCounts</code> including customers with zero orders. Then try to
+        <code>UPDATE</code> a customer name through it and explain the result.</li>
+    <li>Write <code>fn_CustomerTotal</code> as a <em>scalar</em> function and select it over every
+        customer. Note the elapsed time and look at the plan &mdash; note how cheap it claims to be.</li>
+    <li>Rewrite it as an inline TVF used with <code>CROSS APPLY</code>. Compare both plans. This
+        contrast is the whole lesson.</li>
+    <li>Write <code>usp_ArchiveOrders</code> with <code>TRY/CATCH</code>, <code>XACT_ABORT</code> and
+        an <code>OUTPUT</code> row count. Force an error halfway and prove nothing was committed.</li>
+    <li>Call it from a small console app with <code>CommandType.StoredProcedure</code> and read the
+        <code>OUTPUT</code> parameter back.</li>
+    <li>Add <code>WITH SCHEMABINDING</code> to a view, then try to drop a column it references. Read
+        the error &mdash; that is the deployment friction, felt once.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>A view is a saved query, not saved data.</strong> It makes nothing faster; it makes things nameable.</li>
+    <li><strong>A view is a contract and a permission boundary.</strong> That is the real reason to create one.</li>
+    <li><strong>Nested views are how a two-column query ends up touching twelve tables.</strong> Expand them before blaming the optimiser.</li>
+    <li><strong>An indexed view is real data</strong> &mdash; needs <code>SCHEMABINDING</code>, a unique clustered index and <code>COUNT_BIG(*)</code>, and moves cost from reads onto every write.</li>
+    <li><strong>Scalar UDFs run per row and lie in the execution plan.</strong> The plan looks cheap while the query is not.</li>
+    <li><strong>Inline TVFs are views with parameters.</strong> Make them the default; <code>RETURNS TABLE</code> with no <code>BEGIN</code>.</li>
+    <li><strong>A function answers, a procedure acts.</strong> If it needs a transaction, it is a procedure.</li>
+    <li><strong><code>SET NOCOUNT ON</code> and <code>SET XACT_ABORT ON</code> at the top of every procedure.</strong> One saves chatter, the other prevents an abandoned open transaction holding locks.</li>
+    <li><strong>Bare <code>THROW</code> in a <code>CATCH</code> preserves the original error;</strong> <code>RAISERROR</code> loses it. Same rule as <code>throw;</code> versus <code>throw ex;</code>.</li>
+    <li><strong><code>SCOPE_IDENTITY()</code>, never <code>@@IDENTITY</code></strong> &mdash; the latter reaches into triggers.</li>
+    <li><strong>Parameter sniffing means the plan was compiled for somebody else's parameter.</strong> Indexes first, then <code>OPTION (RECOMPILE)</code>.</li>
+    <li><strong>You cannot compose LINQ over <code>EXEC</code>.</strong> Views and inline TVFs compose; procedures do not.</li>
+    <li><strong>A trigger fires once per statement, not once per row</strong> &mdash; <code>inserted</code> and <code>deleted</code> are tables. Prefer temporal tables for history, and reach for a trigger only when you do not control every writer.</li>
+    <li><strong>Business rules in the domain, set-based work in the database</strong> &mdash; and consistency with the existing team beats both.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is a view, and does it improve performance?"</p>
+  <p class="a">
+    A named <code>SELECT</code> that stores no data; at execution its definition is expanded into
+    the calling query, so on its own it changes nothing about cost. It is for a stable contract over
+    a changing schema, for granting access to some columns and not others, and for naming a join
+    people keep getting wrong. The exception is an indexed view, which is materialised and genuinely
+    is stored &mdash; at the price of maintaining it on every write to the base tables.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Difference between a stored procedure and a function?"</p>
+  <p class="a">
+    A function answers a question and can be used inside a <code>SELECT</code> or a
+    <code>WHERE</code>; it cannot modify data. A procedure performs an action, can manage
+    transactions and control flow, can return multiple result sets, and cannot be called from inside
+    a query. The practical rule: if it needs a transaction it is a procedure; if it belongs in a
+    <code>WHERE</code> clause it is a function.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why are scalar functions considered a performance problem?"</p>
+  <p class="a">
+    They execute once per row instead of as part of the set operation, the optimiser cannot see
+    inside them so it costs them at nearly nothing &mdash; meaning the execution plan looks cheap
+    while the query is slow &mdash; and historically they removed parallelism from the whole plan.
+    In a <code>WHERE</code> clause they also prevent an index seek. Prefer an inline table-valued
+    function, which the optimiser expands like a view. Mention 2019 scalar UDF inlining as a
+    mitigation that requires compatibility level 150 and does not cover every function.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A stored procedure that was fast for months is suddenly slow. Nothing changed."</p>
+  <p class="a">
+    Parameter sniffing. The cached plan was compiled for whatever parameters were passed the first
+    time after the last recompile, and a plan that suits a customer with three orders is disastrous
+    for one with 400,000. Confirm by running the statement with <code>OPTION (RECOMPILE)</code> and
+    comparing. Fix the indexes first, then <code>RECOMPILE</code> on the offending statement or
+    <code>OPTIMIZE FOR UNKNOWN</code>. Bonus: SQL Server 2022's Parameter Sensitive Plan
+    optimisation.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you call a stored procedure from EF Core?"</p>
+  <p class="a">
+    <code>FromSqlInterpolated($"EXEC …")</code> when it returns rows matching an entity or a keyless
+    type configured with <code>HasNoKey()</code>, and
+    <code>Database.ExecuteSqlInterpolatedAsync</code> when it just does something. Then the caveat
+    that shows you have actually done it: <strong>you cannot compose LINQ on top of a procedure
+    call</strong> &mdash; no <code>Where</code> or <code>OrderBy</code> afterwards &mdash; because
+    EF cannot wrap <code>EXEC</code> in a subquery. Views and inline TVFs compose; procedures do
+    not. And for multiple result sets, Dapper is the better tool.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>SET NOCOUNT ON</code> do, and why is it in every procedure?"</p>
+  <p class="a">
+    It suppresses the "n rows affected" message each statement sends back. It is not cosmetic: those
+    are extra network round-trips inside a loop, and some client libraries mistake them for result
+    sets. Pair it with <code>SET XACT_ABORT ON</code>, which guarantees a failing statement aborts
+    the transaction instead of leaving it open and holding locks.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Should business logic live in the database?"</p>
+  <p class="a">
+    Argue both sides and then commit. In the database it is shared by every caller and keeps
+    set-based work next to the data; in C# it is testable, debuggable, versioned with the code and
+    reviewed. My default is business rules in the domain and bulk set-based work in the database
+    &mdash; but the strongest part of the answer is that consistency with what the team already does
+    beats my preference, because a codebase with logic in both places and a rule in neither is the
+    worst outcome.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

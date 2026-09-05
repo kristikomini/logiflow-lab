@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15 · Securing an API — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="15-api-security">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 15</p>
+<h1>Securing an API</h1>
+<p class="lede">
+  <a href="14-web-api.html">The previous chapter</a> built an API that anyone can call. This one
+  is about who is allowed to, how the server knows, and the handful of mistakes that put real
+  companies in the newspaper. None of it is exotic: authentication, authorization, and about six
+  recurring bugs.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    The advert says <em>"sviluppo di Web API"</em> and stops there — but there is no such thing as
+    an unsecured production API. Italian adverts name <em>autenticazione</em>,
+    <em>autorizzazione</em> and JWT explicitly, and in interviews this is the standard follow-up
+    once you have answered the REST questions well. It is also the area where a junior can look
+    unusually strong, because most candidates can define a JWT and very few can say what it
+    <em>cannot</em> do.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="authn-authz">Authentication vs authorization</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    At the school gate the guard checks your face against the photo on your card. That is
+    <strong>authentication</strong>: <em>are you who you say you are?</em>
+  </p>
+  <p>
+    Then you try to walk into the staff room. The guard knows exactly who you are — and says no
+    anyway. That is <strong>authorization</strong>: <em>are you allowed to do this?</em>
+  </p>
+  <p>
+    Two different questions, and always in that order. You cannot decide whether someone is
+    allowed in before you know who they are.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>Authentication (AuthN)</strong> establishes identity and populates
+    <code>HttpContext.User</code> with a <code>ClaimsPrincipal</code>.
+    <strong>Authorization (AuthZ)</strong> evaluates a policy against that principal and the
+    resource.
+  </p>
+  <p>
+    In ASP.NET Core they are two separate middlewares, and the order in
+    <code>Program.cs</code> is not a style choice:
+  </p>
+  <pre><code>app.UseAuthentication();   <span class="cm">// who are you  → fills HttpContext.User</span>
+app.UseAuthorization();    <span class="cm">// may you      → reads HttpContext.User</span></code></pre>
+  <p>
+    Reverse them and authorization runs against an empty principal. Every request is then
+    anonymous, every <code>[Authorize]</code> fails, and — worse, in some configurations — a
+    policy written as "deny if role X" quietly passes. This is a genuinely common production bug
+    and a favourite interview question.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 240" role="img" aria-labelledby="sec-title">
+    <title id="sec-title">A request passing through authentication then authorization before reaching the endpoint</title>
+    <defs>
+      <marker id="a13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20"  y="70" width="120" height="56" rx="8" class="d-panel d-stroke"/>
+    <text x="80"  y="94"  class="d-text" text-anchor="middle" style="font-size:12px">Request</text>
+    <text x="80"  y="112" class="d-small" text-anchor="middle">Authorization: Bearer …</text>
+
+    <line x1="142" y1="98" x2="196" y2="98" class="d-arrow" marker-end="url(#a13)"/>
+
+    <rect x="200" y="62" width="170" height="72" rx="8" class="d-panel d-stroke"/>
+    <text x="285" y="86"  class="d-text" text-anchor="middle" style="font-size:12px">UseAuthentication</text>
+    <text x="285" y="104" class="d-small" text-anchor="middle">verify signature,</text>
+    <text x="285" y="120" class="d-small" text-anchor="middle">issuer, audience, expiry</text>
+
+    <line x1="372" y1="98" x2="426" y2="98" class="d-arrow" marker-end="url(#a13)"/>
+
+    <rect x="430" y="62" width="170" height="72" rx="8" class="d-panel d-stroke"/>
+    <text x="515" y="86"  class="d-text" text-anchor="middle" style="font-size:12px">UseAuthorization</text>
+    <text x="515" y="104" class="d-small" text-anchor="middle">evaluate the policy</text>
+    <text x="515" y="120" class="d-small" text-anchor="middle">against HttpContext.User</text>
+
+    <line x1="602" y1="98" x2="656" y2="98" class="d-arrow" marker-end="url(#a13)"/>
+
+    <rect x="660" y="70" width="160" height="56" rx="8" class="d-brand"/>
+    <text x="740" y="103" class="d-white" text-anchor="middle" style="font-size:12px">Your endpoint</text>
+
+    <text x="285" y="170" class="d-small" text-anchor="middle">fails &rarr; 401 Unauthorized</text>
+    <text x="285" y="186" class="d-small" text-anchor="middle">(I do not know who you are)</text>
+    <text x="515" y="170" class="d-small" text-anchor="middle">fails &rarr; 403 Forbidden</text>
+    <text x="515" y="186" class="d-small" text-anchor="middle">(I know, and no)</text>
+
+    <text x="20" y="222" class="d-small">Authorization inside the endpoint body is still your job: the middleware checks the policy, not the row id.</text>
+  </svg>
+  <figcaption>
+    401 and 403 are not interchangeable. 401 means "authenticate and try again"; 403 means
+    "authenticating again will not help". Getting this pair right is free credibility.
+  </figcaption>
+</figure>
+
+<h2 id="jwt">What a JWT actually is</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A festival wristband. It says your name and which stages you can enter, and it has a special
+    pattern printed on it that only the festival can print. Security staff do not phone the
+    ticket office — they just look at the pattern and know it is real.
+  </p>
+  <p>
+    Two things follow, and they are the whole chapter. First: <strong>anyone can read your
+    wristband</strong>. It is not a secret, just hard to fake. Second: if you get thrown out, the
+    wristband still <em>looks</em> fine until it expires — nobody can reach out and un-print it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A JSON Web Token is three Base64Url segments joined by dots:
+    <code>header.payload.signature</code>.
+  </p>
+  <ul>
+    <li><strong>Header</strong> — the algorithm, e.g. <code>{"alg":"HS256","typ":"JWT"}</code>.</li>
+    <li><strong>Payload</strong> — the claims: <code>sub</code> (subject),
+        <code>iss</code> (issuer), <code>aud</code> (audience), <code>exp</code> (expiry),
+        plus whatever you added such as roles.</li>
+    <li><strong>Signature</strong> — an HMAC or RSA signature over the first two parts.</li>
+  </ul>
+  <p>
+    <strong>It is signed, not encrypted.</strong> The payload is Base64, which is an encoding, not
+    a cipher — anyone holding the token can read every claim in it. The signature guarantees
+    <em>integrity</em> (nobody altered it) and <em>authenticity</em> (it came from the holder of
+    the key), and nothing else.
+  </p>
+  <p>
+    The consequence people miss: a JWT is <strong>stateless</strong>, so there is nothing to
+    revoke. Until <code>exp</code> passes, a stolen or a fired-employee token is still valid. The
+    mitigations are short lifetimes (15&ndash;60 minutes) plus a refresh token you <em>can</em>
+    revoke, because the refresh token is checked against a database.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 210" role="img" aria-labelledby="jwt-title">
+    <title id="jwt-title">The three parts of a JWT and which of them are readable by anyone</title>
+    <rect x="20"  y="40" width="230" height="64" rx="8" class="d-panel d-stroke"/>
+    <text x="135" y="64"  class="d-text" text-anchor="middle" style="font-size:12px">header</text>
+    <text x="135" y="84"  class="d-mono" text-anchor="middle">eyJhbGciOiJIUzI1NiJ9</text>
+    <text x="135" y="100" class="d-small" text-anchor="middle">readable by anyone</text>
+
+    <text x="258" y="80" class="d-text" style="font-size:20px">.</text>
+
+    <rect x="275" y="40" width="230" height="64" rx="8" class="d-panel d-stroke"/>
+    <text x="390" y="64"  class="d-text" text-anchor="middle" style="font-size:12px">payload (claims)</text>
+    <text x="390" y="84"  class="d-mono" text-anchor="middle">eyJzdWIiOiIxNyIsInJvbGUi…</text>
+    <text x="390" y="100" class="d-small" text-anchor="middle">readable by anyone</text>
+
+    <text x="513" y="80" class="d-text" style="font-size:20px">.</text>
+
+    <rect x="530" y="40" width="230" height="64" rx="8" class="d-brand"/>
+    <text x="645" y="64"  class="d-white" text-anchor="middle" style="font-size:12px">signature</text>
+    <text x="645" y="84"  class="d-white" text-anchor="middle" style="font-size:10.5px">HMACSHA256(header.payload, key)</text>
+    <text x="645" y="100" class="d-white" text-anchor="middle" style="font-size:10px">only the key holder can produce this</text>
+
+    <text x="20" y="140" class="d-small">Change one character of the payload and the signature no longer matches — the token is rejected.</text>
+    <text x="20" y="160" class="d-small">But nothing stops an attacker <tspan style="font-style:italic">reading</tspan> the payload. Never put a password, a card number or anything</text>
+    <text x="20" y="180" class="d-small">you would not print on a postcard into a JWT.</text>
+  </svg>
+  <figcaption>
+    "Is a JWT encrypted?" — No. Signed. If you remember one sentence from this chapter, that is
+    the one.
+  </figcaption>
+</figure>
+
+<h2 id="wiring">Wiring it up in ASP.NET Core</h2>
+
+<div class="code-head">validation parameters — every one of these matters</div>
+<pre><code>builder.Services
+    .AddAuthentication(<span class="ty">JwtBearerDefaults</span>.AuthenticationScheme)
+    .AddJwtBearer(o =&gt;
+    {
+        o.TokenValidationParameters = <span class="kw">new</span> <span class="ty">TokenValidationParameters</span>
+        {
+            ValidateIssuer           = <span class="kw">true</span>,   <span class="cm">// who minted it</span>
+            ValidateAudience         = <span class="kw">true</span>,   <span class="cm">// who it was minted for</span>
+            ValidateLifetime         = <span class="kw">true</span>,   <span class="cm">// exp / nbf</span>
+            ValidateIssuerSigningKey = <span class="kw">true</span>,   <span class="cm">// the signature itself</span>
+            ValidIssuer   = jwt.Issuer,
+            ValidAudience = jwt.Audience,
+            IssuerSigningKey = <span class="kw">new</span> <span class="ty">SymmetricSecurityKey</span>(
+                <span class="ty">Encoding</span>.UTF8.GetBytes(jwt.SigningKey)),
+            ClockSkew = <span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">30</span>)  <span class="cm">// default is 5 MINUTES</span>
+        };
+    });</code></pre>
+
+<p class="subtle">
+  Turning any of the first four to <code>false</code> to "make it work" is how tokens from a
+  completely different system end up being accepted. The default <code>ClockSkew</code> of five
+  minutes also surprises people: a token you believe expired is still accepted for five more
+  minutes unless you narrow it.
+</p>
+
+<h3 id="policies">Roles, claims and policies</h3>
+
+<p>
+  A <em>claim</em> is a statement about the user (<code>role=Manager</code>,
+  <code>department=Warehouse</code>). A <em>policy</em> is a named rule over claims. Prefer
+  policies at the endpoint:
+</p>
+
+<div class="code-head">named policies, not scattered role strings</div>
+<pre><code><span class="cm">// Defined once…</span>
+builder.Services.AddAuthorization(o =&gt;
+{
+    o.AddPolicy(<span class="ty">AuthorizationPolicies</span>.CatalogManager, p =&gt;
+        p.RequireRole(<span class="st">"Admin"</span>, <span class="st">"CatalogManager"</span>));
+});
+
+<span class="cm">// …referenced everywhere.</span>
+app.MapPost(<span class="st">"/products"</span>, CreateProduct)
+   .RequireAuthorization(<span class="ty">AuthorizationPolicies</span>.CatalogManager);</code></pre>
+
+<p>
+  Why this and not <code>[Authorize(Roles = "Admin,CatalogManager")]</code> on twenty endpoints?
+  Because when the rule changes to "must have the <code>catalog:write</code> scope" or "must be in
+  this Entra ID group", you edit one policy definition instead of finding every endpoint. That is
+  <a href="05-solid-and-patterns.html#ocp">Open/Closed</a> applied to security. This repository
+  does it in
+  <a href="../../src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>Authentication.cs</code></a>.
+</p>
+
+<h2 id="mistakes">The mistakes that actually ship</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ 1. Broken object-level authorization (IDOR)</div>
+  <p>
+    The endpoint checks that you are logged in. It does not check that
+    <code>/orders/1042</code> is <em>yours</em>. Change the number in the URL and read a
+    competitor's order. This is number one on the OWASP API list, it is trivially exploitable,
+    and no amount of correct JWT configuration prevents it.
+  </p>
+  <pre><code><span class="cm">// ✗ authenticated, but not authorized for THIS row</span>
+<span class="kw">var</span> order = <span class="kw">await</span> db.Orders.FindAsync(id);
+
+<span class="cm">// ✓ ownership is part of the query, not an afterthought</span>
+<span class="kw">var</span> order = <span class="kw">await</span> db.Orders
+    .Where(o =&gt; o.Id == id &amp;&amp; o.CustomerId == currentUserCustomerId)
+    .FirstOrDefaultAsync(ct);</code></pre>
+  <p>
+    Return <code>404</code> rather than <code>403</code> when even confirming the row exists would
+    leak something.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ 2. Over-posting / mass assignment</div>
+  <p>
+    Binding the request body straight onto your entity means a caller can send
+    <code>{"total": 10, "isApproved": true}</code> and set fields you never intended to expose.
+    The fix is the same DTO discipline from
+    <a href="14-web-api.html#dtos">chapter 14</a>: bind to a request model containing exactly the
+    fields a client may set, then map.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ 3. Secrets in <code>appsettings.json</code></div>
+  <p>
+    A signing key in a committed config file is a signing key in your git history forever, and
+    anyone holding it can mint a token for any user with any role. Locally use
+    <code>dotnet user-secrets</code>; in production use environment variables or Key Vault with a
+    managed identity — see <a href="29-azure.html">chapter 29</a>. If one has already been
+    committed, rotating the key is the fix; deleting the line is not.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ 4. <code>AllowAnyOrigin</code> plus credentials</div>
+  <p>
+    CORS is a <em>browser</em> mechanism, not a firewall — it never protects the server, it only
+    tells browsers which sites may read the response. Widening it to
+    <code>AllowAnyOrigin().AllowAnyHeader().AllowCredentials()</code> to stop an error message
+    means any website your user visits can call your API with their cookies. Name your origins.
+    (CORS is explained from the browser side in
+    <a href="17-frontend-basics.html">chapter 17</a>.)
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ 5. Errors that explain too much</div>
+  <p>
+    A stack trace, a SQL fragment or "user not found" versus "wrong password" all hand something
+    over. Return Problem Details with a trace id, log the detail server-side, and let support
+    correlate the two. This repository does it in
+    <a href="../../src/LogiFlow.Api/Infrastructure/GlobalExceptionHandler.cs"><code>GlobalExceptionHandler.cs</code></a>.
+  </p>
+</div>
+
+<p>
+  Two more, covered elsewhere because they belong there: <strong>SQL injection</strong> is
+  parameterisation, in <a href="10-tsql-querying.html#parameters">chapter 10</a> — and is largely
+  ended by EF Core, with the exception of <code>FromSqlRaw</code> and string-concatenated SQL.
+  <strong>CSRF</strong> matters for cookie-authenticated server-rendered forms, in
+  <a href="16-aspnet-mvc.html">chapter 16</a>; a bearer-token API is not vulnerable to it, because
+  the browser does not attach the header automatically.
+</p>
+
+<h2 id="passwords">If you ever store a password</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    First: try not to. ASP.NET Core Identity, Entra ID or any OpenID Connect provider has solved
+    this, and the reputational downside of doing it yourself badly is enormous.
+  </p>
+  <p>
+    If you must: hash with a <strong>deliberately slow, salted</strong> algorithm — Argon2id,
+    bcrypt, scrypt, or PBKDF2 (what Identity uses by default). Never MD5 or plain SHA-256: they
+    are fast, which is exactly wrong — a modern GPU tries billions of SHA-256 guesses per second.
+    Never "encrypt" passwords, because encryption is reversible and hashing is the point. And
+    compare hashes with a fixed-time comparison so response timing does not leak.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Prove to yourself that a JWT is readable. Mint one, then take it apart:</p>
+  <pre><code>dotnet user-jwts create --project src/LogiFlow.Api --role CatalogManager
+<span class="cm"># copy the token it prints, then decode the middle segment:</span>
+echo <span class="st">'&lt;paste-the-payload-segment&gt;'</span> | base64 -d</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    You will see your own claims in plain JSON, with no key and no tooling. Now change one
+    character anywhere in the token, call the API with it, and watch the 401: readable, but not
+    forgeable. Then set <code>ValidateAudience = false</code>, call it with a token minted for a
+    different audience, and watch it sail through — that is what those four booleans are for.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><code>UseAuthentication()</code> before <code>UseAuthorization()</code>. Always.</li>
+    <li>401 = I do not know you. 403 = I know you, and no.</li>
+    <li>A JWT is signed, not encrypted. Assume the payload is public.</li>
+    <li>Nothing secret in a token, and nothing you cannot bear to have read.</li>
+    <li>Short-lived access token plus a revocable refresh token. There is no other way to revoke.</li>
+    <li>Validate issuer, audience, lifetime and signing key. Turning one off to "fix" a bug is the bug.</li>
+    <li>Check ownership of the row, not just the presence of a token.</li>
+    <li>Bind to a request DTO, never to the entity.</li>
+    <li>Secrets come from user-secrets, environment variables or Key Vault — never from a committed file.</li>
+    <li>Name your CORS origins. CORS protects browsers, not servers.</li>
+    <li>Hash passwords slowly and with a salt; never encrypt them.</li>
+    <li>Errors return a trace id to the caller and the detail to the log.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Che differenza c'è fra autenticazione e autorizzazione?"</p>
+  <p class="a">
+    Identity versus permission — but do not stop at the definition. Add the ASP.NET Core detail:
+    they are two middlewares, the order is fixed, the first fills
+    <code>HttpContext.User</code> and the second reads it, and swapping them is a real production
+    bug. That second sentence is what separates you from the other candidates.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Is a JWT encrypted?"</p>
+  <p class="a">
+    No — signed. Base64 is an encoding; anyone holding the token can read every claim. The
+    signature proves integrity and authenticity only. Then volunteer the consequence, because it
+    is the real question underneath: you cannot revoke a stateless token, so you keep lifetimes
+    short and pair it with a refresh token that <em>is</em> checked against storage.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you stop a user reading someone else's order?"</p>
+  <p class="a">
+    Make ownership part of the query rather than a check after loading, and prefer 404 to 403
+    where existence itself is sensitive. Name it: broken object-level authorization, OWASP API
+    number one. Add that <code>[Authorize]</code> alone never prevents it, because it validates
+    the token, not the row.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Where do you keep the signing key?"</p>
+  <p class="a">
+    Not in the repository. <code>dotnet user-secrets</code> locally, environment variables or Azure
+    Key Vault accessed with a managed identity in production, so no credential exists to leak.
+    If asked what to do about one already committed: rotate it — removing the line does not
+    remove it from history.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Does CORS make my API secure?"</p>
+  <p class="a">
+    No, and the question is testing exactly that. CORS is enforced by the browser and tells it
+    which origins may <em>read</em> a response. A script, curl or Postman ignores it entirely.
+    Authorization is what secures the API; CORS just decides which web pages may consume it.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-24-security/README.md">Module 24 — Security for a .NET API</a>
+    covers the same ground against the running application, including password storage, transport
+    and configuration. The endpoint-level wiring lives in
+    <a href="../../src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>src/LogiFlow.Api/Infrastructure/Authentication.cs</code></a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

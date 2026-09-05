@@ -1,0 +1,480 @@
+@page "/orders/{OrderId:guid}"
+@using System.Globalization
+@implements IDisposable
+@inject LogiFlowApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>@(_order?.OrderNumber ?? "Order") — LogiFlow</PageTitle>
+
+<a class="back" href="/orders">← All orders</a>
+
+@if (_order is null)
+{
+    <h1>Order</h1>
+
+    @if (_error is not null)
+    {
+        <div class="banner banner-error" role="alert">
+            <strong>@_error.Message</strong>
+            <span class="code">@_error.Code · HTTP @_error.Status</span>
+            <button class="btn" type="button" @onclick="LoadAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        @* The skeleton stands in for the header and the two panels, so the page arrives at the
+           size it is going to be. A "Loading…" line that is then replaced by 400px of content
+           makes everything below it jump. *@
+        <div class="detail-head">
+            <div>
+                <span class="sk" style="height:1.4rem;width:180px"></span>
+                <span class="sk" style="margin-top:0.6rem;width:240px"></span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <span class="sk sk-w-80"></span>
+            <span class="sk sk-w-60" style="margin-top:0.7rem"></span>
+            <span class="sk sk-w-40" style="margin-top:0.7rem"></span>
+        </div>
+    }
+}
+else
+{
+    <div class="detail-head">
+        <div>
+            <h1>@_order.OrderNumber</h1>
+            <p class="subtitle">
+                @_order.CustomerName · <span class="muted">@_order.CustomerEmail</span>
+            </p>
+        </div>
+        <StatusPill Status="_order.Status" />
+    </div>
+
+    @*
+        THE RAIL. It draws where this order has been, from its timestamps - not what it may do
+        next, which is the server's business and is rendered by the action bar below.
+    *@
+    <StatusTimeline Order="_order" />
+
+    <Explain Emoji="🎲" Title="Why an order cannot go backwards"
+             Grownup="A finite state machine, owned by the domain. The UI renders AllowedTransitions and holds no copy of the rules.">
+        <p>
+            An order is a piece on a board game. It starts on <em>Draft</em> and it can only step
+            onto squares the rules allow: written, then sent, then packed, then in a van, then
+            delivered. It cannot hop backwards, and it cannot skip a square.
+        </p>
+        <p>
+            The last two squares — <em>Delivered</em> and <em>Cancelled</em> — have no way out.
+            That is what "terminal" means: the game is over for that piece.
+        </p>
+    </Explain>
+
+    @if (_error is not null)
+    {
+        <div class="banner banner-error" role="alert">
+            <strong>@_error.Message</strong>
+            <span class="code">@_error.Code · HTTP @_error.Status</span>
+        </div>
+    }
+
+    @*
+        THE ACTION BAR — and the point of this whole page.
+
+        There is not a single `if (status == Draft)` here. The server sends AllowedTransitions,
+        computed by OrderStateMachine in the domain, and this renders whatever it is told. Add a
+        state to the domain and this UI follows automatically; reimplement the table here and the
+        two drift apart the first time someone changes a rule.
+    *@
+    <div class="actions">
+        @if (CanTransitionTo(OrderStatus.Submitted))
+        {
+            <button class="btn btn-primary" type="button" disabled="@_busy" @onclick="SubmitAsync">
+                @(_busy ? "Submitting…" : "Submit order")
+            </button>
+        }
+
+        @if (CanTransitionTo(OrderStatus.Cancelled))
+        {
+            <button class="btn btn-danger" type="button" disabled="@_busy"
+                    @onclick="() => _showCancel = !_showCancel">
+                Cancel order
+            </button>
+        }
+
+        @if (_order.AllowedTransitions.Count == 0)
+        {
+            <span class="muted">
+                @_order.Status is a terminal state — no further transitions are possible.
+            </span>
+        }
+        else if (WarehouseOnlyTransitions.Count > 0)
+        {
+            <span class="muted">
+                @string.Join(", ", WarehouseOnlyTransitions) —
+                driven by the warehouse endpoints, not from here.
+            </span>
+        }
+    </div>
+
+    <Explain Emoji="🔘" Title="Why some buttons are missing"
+             Grownup="The server returns the legal transitions with the order; the client renders them. Duplicating the rule table in the UI is how a front end starts offering actions the API will reject.">
+        <p>
+            This page does not know the rules of the game. Every time it loads an order it asks
+            the server <em>"what is this order allowed to do right now?"</em> and draws a button
+            for each answer.
+        </p>
+        <p>
+            So a button is missing because the answer did not include it — never because somebody
+            wrote a hidden <code>if</code> on this screen. Change a rule in one place and every
+            button on every screen follows it.
+        </p>
+    </Explain>
+
+    @if (_showCancel)
+    {
+        <div class="cancel-box">
+            <label for="reason">Why is this order being cancelled?</label>
+            <textarea id="reason" rows="2" @bind="_cancelReason"
+                      placeholder="The API rejects an empty reason — it is a required field on the command."></textarea>
+
+            <div class="cancel-actions">
+                <button class="btn btn-danger" type="button"
+                        disabled="@(_busy || string.IsNullOrWhiteSpace(_cancelReason))"
+                        @onclick="CancelAsync">
+                    @(_busy ? "Cancelling…" : "Confirm cancellation")
+                </button>
+                <button class="btn btn-quiet" type="button" @onclick="() => _showCancel = false">
+                    Keep the order
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="detail-grid">
+        <section class="panel">
+            <h2>Lines</h2>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th scope="col">SKU</th>
+                            <th scope="col">Product</th>
+                            <th scope="col" class="right">Qty</th>
+                            <th scope="col" class="right">Unit</th>
+                            <th scope="col" class="right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_order.Lines.Count == 0)
+                        {
+                            <tr><td colspan="5" class="empty">No lines on this order yet.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (OrderLine line in _order.Lines)
+                            {
+                                <tr @key="line.Id">
+                                    <td class="num muted">@line.Sku</td>
+                                    <td>@line.ProductName</td>
+                                    <td class="right num">@line.Quantity</td>
+                                    <td class="right num">@Money(line.UnitPrice)</td>
+                                    <td class="right num">@Money(line.LineTotal)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="side">
+            <section class="panel">
+                <h2>Totals</h2>
+                <dl class="totals">
+                    <dt>Subtotal</dt><dd class="num">@Money(_order.Subtotal)</dd>
+
+                    @if (_order.DiscountAmount > 0)
+                    {
+                        <dt>Discount</dt><dd class="num negative">−@Money(_order.DiscountAmount)</dd>
+                    }
+
+                    <dt>Shipping</dt><dd class="num">@Money(_order.ShippingCost)</dd>
+                    <dt class="grand">Total</dt><dd class="num grand">@Money(_order.Total)</dd>
+                    <dt>Weight</dt>
+                    <dd class="num muted">@(_order.TotalWeightGrams.ToString("N0", CultureInfo.InvariantCulture)) g</dd>
+                </dl>
+            </section>
+
+            <section class="panel">
+                <h2>Ship to</h2>
+                @if (_order.ShippingAddress is { } address)
+                {
+                    <address>
+                        <span>@address.Line1</span>
+                        @if (!string.IsNullOrWhiteSpace(address.Line2))
+                        {
+                            <span>@address.Line2</span>
+                        }
+                        <span>@address.PostalCode @address.City</span>
+                        @if (!string.IsNullOrWhiteSpace(address.Region))
+                        {
+                            <span>@address.Region</span>
+                        }
+                        <span>@address.CountryCode</span>
+                    </address>
+                }
+                else
+                {
+                    <p class="muted">No shipping address set.</p>
+                }
+            </section>
+
+            <section class="panel">
+                <h2>History</h2>
+                <dl class="totals">
+                    <dt>Created</dt><dd class="num muted">@Date(_order.CreatedAtUtc)</dd>
+
+                    @if (_order.SubmittedAtUtc is { } submitted)
+                    {
+                        <dt>Submitted</dt><dd class="num muted">@Date(submitted)</dd>
+                    }
+                    @if (_order.ShippedAtUtc is { } shipped)
+                    {
+                        <dt>Shipped</dt><dd class="num muted">@Date(shipped)</dd>
+                    }
+                    @if (_order.DeliveredAtUtc is { } delivered)
+                    {
+                        <dt>Delivered</dt><dd class="num muted">@Date(delivered)</dd>
+                    }
+                </dl>
+
+                @if (!string.IsNullOrWhiteSpace(_order.CancellationReason))
+                {
+                    <p class="muted"><strong>Cancelled:</strong> @_order.CancellationReason</p>
+                }
+            </section>
+        </aside>
+    </div>
+
+    <Explain Emoji="🧮" Title="Who adds up the money"
+             Grownup="Pricing, discounts and shipping are domain calculations. The client displays the server's numbers and never recomputes them.">
+        <p>
+            Not this page. The server works out every number in that little list and sends the
+            answers already finished.
+        </p>
+        <p>
+            If the browser added them up itself, then one day someone would change the discount
+            rule on the server, forget this screen, and the total on your monitor would quietly
+            disagree with the total on the invoice. Two calculators always end up saying two
+            different things.
+        </p>
+    </Explain>
+}
+
+@*
+    THE TOAST.
+
+    "It worked" is the one message that should not shove the page around. It arrives in the
+    corner, draws its own countdown, and removes itself - so the thing the user just looked at
+    stays exactly where they left it.
+
+    aria-live is polite, not assertive: a success is worth announcing after the screen reader
+    finishes its current sentence, never worth interrupting one.
+*@
+@if (_notice is not null)
+{
+    <div class="toast" role="status" aria-live="polite">
+        @_notice
+        <span class="toast-life" style="@ToastLifeStyle" aria-hidden="true"></span>
+    </div>
+}
+
+@code {
+    /// <summary>How long a success message stays on screen.</summary>
+    private static readonly TimeSpan NoticeLifetime = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Drives the toast's shrinking countdown bar from the same constant that dismisses it.
+    /// </summary>
+    /// <remarks>
+    /// The duration deliberately does not live in the stylesheet. A bar that empties at five
+    /// seconds while the toast disappears at three is the kind of detail nobody can name but
+    /// everybody notices - so there is exactly one number, and CSS is told what it is.
+    /// </remarks>
+    private static readonly string ToastLifeStyle = string.Create(
+        CultureInfo.InvariantCulture,
+        $"animation-duration:{NoticeLifetime.TotalMilliseconds:0}ms");
+
+    /// <summary>The order to display, bound from the route.</summary>
+    [Parameter]
+    public Guid OrderId { get; set; }
+
+    private OrderDetail? _order;
+    private ApiError? _error;
+    private string? _notice;
+    private bool _busy;
+    private bool _showCancel;
+    private string _cancelReason = string.Empty;
+
+    // Cancels the pending auto-dismiss when a second message arrives, or when the user navigates
+    // away before the first one has expired.
+    private CancellationTokenSource? _noticeCts;
+
+    /// <summary>Transitions the server allows that this UI has no endpoint for.</summary>
+    private IReadOnlyList<OrderStatus> WarehouseOnlyTransitions =>
+        _order is null
+            ? []
+            : _order.AllowedTransitions
+                .Where(t => t is not (OrderStatus.Submitted or OrderStatus.Cancelled))
+                .ToList();
+
+    /// <summary>
+    /// Reloads whenever the route parameter changes.
+    /// </summary>
+    /// <remarks>
+    /// OnParametersSetAsync, not OnInitializedAsync. Blazor reuses a component instance when
+    /// navigating between two URLs that match the same @@page route, so initialisation does not
+    /// run again — navigate from one order to another and the old one stays on screen forever.
+    /// This is the single most common Blazor routing bug.
+    /// </remarks>
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        _showCancel = false;
+
+        ApiResult<OrderDetail> result = await Api.GetOrderAsync(OrderId);
+
+        if (result.IsSuccess)
+        {
+            _order = result.Value;
+        }
+        else
+        {
+            _error = result.Error;
+            _order = null;
+        }
+    }
+
+    private bool CanTransitionTo(OrderStatus status) =>
+        _order?.AllowedTransitions.Contains(status) == true;
+
+    private Task SubmitAsync() => RunAsync(
+        () => Api.SubmitOrderAsync(OrderId),
+        "Order submitted. Stock has been reserved.");
+
+    private Task CancelAsync() => RunAsync(
+        () => Api.CancelOrderAsync(OrderId, _cancelReason.Trim()),
+        "Order cancelled.");
+
+    /// <summary>
+    /// Runs a command, then reloads so the view reflects what the server actually did.
+    /// </summary>
+    /// <remarks>
+    /// The reload is not laziness about optimistic UI. A submit changes the status, the allowed
+    /// transitions, the reserved stock and the timestamps — guessing all of that client-side is
+    /// how a UI ends up disagreeing with its own database. One extra GET is a good trade, and it
+    /// is what makes the timeline animate to the new step rather than being redrawn at it.
+    /// </remarks>
+    private async Task RunAsync(Func<Task<ApiResult>> action, string successMessage)
+    {
+        _busy = true;
+        _error = null;
+        ClearNotice();
+
+        try
+        {
+            ApiResult result = await action();
+
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+                ShowNotice(successMessage);
+            }
+            else
+            {
+                _error = result.Error;
+
+                // A 409 means someone else changed the order underneath us. Reloading turns a
+                // dead end into a recoverable situation: the user sees the current truth.
+                if (result.Error!.Status == 409)
+                {
+                    await LoadAsync();
+                    _error = result.Error;
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+            _showCancel = false;
+        }
+    }
+
+    /// <summary>Shows a success message and starts its countdown.</summary>
+    /// <param name="message">What to say.</param>
+    private void ShowNotice(string message)
+    {
+        ClearNotice();
+
+        _notice = message;
+        _noticeCts = new CancellationTokenSource();
+
+        // Deliberately not awaited - awaiting would hold the click handler open for five seconds.
+        // The discard is what tells the compiler (and the next reader) that this is on purpose;
+        // the CancellationToken is what stops it becoming a leak.
+        _ = DismissAfterDelayAsync(_noticeCts.Token);
+    }
+
+    private void ClearNotice()
+    {
+        _noticeCts?.Cancel();
+        _noticeCts?.Dispose();
+        _noticeCts = null;
+        _notice = null;
+    }
+
+    /// <summary>Removes the toast once its lifetime is up.</summary>
+    /// <param name="token">Cancelled when a newer message arrives, or on dispose.</param>
+    /// <remarks>
+    /// <c>InvokeAsync(StateHasChanged)</c>, never a bare <c>StateHasChanged</c>. This continuation
+    /// may resume on a thread pool thread, and rendering off Blazor's synchronisation context is
+    /// the race that produces "the UI updated everywhere except that one component".
+    /// </remarks>
+    private async Task DismissAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(NoticeLifetime, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _notice = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string Money(decimal amount) =>
+        string.Create(CultureInfo.InvariantCulture, $"{amount:N2} {_order?.Currency}");
+
+    private static string Date(DateTimeOffset value) =>
+        value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+
+    /// <summary>Stops the pending dismissal when the user navigates away.</summary>
+    /// <remarks>
+    /// Without this, a toast shown a moment before navigation leaves a five-second timer holding a
+    /// reference to a disposed component, and its <c>StateHasChanged</c> lands on a renderer that
+    /// has gone. One timer is harmless; the habit of leaving them running is not.
+    /// </remarks>
+    public void Dispose() => ClearNotice();
+}

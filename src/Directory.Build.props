@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- Pull in the solution-wide settings first; MSBuild stops at the nearest
+       Directory.Build.props, so the parent is NOT imported automatically. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      Production code is held to a stricter bar than labs and tests:
+      a warning here is a build failure. This is what "no broken windows"
+      looks like mechanically. Learners' lab projects deliberately opt out.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- Ship symbols + source link info so a stack trace from production maps to a line. -->
+    <DebugType>portable</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+  </PropertyGroup>
+
+</Project>

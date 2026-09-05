@@ -1,0 +1,14 @@
+@*
+    Client-side routing. AppAssembly tells the router which assembly to scan for @page directives.
+
+    FocusOnNavigate moves keyboard focus to the new page's <h1> after every navigation. It is two
+    lines and it is the difference between a screen-reader user hearing the new page and hearing
+    nothing at all - the accessibility bug that single-page apps invented.
+*@
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>

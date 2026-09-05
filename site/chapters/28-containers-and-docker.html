@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>28 · Containers and Docker — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="28-containers-and-docker">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 28</p>
+<h1>Containers and Docker</h1>
+<p class="lede">
+  You have already used containers in this site half a dozen times: every "try it yourself" that
+  started SQL Server, Redis or Elasticsearch was one <code>docker run</code>. This chapter
+  explains what was actually happening, and how to put your own application inside one.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Docker"</em> and <em>"microservizi"</em> travel together through adverts in Milano and
+    Bologna, and containers are the thing that makes a CI pipeline
+    (<a href="30-azure-devops-cicd.html">chapter 30</a>) reproducible. It is also, honestly, the
+    fastest way to stop saying <em>"it works on my machine"</em> — which is the sentence this
+    entire technology exists to eliminate.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what">What a container actually is</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think about moving house. One way: pack everything loose into a van and hope the new house has
+    the right shelves. The other way: put everything in a sealed crate that includes its own
+    shelves. Anywhere the crate goes, the contents are already arranged correctly.
+  </p>
+  <p>
+    A container is the crate. Your program, the exact .NET version it needs, and its files — all
+    sealed together. The computer it lands on does not need .NET installed. It just needs to be
+    able to open crates.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A container is a process on the host kernel, isolated using Linux namespaces (its own view of
+    the filesystem, network, and process table) and limited with cgroups (CPU, memory).
+  </p>
+  <p>
+    The distinction people get wrong: <strong>a container is not a virtual machine.</strong> A VM
+    virtualises hardware and runs a whole guest kernel — gigabytes, and tens of seconds to boot. A
+    container shares the host kernel and ships only the userland it needs — tens of megabytes, and
+    milliseconds to start. That difference in start-up cost is precisely what makes disposable
+    test databases and per-request scaling practical.
+  </p>
+  <p>
+    Two nouns to keep separate: an <strong>image</strong> is the immutable, layered template; a
+    <strong>container</strong> is a running instance of one. Same relationship as a class and an
+    object.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 280" role="img" aria-labelledby="ctr-title">
+    <title id="ctr-title">Virtual machines each carry a guest operating system; containers share the host kernel</title>
+
+    <text x="20" y="26" class="d-small">Virtual machines</text>
+    <rect x="20" y="36" width="360" height="30" rx="6" class="d-panel d-stroke"/>
+    <text x="200" y="56" class="d-text" text-anchor="middle" style="font-size:11.5px">Host OS + hypervisor</text>
+
+    <rect x="20"  y="74" width="112" height="140" rx="6" class="d-panel d-stroke"/>
+    <rect x="144" y="74" width="112" height="140" rx="6" class="d-panel d-stroke"/>
+    <rect x="268" y="74" width="112" height="140" rx="6" class="d-panel d-stroke"/>
+    <text x="76"  y="102" class="d-small" text-anchor="middle">Guest OS</text>
+    <text x="200" y="102" class="d-small" text-anchor="middle">Guest OS</text>
+    <text x="324" y="102" class="d-small" text-anchor="middle">Guest OS</text>
+    <text x="76"  y="126" class="d-small" text-anchor="middle">~2 GB</text>
+    <text x="200" y="126" class="d-small" text-anchor="middle">~2 GB</text>
+    <text x="324" y="126" class="d-small" text-anchor="middle">~2 GB</text>
+    <rect x="34"  y="148" width="84" height="50" rx="5" class="d-brand"/>
+    <rect x="158" y="148" width="84" height="50" rx="5" class="d-brand"/>
+    <rect x="282" y="148" width="84" height="50" rx="5" class="d-brand"/>
+    <text x="76"  y="178" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="200" y="178" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="324" y="178" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="20" y="240" class="d-small">Three kernels booting. Tens of seconds each.</text>
+
+    <line x1="410" y1="20" x2="410" y2="260" class="d-stroke" stroke-dasharray="4 4"/>
+
+    <text x="440" y="26" class="d-small">Containers</text>
+    <rect x="440" y="36" width="380" height="30" rx="6" class="d-panel d-stroke"/>
+    <text x="630" y="56" class="d-text" text-anchor="middle" style="font-size:11.5px">Host OS kernel + container runtime</text>
+
+    <rect x="440" y="74" width="118" height="86" rx="6" class="d-panel d-stroke"/>
+    <rect x="571" y="74" width="118" height="86" rx="6" class="d-panel d-stroke"/>
+    <rect x="702" y="74" width="118" height="86" rx="6" class="d-panel d-stroke"/>
+    <text x="499" y="98"  class="d-small" text-anchor="middle">runtime files</text>
+    <text x="630" y="98"  class="d-small" text-anchor="middle">runtime files</text>
+    <text x="761" y="98"  class="d-small" text-anchor="middle">runtime files</text>
+    <rect x="454" y="110" width="90" height="38" rx="5" class="d-brand"/>
+    <rect x="585" y="110" width="90" height="38" rx="5" class="d-brand"/>
+    <rect x="716" y="110" width="90" height="38" rx="5" class="d-brand"/>
+    <text x="499" y="134" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="630" y="134" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="761" y="134" class="d-white" text-anchor="middle" style="font-size:11px">app</text>
+    <text x="440" y="240" class="d-small">One kernel, shared. Milliseconds each.</text>
+  </svg>
+  <figcaption>
+    No guest kernel is the entire difference — in size, in start-up time, and in what becomes
+    practical because of both.
+  </figcaption>
+</figure>
+
+<h2 id="dockerfile">A Dockerfile for a .NET API</h2>
+
+<p>
+  This repository ships a <a href="../../docker-compose.yml"><code>docker-compose.yml</code></a>
+  for its <em>dependencies</em> (SQL Server, Redis, Elasticsearch) but no Dockerfile for the API
+  itself, because the course runs it with <code>dotnet run</code>. Here is the one you would add,
+  and every line in it is a decision:
+</p>
+
+<div class="code-head">Dockerfile — multi-stage, cache-friendly, non-root</div>
+<pre><code><span class="cm"># ── build stage: has the full SDK, ~800 MB. Thrown away at the end. ──</span>
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+<span class="cm"># Copy ONLY the project files first, then restore. This layer is cached</span>
+<span class="cm"># until a .csproj changes — so an ordinary code edit skips restore entirely.</span>
+COPY Directory.Build.props Directory.Packages.props global.json ./
+COPY src/LogiFlow.Api/*.csproj            src/LogiFlow.Api/
+COPY src/LogiFlow.Application/*.csproj    src/LogiFlow.Application/
+COPY src/LogiFlow.Domain/*.csproj         src/LogiFlow.Domain/
+COPY src/LogiFlow.Infrastructure/*.csproj src/LogiFlow.Infrastructure/
+RUN dotnet restore src/LogiFlow.Api/LogiFlow.Api.csproj
+
+<span class="cm"># Now the source. Changing a .cs file invalidates from here down only.</span>
+COPY . .
+RUN dotnet publish src/LogiFlow.Api/LogiFlow.Api.csproj -c Release -o /app --no-restore
+
+<span class="cm"># ── runtime stage: no SDK, no source, no NuGet cache. ~110 MB. ──</span>
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app .
+
+<span class="cm"># Run as a non-root user. The default in the image is root, and a container</span>
+<span class="cm"># escape from root is a much worse day than one from an unprivileged user.</span>
+USER $APP_UID
+
+ENV ASPNETCORE_HTTP_PORTS=8080
+EXPOSE 8080
+ENTRYPOINT [<span class="st">"dotnet"</span>, <span class="st">"LogiFlow.Api.dll"</span>]</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Why the two stages</div>
+  <p>
+    Without them your production image contains the SDK, your source code, the NuGet cache and any
+    build secrets — around 800 MB of attack surface for an application that needs 110 MB to run.
+    Multi-stage builds mean the final image contains the published output and nothing else.
+  </p>
+  <p>
+    And the <code>COPY *.csproj</code> before <code>COPY . .</code> is not fussiness. Docker caches
+    each instruction's layer and invalidates everything after the first change. Copying source
+    first means every build re-downloads every NuGet package — the difference between a 15-second
+    and a 3-minute CI build, on every commit, forever.
+  </p>
+</div>
+
+<h2 id="compose">Compose, for everything your app needs</h2>
+
+<p>
+  One container is rarely the point. Compose describes a set of them, on a shared network, in one
+  file — which is exactly what
+  <a href="../../docker-compose.yml"><code>docker-compose.yml</code></a> in this repository does:
+</p>
+
+<pre><code>services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment: { ACCEPT_EULA: <span class="st">"Y"</span>, MSSQL_SA_PASSWORD: <span class="st">"Str0ng!Passw0rd"</span> }
+    ports: [<span class="st">"1433:1433"</span>]              <span class="cm"># host:container</span>
+    volumes: [sqldata:/var/opt/mssql]  <span class="cm"># survives `down`, not `down -v`</span>
+    healthcheck: { ... }               <span class="cm"># "started" ≠ "ready to accept connections"</span>
+
+  redis:
+    image: redis:7-alpine
+    ports: [<span class="st">"6380:6379"</span>]              <span class="cm"># shifted: 6379 is often already taken</span></code></pre>
+
+<p class="subtle">
+  Two details worth internalising. <strong>Service names are hostnames</strong> on the compose
+  network: from another container the connection string is <code>Server=sql,1433</code>, not
+  <code>localhost</code> — inside a container, <code>localhost</code> means <em>that
+  container</em>. And <strong>healthchecks matter</strong>: SQL Server accepts a TCP connection
+  several seconds before it will accept a login, so <code>depends_on</code> without
+  <code>condition: service_healthy</code> produces a race that fails only on slow machines and in
+  CI.
+</p>
+
+<h2 id="commands">The commands you will actually type</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Command</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td><code>docker build -t logiflow-api .</code></td><td>Build an image from the Dockerfile here</td></tr>
+    <tr><td><code>docker run -d -p 8080:8080 logiflow-api</code></td><td>Run it detached, host 8080 → container 8080</td></tr>
+    <tr><td><code>docker ps</code> / <code>docker ps -a</code></td><td>Running containers / including stopped ones</td></tr>
+    <tr><td><code>docker logs -f &lt;id&gt;</code></td><td>Follow its stdout — your first debugging move</td></tr>
+    <tr><td><code>docker exec -it &lt;id&gt; sh</code></td><td>A shell <em>inside</em> the container</td></tr>
+    <tr><td><code>docker compose up -d</code></td><td>Start everything in the compose file</td></tr>
+    <tr><td><code>docker compose down -v</code></td><td>Stop <strong>and delete the volumes</strong> — your data is gone</td></tr>
+    <tr><td><code>docker image prune -a</code></td><td>Reclaim the tens of GB Docker has quietly taken</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The four that bite everybody</div>
+  <ul>
+    <li><strong><code>:latest</code></strong> — not a version, just a default tag. Your build is
+        then irreproducible: the image that passed CI on Tuesday is not the one that deploys on
+        Thursday. Pin a real tag.</li>
+    <li><strong>Running as root</strong> — the default. One <code>USER $APP_UID</code> line.</li>
+    <li><strong>Secrets baked into the image</strong> — a connection string in a
+        <code>COPY</code>'d config file or an <code>ENV</code> is in a layer forever, and anyone
+        who can pull the image can read it. Secrets are injected at run time.</li>
+    <li><strong><code>localhost</code> inside a container</strong> — refers to the container, not
+        your machine. Use the compose service name, or
+        <code>host.docker.internal</code> to reach the host.</li>
+  </ul>
+</div>
+
+<h2 id="k8s">And Kubernetes?</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Docker is knowing how to make one sandwich. Kubernetes is running the whole sandwich shop:
+    deciding how many people are making sandwiches right now, replacing anyone who faints,
+    and putting up a bigger sign when the queue grows.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Kubernetes is an orchestrator: you declare desired state (five replicas of this image, this
+    much memory, restart on failure, route traffic here) and it continuously reconciles reality
+    towards it. It adds scheduling, service discovery, rolling deploys, autoscaling and secret
+    management.
+  </p>
+  <p>
+    It also adds a great deal of operational cost, and for one .NET API with a SQL Server behind
+    it, Azure App Service or Azure Container Apps does the useful 90% with none of it. Being able
+    to say <em>that</em> in an interview is worth more than reciting the object model — juniors
+    who have "done Kubernetes" from a tutorial are common; juniors who can say when not to reach
+    for it are not.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Save the Dockerfile above to the repository root, then:</p>
+  <pre><code>docker build -t logiflow-api .
+docker images logiflow-api          <span class="cm"># see the size — should be ~110 MB, not ~800 MB</span>
+docker compose up -d                <span class="cm"># the dependencies</span>
+docker run --rm -p 8080:8080 \
+  --network logiflow_default \
+  -e <span class="st">"ConnectionStrings__Default=Server=sql,1433;Database=LogiFlow;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=true"</span> \
+  logiflow-api</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Note the double underscore: <code>ConnectionStrings__Default</code> is how a nested
+    <code>appsettings.json</code> key becomes an environment variable, and it is the mechanism
+    every container platform uses to configure a .NET app. Then run the build a second time,
+    changing nothing, and watch every layer report <code>CACHED</code>. Now edit one
+    <code>.cs</code> file and build again — restore is still cached, compile is not. That is what
+    the <code>COPY *.csproj</code> ordering bought you.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>An image is the template; a container is a running instance of it.</li>
+    <li>A container is a process, not a virtual machine. No guest kernel.</li>
+    <li>Multi-stage builds: the SDK never reaches production.</li>
+    <li>Copy <code>.csproj</code> files and restore <em>before</em> copying source. Cache order is build time.</li>
+    <li>Never <code>:latest</code>. Pin the tag or your build is not reproducible.</li>
+    <li><code>USER $APP_UID</code>. Root by default is a choice you did not make on purpose.</li>
+    <li>Configuration and secrets come in at run time, never baked into a layer.</li>
+    <li><code>ConnectionStrings__Default</code> — double underscore for nested config keys.</li>
+    <li>Service names are hostnames. <code>localhost</code> inside a container is the container.</li>
+    <li>Healthchecks plus <code>condition: service_healthy</code>, or you have a race in CI.</li>
+    <li><code>docker compose down -v</code> deletes your volumes. Read the flag before you type it.</li>
+    <li>Containers are cattle: never store state inside one. Volumes or a database.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Qual è la differenza fra un container e una macchina virtuale?"</p>
+  <p class="a">
+    A VM virtualises hardware and runs its own kernel; a container is an isolated process sharing
+    the host kernel. Then give the consequence rather than stopping at the definition: megabytes
+    instead of gigabytes, milliseconds instead of seconds — which is why a disposable SQL Server
+    per test run is realistic and a disposable VM per test run is not.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is a Dockerfile multi-stage?"</p>
+  <p class="a">
+    So the SDK, the source and the NuGet cache stay out of the shipped image — roughly 800 MB down
+    to 110 MB, and a much smaller attack surface. If they follow up on build speed, the answer is
+    layer caching: copy the project files and restore before copying source, or every commit
+    re-downloads every package.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you get configuration into a container?"</p>
+  <p class="a">
+    Environment variables at run time, with <code>__</code> for nested keys
+    (<code>ConnectionStrings__Default</code>), and secrets from the platform's secret store — Key
+    Vault with a managed identity on Azure. Say explicitly what you do <em>not</em> do: bake a
+    connection string into a layer, because anyone who can pull the image can read it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"My container starts and immediately exits. Why?"</p>
+  <p class="a">
+    A container lives exactly as long as its main process. If the entrypoint finishes — or crashes
+    on startup — the container stops. First move is always <code>docker logs &lt;id&gt;</code>;
+    for a .NET API the usual culprits are a missing connection string, a port already bound, or a
+    startup exception. Answering this well signals you have actually run containers rather than
+    read about them.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Do you know Kubernetes?"</p>
+  <p class="a">
+    Be honest about the level, then show judgement. Something like: "I understand what it does —
+    declarative desired state, scheduling, rolling deploys — and I have run things locally, but I
+    have not operated a production cluster. For a single API I would reach for App Service or
+    Container Apps first." That answer is respected; an overclaim collapses on the next question.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-13-deployment/README.md">Module 13 — Configuration, security and
+    deployment</a> covers containerising this application properly, plus configuration precedence,
+    supply-chain security and running migrations in CI rather than at startup. Then
+    <a href="30-azure-devops-cicd.html">chapter 30</a> puts the image in a pipeline.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

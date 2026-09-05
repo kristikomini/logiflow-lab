@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A runnable console app full of small, self-contained demos that print what
+    they are doing. Use it to *see* deferred execution, closure capture,
+    struct-vs-class copying, and async scheduling actually happen.
+
+        cd labs/Labs.Playground
+        dotnet run list
+        dotnet run deferred-execution
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Labs.Playground</RootNamespace>
+    <!-- Lets us demo unsafe/stackalloc/Span tricks in the performance module. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+</Project>

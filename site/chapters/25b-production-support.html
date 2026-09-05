@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>25b · Incidents, and the documents you write — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="25b-production-support">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 5 &mdash; Building it properly <span>&rsaquo;</span> Chapter 25b</p>
+<h1>Incidents, and the documents you write</h1>
+<p class="lede">
+  Chapter 25 gave you the instruments: structured logs, correlation ids, health checks. This one is
+  the <em>procedure</em> &mdash; what you do in the forty minutes after somebody says "the orders
+  page is broken", who decides how serious it is, and what you write down afterwards so it does not
+  happen twice.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p>
+    One advert lists five responsibilities and three of them are this chapter:
+    <em>"analisi e documentazione"</em>, <em>"gestire i processi di incident management e bug
+    fixing"</em>, and <em>"garantire il monitoraggio costante delle applicazioni in esercizio"</em>.
+  </p>
+  <p>
+    Note what that describes: a role that keeps existing software alive, not one that starts new
+    projects. That is the honest shape of most junior .NET work in this region, and it is a
+    genuinely good place to learn &mdash; production is where you find out which of your beliefs
+    about the system were true.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="shape">The shape of an incident</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    There is water coming through the kitchen ceiling.
+  </p>
+  <p>
+    You do <strong>not</strong> begin by working out which pipe failed and why the builder chose
+    that pipe in 2003. You turn the water off. Then you put a bucket down. Only then, with the
+    kitchen no longer being destroyed, do you go and find the pipe.
+  </p>
+  <p>
+    Everybody knows this about plumbing and forgets it about software, because finding the bug is
+    the interesting part.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 200" role="img" aria-labelledby="inc-title">
+    <title id="inc-title">The five stages of an incident, with mitigation before diagnosis</title>
+    <defs>
+      <marker id="a25b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" class="d-fill"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="60" width="140" height="60" rx="8" class="d-panel"/>
+    <rect x="16" y="60" width="140" height="60" rx="8" class="d-stroke"/>
+    <text x="86" y="86" class="d-text" text-anchor="middle" style="font-size:13px">Detect</text>
+    <text x="86" y="106" class="d-small" text-anchor="middle">alert, or a person</text>
+
+    <rect x="180" y="60" width="140" height="60" rx="8" class="d-panel"/>
+    <rect x="180" y="60" width="140" height="60" rx="8" class="d-stroke"/>
+    <text x="250" y="86" class="d-text" text-anchor="middle" style="font-size:13px">Triage</text>
+    <text x="250" y="106" class="d-small" text-anchor="middle">how bad, who, tell them</text>
+
+    <rect x="344" y="52" width="152" height="76" rx="8" class="d-brand" opacity=".92"/>
+    <text x="420" y="80" class="d-white" text-anchor="middle" style="font-size:13px">Mitigate</text>
+    <text x="420" y="100" class="d-white" text-anchor="middle" style="font-size:11px">stop the bleeding</text>
+    <text x="420" y="118" class="d-white" text-anchor="middle" style="font-size:11px">before understanding it</text>
+
+    <rect x="520" y="60" width="140" height="60" rx="8" class="d-panel"/>
+    <rect x="520" y="60" width="140" height="60" rx="8" class="d-stroke"/>
+    <text x="590" y="86" class="d-text" text-anchor="middle" style="font-size:13px">Diagnose &amp; fix</text>
+    <text x="590" y="106" class="d-small" text-anchor="middle">now, calmly</text>
+
+    <rect x="684" y="60" width="140" height="60" rx="8" class="d-panel"/>
+    <rect x="684" y="60" width="140" height="60" rx="8" class="d-stroke"/>
+    <text x="754" y="86" class="d-text" text-anchor="middle" style="font-size:13px">Write it up</text>
+    <text x="754" y="106" class="d-small" text-anchor="middle">blamelessly</text>
+
+    <path d="M160,90 L176,90" class="d-arrow" marker-end="url(#a25b)"/>
+    <path d="M324,90 L340,90" class="d-arrow" marker-end="url(#a25b)"/>
+    <path d="M500,90 L516,90" class="d-arrow" marker-end="url(#a25b)"/>
+    <path d="M664,90 L680,90" class="d-arrow" marker-end="url(#a25b)"/>
+
+    <text x="420" y="160" class="d-small" text-anchor="middle">The junior instinct is to jump from Detect straight to Diagnose. That is the mistake.</text>
+  </svg>
+  <figcaption>Mitigation is not the fix. It is the thing that makes the fix unhurried — and unhurried fixes are correct fixes.</figcaption>
+</figure>
+
+<div class="box pro">
+  <div class="box-title">🎓 Mitigate first, and know your three levers</div>
+  <ol>
+    <li><strong>Roll back.</strong> If a deploy went out in the last hour, this is almost always the
+        answer, and you do not need to know which change caused it. A rollback you can perform in
+        two minutes is worth more than any amount of cleverness &mdash; which is the real argument
+        for the small, frequent releases of chapter 30.</li>
+    <li><strong>Turn it off.</strong> A feature flag, a configuration switch, a disabled scheduled
+        job. Losing one feature beats losing the application.</li>
+    <li><strong>Take the load off.</strong> Scale out, disable the expensive report, shed the batch
+        job that runs at nine.</li>
+  </ol>
+  <p>
+    Then say so out loud in the channel: <em>"rolled back to 4.12, orders page is responding again,
+    still investigating"</em>. Half of incident management is other people knowing what is true right
+    now.
+  </p>
+</div>
+
+<h2 id="severity">Severity, decided at 09:00 on a Monday</h2>
+
+<p>
+  Every team has severity levels and no team has a rulebook that resolves the actual cases. The
+  usable question is not "how broken is it" but <strong>"who is unable to do what, and is there a
+  way round"</strong>.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>What it means</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Sev 1</strong></td>
+      <td>Everyone is stopped, or money or data is being lost right now</td>
+      <td>Drop everything, tell people, mitigate. Nobody is annoyed at being woken for a real Sev 1.</td>
+    </tr>
+    <tr>
+      <td><strong>Sev 2</strong></td>
+      <td>An important function is broken; there is a painful workaround</td>
+      <td>Today. Not tonight.</td>
+    </tr>
+    <tr>
+      <td><strong>Sev 3</strong></td>
+      <td>Broken but avoidable; a subset of users, a cosmetic fault</td>
+      <td>The backlog, with a ticket that will still make sense in a month.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Two failure modes, and the second is worse</div>
+  <p>
+    <strong>Under-calling</strong> is the obvious risk: sitting on something serious because you are
+    not sure and do not want to look dramatic. The rule that fixes it &mdash; and the one to say in
+    an interview &mdash; is that <em>escalating and being wrong costs a colleague ten minutes;
+    not escalating and being wrong costs the company a day</em>. Escalate.
+  </p>
+  <p>
+    <strong>Over-calling</strong> is the one nobody warns you about. A team where everything is Sev 1
+    stops responding to Sev 1. Data loss is not the same as a slow page, and treating them alike is
+    how the alarm becomes background noise.
+  </p>
+</div>
+
+<h2 id="alerting">Alerting worth having</h2>
+
+<p>
+  Chapter 25 built health checks. This is the question of what should wake somebody, and there is a
+  single principle: <strong>alert on symptoms, not on causes.</strong>
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>✗ Cause alerts</th><th>✓ Symptom alerts</th></tr></thead>
+  <tbody>
+    <tr><td>CPU above 85%</td><td>The p99 of <code>POST /orders</code> is above 2s for 5 minutes</td></tr>
+    <tr><td>Memory above 90%</td><td>The 5xx rate is above 1% for 5 minutes</td></tr>
+    <tr><td>A queue has items in it</td><td>The oldest message in the queue is older than 10 minutes</td></tr>
+    <tr><td>A service restarted</td><td>The outbox has undispatched rows older than 5 minutes</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  A cause alert fires when nothing is wrong &mdash; high CPU during a nightly batch is healthy
+  &mdash; and stays quiet when something is. A symptom alert says a <em>user</em> is having a bad
+  time, which is the only reason to wake anybody. The queue examples are the pattern generalised:
+  measure the <em>age</em> of the oldest unprocessed thing, not the count, because a big queue that
+  is draining is fine and a small one that is stuck is not.
+</p>
+
+<div class="box pro">
+  <div class="box-title">🎓 Alert fatigue is a real failure, with a real fix</div>
+  <p>
+    An alert nobody acts on is worse than no alert, because it trains the team to ignore the
+    channel and it hides the one that matters. The discipline: <strong>every alert must have an
+    action</strong>. If the only response is "yeah, that happens", either fix the underlying issue,
+    change the threshold, or delete the alert &mdash; deliberately, and say you did.
+  </p>
+  <p>
+    A <em>runbook</em> is what makes that concrete: a short page per alert saying what it means, how
+    to confirm it, and the first two things to try. Writing one is an excellent first contribution
+    from a junior, because you have to understand the system to write it and everybody benefits
+    when you do.
+  </p>
+</div>
+
+<h2 id="drill">Reading production: the drill</h2>
+
+<p>
+  You cannot attach a debugger. Chapter 27's skills do not apply here; this is a different one, and
+  it is a sequence you should be able to run without thinking.
+</p>
+
+<div class="code-head">from a complaint to a cause, in five moves</div>
+<pre><code><span class="cm">// 1. Get an identifier. Not "it's broken" — a correlation id from the error
+//    screen, or an order number, or a timestamp plus a username.
+//    This single question saves more time than any tool.</span>
+
+<span class="cm">// 2. Find the request.</span>
+   traces | where customDimensions.CorrelationId == <span class="st">"9f2c…"</span>
+
+<span class="cm">// 3. Read the whole request's story, in order. Structured logging is what
+//    makes this possible — this is the payoff chapter 25 promised.</span>
+   | order by timestamp asc
+   | project timestamp, message, severityLevel, customDimensions
+
+<span class="cm">// 4. Widen: is this one user or everyone? The answer changes the severity
+//    and usually the cause.</span>
+   requests | where timestamp &gt; ago(<span class="nu">1</span>h) | summarize count() by resultCode, bin(timestamp, <span class="nu">1</span>m)
+
+<span class="cm">// 5. Correlate with change. What deployed, what configuration changed, what
+//    did the third party do? Most incidents are caused by a change, and most
+//    of those changes were ours.</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ "It works on my machine"</div>
+  <p>
+    When it works locally and fails in production, it is nearly always one of four differences, and
+    running through them beats staring at the code:
+  </p>
+  <ol>
+    <li><strong>Configuration</strong> &mdash; a setting that is absent rather than wrong, silently
+        binding to a default (chapter 16b).</li>
+    <li><strong>Culture and time zone</strong> &mdash; your machine is <code>it-IT</code>, the
+        container is invariant and UTC. Chapter 23.</li>
+    <li><strong>Data</strong> &mdash; production has the customer with 400,000 orders, the null
+        surname, the emoji in the address field.</li>
+    <li><strong>Concurrency</strong> &mdash; you were the only user. Chapter 08 and chapter 11.</li>
+  </ol>
+</div>
+
+<h2 id="postmortem">The write-up, and why it is blameless</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    If the rule is "whoever breaks it gets in trouble", then the fastest way to stay out of trouble
+    is to not mention it. So people stop mentioning things, and you find out much later, when it is
+    much worse.
+  </p>
+  <p>
+    Blameless is not kindness. It is the only arrangement in which you find out what actually
+    happened.
+  </p>
+</div>
+
+<div class="code-head">the whole document — half a page is plenty</div>
+<pre><code><span class="cm"># Incident 2026-03-04 — orders page returning 500 for 38 minutes
+
+**Impact.**    ~1,200 users, 14:02–14:40 UTC. 61 orders failed at checkout;
+               all retried successfully afterwards. No data loss.
+
+**Detection.** Symptom alert on the 5xx rate, 14:05. (3 minutes.)
+
+**Mitigation.** Rolled back to 4.12 at 14:31. Page recovered at 14:40.
+
+**Cause.**     Release 4.13 added a required configuration key. It was set in
+               staging and not in production. Binding left it null; the null
+               reached the carrier client and threw on every request.
+
+**Timeline.**  14:02 deploy · 14:05 alert · 14:11 acknowledged ·
+               14:22 correlated with the deploy · 14:31 rollback · 14:40 clear.
+
+## Five whys
+1. The page 500'd — the carrier client threw on a null base address.
+2. Why null? — the configuration key was missing in production.
+3. Why missing? — it was added to the staging file only.
+4. Why did that ship? — nothing checks that required settings exist.
+5. Why not? — options are bound but never validated at start-up.
+   ↑ THIS is the cause worth fixing. Everything above it is a symptom.
+
+## Actions
+- [ ] ValidateOnStart on every Options class          (owner, date)
+- [ ] Fail the pipeline when staging and production keys diverge
+- [ ] Runbook entry: "5xx after a deploy → roll back first"</span></code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Read where the five whys stopped</div>
+  <p>
+    It stopped at <em>"options are bound but never validated at start-up"</em> &mdash; a property of
+    the system. It did not stop at <em>"Marco forgot to add the key"</em>, which is where an
+    unhealthy postmortem stops, and which produces the action item "be more careful". Nobody has
+    ever been more careful.
+  </p>
+  <p>
+    The test for a good write-up: <strong>every action item is a change to code, configuration or
+    process</strong> &mdash; something that would prevent this class of incident even with the same
+    people making the same mistake. In this case the fix would have turned a 38-minute outage into a
+    deployment that refused to start.
+  </p>
+</div>
+
+<h2 id="documents">The documents you actually write</h2>
+
+<p>
+  <em>"Redigere analisi tecniche e documentazione funzionale"</em> is the vaguest bullet in any
+  advert and it means four concrete artefacts. Chapter 35 covers reading an underspecified ticket;
+  these are what comes out the other end.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Document</th><th>Answers</th><th>Length</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Technical analysis</strong></td>
+      <td>What the business asked for, what that means in this system, which components change, what could go wrong, and roughly how long</td>
+      <td>One page. Written <em>before</em> the code.</td>
+    </tr>
+    <tr>
+      <td><strong>ADR</strong> (architecture decision record)</td>
+      <td>Context, the decision, the alternatives rejected, and the consequences accepted</td>
+      <td>Half a page. Never edited &mdash; superseded by a new one.</td>
+    </tr>
+    <tr>
+      <td><strong>Release note</strong></td>
+      <td>What changed, what to watch, and how to roll back</td>
+      <td>Five lines.</td>
+    </tr>
+    <tr>
+      <td><strong>Handover / runbook page</strong></td>
+      <td>How to operate the thing when you are on holiday</td>
+      <td>As short as it can be and still work.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">an ADR, in the format that has outlived every alternative</div>
+<pre><code><span class="cm"># ADR-014 — Store outbox messages in the same database as the orders
+
+## Status
+Accepted, 2026-02-11. (Supersedes nothing.)
+
+## Context
+Placing an order must publish an OrderPlaced event. Writing to the database
+and publishing to the broker are two systems, so a crash between them either
+loses the event or publishes one for an order that does not exist.
+
+## Decision
+Write the event to an Outbox table inside the same transaction as the order.
+A background dispatcher publishes and marks rows sent.
+
+## Alternatives considered
+- Publish first, then save. Rejected: an event for an order that never existed
+  is worse than a late event.
+- Distributed transaction across SQL Server and the broker. Rejected:
+  operationally heavy, poorly supported, and it does not survive the broker
+  being a different technology next year.
+
+## Consequences
++ The order and its event are now atomic — one transaction, one outcome.
++ Duplicate delivery becomes possible, so consumers must be idempotent.
+− A dispatcher process now exists and needs monitoring: alert on the age of
+  the oldest undispatched row.</span></code></pre>
+
+<p>
+  Two things make that worth writing. It records the <strong>alternatives</strong>, so in eighteen
+  months nobody re-argues a settled question from scratch. And it records the
+  <strong>consequences you accepted</strong> &mdash; including the negative one, which is exactly
+  the thing that gets forgotten and then rediscovered as a bug.
+</p>
+
+<h2 id="bugs">Bug reports, and the minimal repro</h2>
+
+<p>
+  Half of "troubleshooting" is turning a complaint into something reproducible. A good report has
+  four parts and takes two minutes to write:
+</p>
+
+<ol>
+  <li><strong>What I did</strong> &mdash; exact steps, exact data, exact user.</li>
+  <li><strong>What I expected.</strong></li>
+  <li><strong>What happened</strong> &mdash; including the correlation id and the timestamp.</li>
+  <li><strong>Environment</strong> &mdash; which version, which environment, which browser.</li>
+</ol>
+
+<p>
+  Then narrow it. Remove one variable at a time until it stops failing; the last thing you removed
+  is the cause. This is the discipline chapter 27 calls a method for finding bugs, and it works
+  identically on somebody else's system at three in the afternoon.
+</p>
+
+<div class="box note">
+  <div class="box-title">The reduction usually finds it before the debugger does</div>
+  <p>
+    "It fails for this customer" becomes "it fails for customers with more than one shipping
+    address" becomes "it fails when two addresses have the same postcode" &mdash; and by then you
+    have not only reproduced it, you have named the bug and can guess the line.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <ol>
+    <li>Take the last thing that broke on your own machine and write the half-page postmortem for
+        it, five whys included. Make yourself stop at a systemic cause rather than "I typed it
+        wrong".</li>
+    <li>Write an ADR for a decision in this repository you disagree with &mdash; the repository
+        pattern, say &mdash; stating the alternatives honestly. Arguing the side you did not pick is
+        the exercise.</li>
+    <li>Look at the health check from chapter 25 and turn it into three symptom alerts. For each,
+        write the first two lines of the runbook.</li>
+    <li>Break something deliberately: remove a configuration key, start the app, and follow one
+        correlation id from the error to the cause. Time yourself.</li>
+    <li>Take a vague complaint &mdash; "the export is wrong" &mdash; and write the four-part bug
+        report you wish you had been given.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Mitigate before you diagnose.</strong> Roll back, flag off, shed load. Understanding can wait; the users cannot.</li>
+    <li><strong>If a deploy went out in the last hour, roll it back.</strong> You do not need to know which change did it.</li>
+    <li><strong>Say what is true in the channel, early and often.</strong> Half of incident management is other people knowing the current state.</li>
+    <li><strong>Escalating and being wrong costs ten minutes; not escalating and being wrong costs a day.</strong></li>
+    <li><strong>But a team where everything is Sev 1 stops responding to Sev 1.</strong> Severity is about who is stopped and whether there is a way round.</li>
+    <li><strong>Alert on symptoms, not causes.</strong> High CPU is not an incident; a user waiting four seconds is.</li>
+    <li><strong>For queues and backlogs, alert on age, not count.</strong> A big queue that is draining is fine.</li>
+    <li><strong>Every alert needs an action.</strong> One that nobody acts on is worse than none, because it hides the one that matters.</li>
+    <li><strong>Ask for an identifier first.</strong> A correlation id turns an afternoon into five minutes.</li>
+    <li><strong>"Works on my machine" is configuration, culture, data or concurrency.</strong> Check those four before reading the code again.</li>
+    <li><strong>Postmortems are blameless because blame destroys the information.</strong> Stop the five whys at a system, never at a person.</li>
+    <li><strong>Every action item must be a change to code, configuration or process.</strong> "Be more careful" is not an action item.</li>
+    <li><strong>Write the analysis before the code and the ADR when you decide</strong> — recording the alternatives is most of the value.</li>
+    <li><strong>Reduce a bug by removing one variable at a time.</strong> The last thing you removed is the cause.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Production is down. Walk me through what you do."</p>
+  <p class="a">
+    Confirm the symptom and how wide it is, tell people in the channel, then <strong>mitigate before
+    diagnosing</strong> &mdash; if anything deployed recently I roll back first, otherwise flag the
+    feature off or shed the load. Once users are working again I diagnose calmly: correlation id,
+    logs for that request, then widen to see whether it is everyone, then correlate with what
+    changed. Afterwards I write it up blamelessly with action items. Leading with the rollback
+    rather than the investigation is the whole answer &mdash; it is what distinguishes someone who
+    has been in an incident from someone who has read about one.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you decide the severity?"</p>
+  <p class="a">
+    Not by how broken it looks, but by who is unable to do what and whether there is a workaround.
+    Money or data being lost, or everyone stopped, is the top severity and warrants waking people.
+    An important feature with a painful workaround is today's problem, not tonight's. And when I am
+    unsure I escalate, because being wrong that way costs a colleague ten minutes &mdash; while
+    being careful not to call everything critical, since a team where everything is urgent stops
+    reacting to anything.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What makes a good alert?"</p>
+  <p class="a">
+    It fires on a symptom a user would notice &mdash; error rate, latency, the age of the oldest
+    unprocessed item &mdash; rather than on a cause like CPU, which is high during healthy batch
+    work and normal during real outages. It has a threshold and a duration so a single blip does not
+    page anyone, and it has an action: a runbook entry saying what it means and the first two things
+    to try. If nobody acts on it, it should be fixed or deleted, because alerts nobody reads are how
+    the real one gets missed.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a blameless postmortem, and why bother?"</p>
+  <p class="a">
+    A write-up that establishes what happened and why the system allowed it, without attributing
+    fault to a person. It is not politeness &mdash; it is the only way to get accurate information,
+    because in a blaming culture people stop reporting and you find out later and worse. The
+    practical test is where the five whys stop: at "options are never validated at start-up" rather
+    than at "someone forgot the key", and every action item is a change to code, configuration or
+    process rather than an appeal to care more.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"It works in test and fails in production. Where do you look?"</p>
+  <p class="a">
+    Four differences, in order: configuration &mdash; usually a missing key binding silently to a
+    default rather than a wrong value; culture and time zone, since my machine is Italian and the
+    container is invariant and UTC; data, because production has the customer with 400,000 orders
+    and the null surname; and concurrency, because in test I was the only user. Then I would ask for
+    a correlation id and read that one request end to end rather than guessing.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What documentation do you write as a developer?"</p>
+  <p class="a">
+    A one-page technical analysis before starting anything non-trivial &mdash; what was asked, what
+    it means here, what changes, what could go wrong. An ADR when a decision has alternatives worth
+    recording, in the context/decision/consequences form, including the negative consequences we
+    accepted. A short release note saying what to watch and how to roll back. And a runbook page for
+    anything I would otherwise be phoned about while on holiday. Short and current beats
+    comprehensive and stale.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

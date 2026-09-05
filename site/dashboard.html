@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — LogiFlow Academy</title>
+<meta name="description" content="How much of the .NET course you have actually mastered: chapter scores, spaced-repetition recall, streak, badges and the weakest topics to fix next.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="dashboard">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Dashboard</p>
+    <h1>Where you actually are</h1>
+    <p class="lede">
+      One number can be gamed by scrolling. This one cannot: three quarters of every
+      chapter's score comes from answering its questions, so the percentage below is a
+      measure of what you can retrieve, not of what you have looked at.
+    </p>
+
+    <div id="hero"></div>
+
+    <h2 id="numbers">The numbers</h2>
+    <div id="stats" class="stat-grid"></div>
+
+    <h2 id="parts">Progress by part</h2>
+    <p class="subtle">
+      A part is finished when every chapter in it has been read and its test passed at 80% or better.
+    </p>
+    <div id="parts-list" class="part-list"></div>
+
+    <h2 id="activity">The last ten weeks</h2>
+    <p class="subtle">
+      One square per day, darker with more XP earned. Consistency beats intensity — a
+      quarter of an hour every day outperforms a five-hour Sunday, and the spacing is
+      most of the reason.
+    </p>
+    <div id="heat" class="heat"></div>
+    <p id="heat-note" class="subtle"></p>
+
+    <h2 id="weak">What to fix next</h2>
+    <div id="weak"></div>
+
+    <h2 id="chapters-table">Every chapter</h2>
+    <div id="chapter-table"></div>
+
+    <h2 id="leaderboard">Leaderboard</h2>
+    <div id="leaderboard"></div>
+
+    <h2 id="badges">Badges</h2>
+    <p class="subtle">
+      Deliberately hard to farm: they are awarded for retrieval and consistency, not for
+      opening pages.
+    </p>
+    <div id="badges-grid" class="badge-grid"></div>
+
+    <h2 id="data">Your data</h2>
+    <div class="box note">
+      <div class="box-title">Where this is stored</div>
+      <p id="storage-note">Checking&hellip;</p>
+      <p>
+        Nothing is uploaded anywhere unless you sign in from the account button in the top bar.
+        Export a backup before clearing your browser data, and before switching machines if you
+        are not using an account.
+      </p>
+      <div class="account-row">
+        <button type="button" class="btn" id="btn-export">Export a backup</button>
+        <button type="button" class="btn" id="btn-import">Import a backup</button>
+        <button type="button" class="btn danger" id="btn-reset">Reset everything</button>
+      </div>
+    </div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var LF = window.LF, Q = window.LFQuiz, UI = window.LFLearn;
+  var esc = UI.esc;
+
+  /* ------------------------------------------------------------------ hero */
+  function hero() {
+    var m = LF.mastery();
+    var lv = LF.level();
+    var s = LF.profile.streak;
+    var alive = LF.streakAlive();
+
+    document.getElementById("hero").className = "hero-progress";
+    document.getElementById("hero").innerHTML =
+      "<div>" + UI.ring(m.percent, 96, 9) + "</div>" +
+      '<div style="flex:1 1 260px;min-width:220px">' +
+        '<div class="big-num">' + m.percent + "%</div>" +
+        "<p style=\"margin:.2em 0 0\"><strong>" + esc(lv.name) + "</strong> &middot; " +
+          LF.profile.xp + " XP" +
+          (lv.next ? " &middot; " + (lv.next.at - LF.profile.xp) + " XP to " + esc(lv.next.name) : " &middot; top level") +
+        "</p>" +
+        '<div class="level-bar"><span style="width:' + Math.round(lv.fraction * 100) + '%"></span></div>' +
+        '<p class="subtle" style="margin:.2em 0 0">' +
+          m.read + " of " + m.total + " chapters read &middot; " + m.tested + " tests passed" +
+        "</p>" +
+      "</div>" +
+      '<div style="text-align:center;min-width:110px">' +
+        '<div style="font-size:34px;line-height:1">' + (alive ? "🔥" : "💤") + "</div>" +
+        '<div style="font-size:24px;font-weight:800;line-height:1.1">' + s.count + "</div>" +
+        '<div class="subtle" style="font-size:12.5px">day streak' +
+          (s.best > s.count ? "<br>best " + s.best : "") + "</div>" +
+      "</div>";
+  }
+
+  /* ----------------------------------------------------------------- stats */
+  function stat(num, label, note) {
+    return '<div class="stat"><div class="stat-num">' + num + "</div>" +
+           '<div class="stat-label">' + label + "</div>" +
+           (note ? '<div class="stat-note">' + note + "</div>" : "") + "</div>";
+  }
+
+  function stats() {
+    var p = LF.profile;
+    var due = LF.due().length;
+    var cards = Object.keys(p.cards).length;
+    var recall = LF.recall();
+    var answers = 0, correct = 0;
+    p.attempts.forEach(function (a) { answers += a.total; correct += a.correct; });
+    var totalQuestions = Q.count();
+    var lapsed = 0;
+    Object.keys(p.cards).forEach(function (k) { if (p.cards[k].lapses > 0) lapsed++; });
+
+    document.getElementById("stats").innerHTML =
+      stat(due, "cards due today", due ? '<a href="review.html">Start reviewing</a>' : "Nothing scheduled — come back tomorrow.") +
+      stat(cards + " / " + totalQuestions, "questions met", "Every question you answer joins the schedule.") +
+      stat(recall === null ? "—" : recall + "%", "retained", "Cards you have got right twice and are not due again soon.") +
+      stat(correct + " / " + answers, "test answers", answers ? Math.round((correct / answers) * 100) + "% first-time correct" : "No tests taken yet.") +
+      stat(p.examBest ? Math.round(p.examBest * 100) + "%" : "—", "best mock exam",
+           p.examCount ? p.examCount + " sat" : '<a href="exam.html">Sit one</a>') +
+      stat(lapsed, "cards you have failed", lapsed ? "These are the ones worth your evening." : "None yet.") +
+      stat(p.notes.length, "sticky notes", p.notes.length ? '<a href="notes.html">Read them back</a>' : "Select text in a chapter to make one.") +
+      stat(Object.keys(p.badges).length + " / " + LF.BADGES.length, "badges", "");
+  }
+
+  /* ----------------------------------------------------------------- parts */
+  function parts() {
+    var seen = [], out = [];
+    (window.CHAPTERS || []).forEach(function (c) {
+      if (seen.indexOf(c.part) !== -1) return;
+      seen.push(c.part);
+      var pm = LF.partMastery(c.part);
+      out.push('<div class="part-row">' +
+        '<span class="part-name" title="' + esc(c.part) + '">' + esc(c.part) + "</span>" +
+        '<span class="part-track"><span style="width:' + pm.percent + '%"></span></span>' +
+        '<span class="part-pct">' + pm.percent + "%</span></div>");
+    });
+    document.getElementById("parts-list").innerHTML = out.join("");
+  }
+
+  /* ------------------------------------------------------------------ heat */
+  function heat() {
+    var days = 70;
+    var out = [], total = 0, active = 0;
+    var today = LF.today();
+    for (var i = days - 1; i >= 0; i--) {
+      var d = LF.addDays(today, -i);
+      var h = LF.profile.history[d];
+      var xp = h ? h.xp : 0;
+      total += xp;
+      if (xp > 0) active++;
+      var level = xp === 0 ? 0 : xp < 30 ? 1 : xp < 80 ? 2 : xp < 160 ? 3 : 4;
+      out.push('<i class="l' + level + '" title="' + d + " — " + xp + ' XP"></i>');
+    }
+    document.getElementById("heat").innerHTML = out.join("");
+    document.getElementById("heat-note").textContent =
+      active + " active day" + (active === 1 ? "" : "s") + " in the last " + days +
+      ", " + total + " XP earned.";
+  }
+
+  /* ------------------------------------------------------------------ weak */
+  function weak() {
+    var list = LF.weakest(6);
+    var host = document.getElementById("weak");
+    if (!list.length) {
+      host.innerHTML = '<div class="box"><p>Nothing has tripped you up yet. ' +
+        'Once you get a question wrong it appears here, with a count of how many times.</p></div>';
+      return;
+    }
+    var byId = {};
+    (window.CHAPTERS || []).forEach(function (c) { byId[c.id] = c; });
+
+    var rows = list.map(function (w) {
+      var c = byId[w.ch];
+      if (!c) return "";
+      return '<div class="weak-row"><a href="chapters/' + w.ch + '.html">' +
+        esc(c.n + " · " + c.title) + "</a>" +
+        '<span class="weak-count">' + w.lapses + " miss" + (w.lapses === 1 ? "" : "es") + "</span></div>";
+    }).join("");
+
+    host.innerHTML = '<div class="weak-list">' + rows + "</div>" +
+      '<p class="subtle">Missing a question is the useful part — it is the only reliable signal about ' +
+      'what you do not know. These are already scheduled; <a href="review.html">reviewing them</a> ' +
+      "is a better use of twenty minutes than re-reading the chapter.</p>";
+  }
+
+  /* -------------------------------------------------------- chapter table */
+  function table() {
+    var rows = (window.CHAPTERS || []).map(function (c) {
+      var st = LF.profile.chapters[c.id] || {};
+      var best = st.best ? Math.round(st.best * 100) + "%" : "—";
+      var state = st.best >= 1 ? "★ perfect"
+                : st.best >= 0.8 ? "✔ passed"
+                : st.best > 0 ? "◐ partial"
+                : st.read ? "· read"
+                : "";
+      var n = (window.QUIZZES && window.QUIZZES[c.id] ? window.QUIZZES[c.id].length : 0);
+      return "<tr><td>" + esc(c.n) + '</td><td><a href="chapters/' + c.id + '.html">' +
+        esc(c.title) + "</a></td><td>" + state + "</td><td>" + best +
+        "</td><td>" + (st.attempts || 0) + "</td><td>" + n + "</td></tr>";
+    }).join("");
+
+    document.getElementById("chapter-table").innerHTML =
+      '<div class="table-wrap"><table><thead><tr>' +
+      "<th>#</th><th>Chapter</th><th>State</th><th>Best</th><th>Attempts</th><th>Questions</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
+  /* ---------------------------------------------------------------- badges */
+  function badges() {
+    document.getElementById("badges-grid").innerHTML = LF.BADGES.map(function (b) {
+      var got = LF.profile.badges[b.id];
+      return '<div class="badge-card' + (got ? "" : " locked") + '" title="' +
+        esc(b.hint) + (got ? " — earned " + got.slice(0, 10) : "") + '">' +
+        '<div class="badge-icon">' + b.icon + "</div>" +
+        '<div class="badge-name">' + esc(b.name) + "</div>" +
+        '<div class="badge-hint">' + esc(b.hint) + "</div></div>";
+    }).join("");
+  }
+
+  /* ------------------------------------------------------------------ data */
+  function data() {
+    document.getElementById("storage-note").textContent = LF.memoryOnly()
+      ? "This browser is refusing to store data (a private window, or storage is blocked), so your progress will be lost when the tab closes. Export a backup, or sign in."
+      : "Your progress is stored in this browser, on this machine.";
+
+    document.getElementById("btn-export").addEventListener("click", function () {
+      var blob = new Blob([LF.exportJson()], { type: "application/json" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "logiflow-progress-" + LF.today() + ".json";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    });
+
+    document.getElementById("btn-import").addEventListener("click", function () {
+      var input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/json,.json";
+      input.addEventListener("change", function () {
+        var f = input.files && input.files[0];
+        if (!f) return;
+        var r = new FileReader();
+        r.onload = function () {
+          try { LF.importJson(String(r.result)); location.reload(); }
+          catch (e) { window.alert("That file is not a LogiFlow profile."); }
+        };
+        r.readAsText(f);
+      });
+      input.click();
+    });
+
+    document.getElementById("btn-reset").addEventListener("click", function () {
+      if (!window.confirm("Delete all progress, scores, cards, notes and badges in this browser?\n\nThis cannot be undone. Export a backup first if you are not sure.")) return;
+      LF.reset();
+      location.reload();
+    });
+  }
+
+  /* ----------------------------------------------------------- leaderboard */
+  function leaderboard() {
+    var host = document.getElementById("leaderboard");
+    var account = window.LFAccount;
+
+    if (!account || account.state.status !== "signed-in") {
+      host.innerHTML =
+        '<div class="box"><div class="box-title">Only when several people share a server</div>' +
+        "<p>The leaderboard needs an account, because it is the one thing on this site that " +
+        "involves anybody else. Everything else works signed out and stays in this browser.</p>" +
+        '<p class="subtle">Use the button in the top bar to sign in, or run the accounts service ' +
+        "yourself: <code>dotnet run --project src/LogiFlow.Academy.Api</code>, then open the " +
+        "address it prints.</p></div>";
+      return;
+    }
+
+    host.innerHTML = '<p class="subtle">Loading&hellip;</p>';
+
+    account.leaderboard().then(function (rows) {
+      if (!rows || !rows.length) {
+        host.innerHTML = '<p class="subtle">Nobody has synced any progress yet.</p>';
+        return;
+      }
+
+      var body = rows.map(function (r, i) {
+        return "<tr" + (r.isYou ? ' style="font-weight:700"' : "") + ">" +
+          "<td>" + (i + 1) + "</td>" +
+          "<td>" + esc(r.displayName) + (r.isYou ? " &larr; you" : "") + "</td>" +
+          "<td>" + r.xp + "</td>" +
+          "<td>" + r.masteryPercent + "%</td>" +
+          "<td>" + r.chaptersPassed + "</td>" +
+          "<td>" + (r.streakDays ? "🔥 " + r.streakDays : "&mdash;") + "</td></tr>";
+      }).join("");
+
+      host.innerHTML =
+        '<div class="table-wrap"><table><thead><tr>' +
+        "<th>#</th><th>Learner</th><th>XP</th><th>Mastered</th><th>Passed</th><th>Streak</th>" +
+        "</tr></thead><tbody>" + body + "</tbody></table></div>" +
+        '<p class="subtle">Only people who have signed in and synced appear here, and anyone ' +
+        "can hide themselves. The figures are read out of each learner's own document by the " +
+        "server, so the browser cannot simply assert them &mdash; but a determined person could " +
+        "still edit their local profile before syncing. Treat it as a nudge, not a ranking.</p>" +
+        '<p><button type="button" class="btn" id="btn-hide-me">Hide me from this list</button> ' +
+        '<button type="button" class="btn" id="btn-show-me">Show me again</button></p>';
+
+      var set = function (visible) {
+        return function () {
+          account.setLeaderboardVisible(visible).then(leaderboard, function (err) {
+            host.innerHTML = '<p class="subtle">Could not change that: ' +
+              esc(err.message || "unknown error") + "</p>";
+          });
+        };
+      };
+      document.getElementById("btn-hide-me").addEventListener("click", set(false));
+      document.getElementById("btn-show-me").addEventListener("click", set(true));
+    }, function (err) {
+      host.innerHTML = '<p class="subtle">Could not load it: ' + esc(err.message || "unknown error") + "</p>";
+    });
+  }
+
+  hero(); stats(); parts(); heat(); weak(); table(); leaderboard(); badges(); data();
+})();
+</script>
+</body>
+</html>

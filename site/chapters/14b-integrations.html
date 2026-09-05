@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14b · Talking to systems you do not own — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="14b-integrations">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 14b</p>
+<h1>Talking to systems you do not own</h1>
+<p class="lede">
+  Chapter 14 built an API other people call. This one is the other direction: calling somebody
+  else's, receiving their webhooks, and reading the CSV their old system drops on an SFTP server at
+  two in the morning. It is the part of the job with the most tickets and the least teaching.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the adverts</div>
+  <p>
+    <em>"Integrazione tra sistemi web e piattaforme esterne"</em> appears as a duty in one advert
+    and <em>"integrazioni web"</em> again in its nice-to-haves. Another lists
+    <em>"realizzare le relative integrazioni di sistema"</em> as a core responsibility. When a
+    requirement is repeated in both halves of an advert, it is not aspiration &mdash; it is
+    most of the sprint.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-shape">The shape of the problem</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Everything so far has been about your own house. You decide where the furniture goes and when
+    the lights turn off.
+  </p>
+  <p>
+    An integration is a phone call to a neighbour. They might not pick up. They might pick up and
+    take four minutes. They might say "yes, done" and have done nothing. They might change their
+    phone number without telling you. You cannot fix any of that &mdash; you can only decide what
+    <em>your</em> house does when it happens.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Every rule in this chapter follows from one fact: <strong>you control one side of the
+    boundary.</strong> Inside your service a method call either returns or throws. Across a network
+    to a system you do not own there is a third outcome &mdash; <em>you do not know</em> &mdash;
+    and the timeout is exactly the case where the work may well have succeeded.
+  </p>
+  <p>
+    That is the same three-outcome problem chapter 22 introduced for message queues. Integration is
+    distributed systems with a smaller vocabulary.
+  </p>
+</div>
+
+<h2 id="httpclient">Typed clients, and the two bugs everyone ships first</h2>
+
+<div class="code-head">✗ both of these are wrong, in opposite directions</div>
+<pre><code><span class="cm">// ✗ 1. A new client per call. HttpClient is disposable, so this looks correct
+//      and is the single most common .NET networking bug: each disposal leaves
+//      a socket in TIME_WAIT for minutes. Under load you exhaust the ports and
+//      the exception says "address in use" — which sounds like a server problem.</span>
+<span class="kw">using var</span> client = <span class="kw">new</span> <span class="ty">HttpClient</span>();
+<span class="kw">var</span> res = <span class="kw">await</span> client.GetAsync(url);
+
+<span class="cm">// ✗ 2. One static client forever. Fixes the sockets, and now the connection
+//      never notices that DNS changed — so a failover the other side performed
+//      is invisible to you until a restart.</span>
+<span class="kw">private static readonly</span> <span class="ty">HttpClient</span> Shared = <span class="kw">new</span>();</code></pre>
+
+<div class="code-head">✓ a typed client, registered once</div>
+<pre><code><span class="cm">// Program.cs — IHttpClientFactory pools the handlers and rotates them
+// (two minutes by default), which solves both problems at once.</span>
+builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span class="ty">CarrierApi</span>&gt;(c =&gt;
+{
+    c.BaseAddress = <span class="kw">new</span> <span class="ty">Uri</span>(options.BaseUrl);
+    c.Timeout     = <span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">10</span>);   <span class="cm">// ALWAYS. The default is 100s,
+                                                 // which is forever under load.</span>
+});
+
+<span class="cm">// …and the client itself takes HttpClient in its constructor. Nothing else
+// in the application knows that this dependency is HTTP at all.</span>
+<span class="kw">public sealed class</span> <span class="ty">CarrierApi</span>(<span class="ty">HttpClient</span> http) : <span class="ty">ICarrierApi</span>
+{
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">TrackingResult</span>&gt; TrackAsync(<span class="kw">string</span> code, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">using var</span> res = <span class="kw">await</span> http.GetAsync($<span class="st">"v2/parcels/{code}"</span>, ct);
+        <span class="kw">if</span> (res.StatusCode == <span class="ty">HttpStatusCode</span>.NotFound) <span class="kw">return</span> <span class="ty">TrackingResult</span>.Unknown;
+        res.EnsureSuccessStatusCode();
+        <span class="kw">return</span> Map(<span class="kw">await</span> res.Content.ReadFromJsonAsync&lt;<span class="ty">CarrierParcelDto</span>&gt;(ct));
+    }
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Injecting <code>HttpClient</code> is not injecting a singleton</div>
+  <p>
+    The <code>HttpClient</code> you receive is cheap and short-lived; the expensive
+    <code>HttpMessageHandler</code> underneath it is the thing being pooled. That is why a typed
+    client should be registered transient (the default) and why capturing the injected
+    <code>HttpClient</code> in a static field puts you straight back into bug 2. Chapter 10's
+    captive-dependency rule, wearing a different hat.
+  </p>
+</div>
+
+<h2 id="auth">Authenticating outbound</h2>
+
+<p>
+  An API key in a header is the easy case &mdash; put it in configuration, never in the repository,
+  and read chapter 15 again. The one worth learning properly is OAuth2 <em>client credentials</em>,
+  because it is what every serious platform uses for server-to-server calls.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 220" role="img" aria-labelledby="oauth-title">
+    <title id="oauth-title">The client credentials flow with a cached token</title>
+    <defs>
+      <marker id="a14b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" class="d-fill"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="70" width="150" height="70" rx="8" class="d-panel"/>
+    <rect x="20" y="70" width="150" height="70" rx="8" class="d-stroke"/>
+    <text x="95" y="100" class="d-text" text-anchor="middle">your service</text>
+    <text x="95" y="122" class="d-small" text-anchor="middle">DelegatingHandler</text>
+
+    <rect x="330" y="20" width="180" height="66" rx="8" class="d-panel"/>
+    <rect x="330" y="20" width="180" height="66" rx="8" class="d-stroke"/>
+    <text x="420" y="46" class="d-text" text-anchor="middle">token endpoint</text>
+    <text x="420" y="68" class="d-small" text-anchor="middle">id + secret → token</text>
+
+    <rect x="330" y="130" width="180" height="66" rx="8" class="d-brand" opacity=".92"/>
+    <text x="420" y="156" class="d-white" text-anchor="middle" style="font-size:13px">their API</text>
+    <text x="420" y="178" class="d-white" text-anchor="middle" style="font-size:11px">Authorization: Bearer …</text>
+
+    <rect x="620" y="70" width="196" height="70" rx="8" class="d-brand" opacity=".14"/>
+    <rect x="620" y="70" width="196" height="70" rx="8" class="d-stroke"/>
+    <text x="718" y="96" class="d-text" text-anchor="middle">cache the token</text>
+    <text x="718" y="118" class="d-small" text-anchor="middle">until expiry minus a margin</text>
+
+    <path d="M174,92 L326,56" class="d-arrow" marker-end="url(#a14b)"/>
+    <path d="M174,120 L326,158" class="d-arrow" marker-end="url(#a14b)"/>
+    <path d="M514,56 L616,88" class="d-arrow" marker-end="url(#a14b)"/>
+  </svg>
+  <figcaption>Fetch a token, cache it, attach it to every call, refresh before it expires. The handler does this so no caller has to remember.</figcaption>
+</figure>
+
+<div class="code-head">a DelegatingHandler — middleware for outgoing requests</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">BearerTokenHandler</span>(<span class="ty">ITokenProvider</span> tokens) : <span class="ty">DelegatingHandler</span>
+{
+    <span class="kw">protected override async</span> <span class="ty">Task</span>&lt;<span class="ty">HttpResponseMessage</span>&gt; SendAsync(
+        <span class="ty">HttpRequestMessage</span> req, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> token = <span class="kw">await</span> tokens.GetAsync(ct);      <span class="cm">// cached; refreshes itself</span>
+        req.Headers.Authorization = <span class="kw">new</span>(<span class="st">"Bearer"</span>, token);
+
+        <span class="kw">var</span> res = <span class="kw">await base</span>.SendAsync(req, ct);
+
+        <span class="cm">// One retry on 401 — their token lifetime and your clock will disagree
+        // eventually, and this is the difference between a nightly blip and a
+        // 3am phone call. Exactly once: a loop here is an outage.</span>
+        <span class="kw">if</span> (res.StatusCode == <span class="ty">HttpStatusCode</span>.Unauthorized)
+        {
+            res.Dispose();
+            req.Headers.Authorization = <span class="kw">new</span>(<span class="st">"Bearer"</span>, <span class="kw">await</span> tokens.RefreshAsync(ct));
+            res = <span class="kw">await base</span>.SendAsync(req, ct);
+        }
+        <span class="kw">return</span> res;
+    }
+}
+
+<span class="cm">// Program.cs</span>
+builder.Services.AddTransient&lt;<span class="ty">BearerTokenHandler</span>&gt;();
+builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span class="ty">CarrierApi</span>&gt;()
+       .AddHttpMessageHandler&lt;<span class="ty">BearerTokenHandler</span>&gt;();</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The token stampede</div>
+  <p>
+    Cache the token, but make the refresh <strong>single-flight</strong> &mdash; one
+    <code>SemaphoreSlim</code>, or a shared <code>Task</code> everyone awaits. Otherwise the moment
+    it expires, fifty concurrent requests all discover this at once and fire fifty token requests,
+    and the identity provider rate-limits you. Refresh at 80% of the lifetime rather than at
+    expiry, and the problem mostly stops existing.
+  </p>
+</div>
+
+<h2 id="resilience">Resilience: timeout, retry, circuit breaker</h2>
+
+<div class="code-head">the standard handler does all four</div>
+<pre><code><span class="cm">// package: Microsoft.Extensions.Http.Resilience  (Polly v8 underneath)</span>
+builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span class="ty">CarrierApi</span>&gt;()
+       .AddStandardResilienceHandler();
+
+<span class="cm">// …or spelled out, when you need to say why each number is what it is:</span>
+       .AddResilienceHandler(<span class="st">"carrier"</span>, b =&gt; b
+           .AddTimeout(<span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">5</span>))          <span class="cm">// per attempt</span>
+           .AddRetry(<span class="kw">new</span>()
+           {
+               MaxRetryAttempts = <span class="nu">3</span>,
+               BackoffType      = <span class="ty">DelayBackoffType</span>.Exponential,
+               UseJitter        = <span class="kw">true</span>    <span class="cm">// ← not optional. See below.</span>
+           })
+           .AddCircuitBreaker(<span class="kw">new</span>() { FailureRatio = <span class="nu">0.5</span>, MinimumThroughput = <span class="nu">10</span> })
+           .AddTimeout(<span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">30</span>)));       <span class="cm">// total, across all attempts</span></code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Why each piece is there</div>
+  <ul>
+    <li>
+      <strong>Timeout</strong> &mdash; both kinds. A per-attempt timeout stops one slow call; a
+      total timeout stops three retries of a slow call adding up to ninety seconds while your caller
+      waits.
+    </li>
+    <li>
+      <strong>Jitter</strong> &mdash; without it, every instance that failed during the same
+      one-second outage retries at exactly the same moment, twice, and finishes the job the outage
+      started. Randomising the delay is what makes retry safe at scale.
+    </li>
+    <li>
+      <strong>Circuit breaker</strong> &mdash; after enough failures, stop calling and fail
+      immediately for a while, then let one request through to test the water. It protects
+      <em>them</em> from your retries and <em>you</em> from queueing every thread against a dead
+      dependency.
+    </li>
+  </ul>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ A retry without idempotency is a duplicate order</div>
+  <p>
+    Retrying <code>GET</code> is free. Retrying <code>POST /orders</code> after a timeout is how a
+    customer is charged twice &mdash; because a timeout does not mean it failed, it means
+    <em>you do not know</em>. Either the operation is idempotent, or you must not retry it blindly.
+  </p>
+  <pre><code><span class="cm">// The standard answer: a key YOU generate, stable across retries, that
+// they use to recognise a repeat. Most serious APIs support this header;
+// if theirs does not, ask what does — there is usually something.</span>
+req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());</code></pre>
+  <p>Chapter 22 makes the general argument. This is the same rule pointing outwards.</p>
+</div>
+
+<h2 id="anti-corruption">Never let their model into yours</h2>
+
+<p>
+  This is the rule that decides whether the integration is a contained annoyance or a slow leak
+  through the whole codebase.
+</p>
+
+<div class="code-head">✗ their shape, spreading</div>
+<pre><code><span class="cm">// Their DTO, deserialised and passed straight into the domain. Now their
+// nullable string status, their date format and their spelling of "cancelled"
+// are load-bearing in YOUR entities — and their next version breaks you
+// in twenty places.</span>
+<span class="kw">public class</span> <span class="ty">CarrierParcelDto</span>
+{
+    <span class="kw">public string</span>? parcel_status { get; set; }     <span class="cm">// "IN_TRANSIT", "DELIVERED", "CANC"</span>
+    <span class="kw">public string</span>? eta { get; set; }               <span class="cm">// "2026-03-04 14:00" — no zone. Whose?</span>
+}</code></pre>
+
+<div class="code-head">✓ one translation, in one place</div>
+<pre><code><span class="cm">// The DTO stays internal to the Infrastructure project and is mapped at the
+// boundary. Chapter 23's dependency rule, applied to a third party:
+// the domain must not know this system exists.</span>
+<span class="kw">private static</span> <span class="ty">TrackingResult</span> Map(<span class="ty">CarrierParcelDto</span> d) =&gt; <span class="kw">new</span>(
+    Status: d.parcel_status <span class="kw">switch</span>
+    {
+        <span class="st">"IN_TRANSIT"</span> =&gt; <span class="ty">TrackingStatus</span>.InTransit,
+        <span class="st">"DELIVERED"</span>  =&gt; <span class="ty">TrackingStatus</span>.Delivered,
+        <span class="st">"CANC"</span>       =&gt; <span class="ty">TrackingStatus</span>.Cancelled,
+        <span class="cm">// The important arm. An unknown value is THEIR new feature, and
+        // guessing is worse than admitting it.</span>
+        _            =&gt; <span class="ty">TrackingStatus</span>.Unknown
+    },
+    Eta: <span class="ty">DateTime</span>.TryParse(d.eta, <span class="ty">CultureInfo</span>.InvariantCulture,
+                          <span class="ty">DateTimeStyles</span>.AssumeUniversal, <span class="kw">out var</span> t)
+         ? t : <span class="kw">null</span>);</code></pre>
+
+<div class="box note">
+  <div class="box-title">Read that date parse again</div>
+  <p>
+    <code>InvariantCulture</code>, explicitly, and an assumption about the time zone stated in code
+    rather than inherited from the server's locale. An integration is exactly where chapter 23's
+    culture rules stop being theoretical: their <code>"03/04/2026"</code> is the fourth of March or
+    the third of April depending on who wrote it, and nobody will tell you which.
+  </p>
+</div>
+
+<h2 id="their-failures">Their failures, which are now your problem</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>What you get</th><th>What it means</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>429 Too Many Requests</code></td>
+      <td>Rate limited</td>
+      <td>Honour <code>Retry-After</code> if present &mdash; it beats your own backoff, because it is their opinion of when they will be ready</td>
+    </tr>
+    <tr>
+      <td><code>200</code> with an error inside the body</td>
+      <td>More common than it should be</td>
+      <td>Check the payload, not only the status. Never assume 2xx means success on a legacy SOAP-ish API</td>
+    </tr>
+    <tr>
+      <td>A timeout</td>
+      <td><strong>Unknown</strong>, not failure</td>
+      <td>Reconcile: query before you retry, or use an idempotency key</td>
+    </tr>
+    <tr>
+      <td>A page of results and a cursor</td>
+      <td>There is more</td>
+      <td>Follow it to exhaustion, with a cap. Prefer cursor paging to offset paging &mdash; lab 07's lesson, from the other side</td>
+    </tr>
+    <tr>
+      <td>A field that is sometimes absent</td>
+      <td>Their optional is not your optional</td>
+      <td>Model it nullable and decide once, at the boundary</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="webhooks">Receiving: webhooks</h2>
+
+<p>
+  The other half of integration is an endpoint <em>they</em> call. It is a public, unauthenticated
+  URL that causes writes in your database, which makes it the most security-sensitive endpoint you
+  will write.
+</p>
+
+<div class="code-head">the four rules, in one endpoint</div>
+<pre><code>app.MapPost(<span class="st">"/webhooks/carrier"</span>, <span class="kw">async</span> (
+    <span class="ty">HttpRequest</span> req, <span class="ty">IWebhookQueue</span> queue, <span class="ty">IOptions</span>&lt;<span class="ty">CarrierOptions</span>&gt; opt,
+    <span class="ty">CancellationToken</span> ct) =&gt;
+{
+    <span class="cm">// 1. Read the RAW body. Deserialising and re-serialising changes the bytes
+    //    — whitespace, key order, number formatting — and the signature will
+    //    never match again. This is the bug that costs a whole day.</span>
+    req.EnableBuffering();
+    <span class="kw">using var</span> reader = <span class="kw">new</span> <span class="ty">StreamReader</span>(req.Body, leaveOpen: <span class="kw">true</span>);
+    <span class="kw">var</span> raw = <span class="kw">await</span> reader.ReadToEndAsync(ct);
+
+    <span class="cm">// 2. Verify the signature in constant time. SequenceEqual leaks timing;
+    //    CryptographicOperations.FixedTimeEquals does not.</span>
+    <span class="kw">var</span> expected = <span class="ty">HMACSHA256</span>.HashData(opt.Value.SecretBytes, <span class="ty">Encoding</span>.UTF8.GetBytes(raw));
+    <span class="kw">var</span> given    = <span class="ty">Convert</span>.FromHexString(req.Headers[<span class="st">"X-Signature"</span>]!);
+    <span class="kw">if</span> (!<span class="ty">CryptographicOperations</span>.FixedTimeEquals(expected, given))
+        <span class="kw">return</span> <span class="ty">Results</span>.Unauthorized();
+
+    <span class="cm">// 3. Reject anything old, so a captured request cannot be replayed forever.</span>
+    <span class="kw">if</span> (<span class="ty">DateTimeOffset</span>.UtcNow - Timestamp(req) &gt; <span class="ty">TimeSpan</span>.FromMinutes(<span class="nu">5</span>))
+        <span class="kw">return</span> <span class="ty">Results</span>.Unauthorized();
+
+    <span class="cm">// 4. Queue and return FAST. They will time out and redeliver if you do the
+    //    work inline — which is how one event becomes four.</span>
+    <span class="kw">await</span> queue.EnqueueAsync(raw, ct);
+    <span class="kw">return</span> <span class="ty">Results</span>.Accepted();
+});</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ You will receive the same event twice</div>
+  <p>
+    Every webhook provider is at-least-once. A network hiccup on <em>their</em> side after you
+    committed means they retry, and the second delivery is identical. Store the provider's event id
+    and ignore one you have already processed &mdash; the same idempotency table chapter 22 uses for
+    messages. Assume duplicates rather than hoping.
+  </p>
+</div>
+
+<h2 id="files">The integration nobody puts on a slide: files</h2>
+
+<p>
+  In a manufacturing or logistics company in this region, a large share of "integrazione" is a
+  fixed-width or CSV file on an SFTP server, produced by a system older than you are. It is
+  unglamorous and it is on the ticket.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ The four things that actually go wrong</div>
+  <ol>
+    <li>
+      <strong>Encoding.</strong> The file is Windows-1252, not UTF-8, and
+      <code>"Società"</code> arrives as <code>"Societ?"</code> &mdash; or worse, arrives fine on
+      your machine and broken on the Linux container. State the encoding explicitly; never take the
+      default. On .NET you need
+      <code>Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)</code> before you can even
+      ask for 1252.
+    </li>
+    <li>
+      <strong>Culture.</strong> Their <code>1.234,56</code> is Italian for one thousand two hundred
+      and thirty-four point five six. Parse it with <code>InvariantCulture</code> and you get
+      either an exception or, far worse, <code>1.23456</code>. This is chapter 23's demo, arriving
+      as a production incident.
+    </li>
+    <li>
+      <strong>Half-written files.</strong> You will read a file while it is still uploading. The
+      convention that fixes it: the sender writes <code>orders.tmp</code> and renames it to
+      <code>orders.csv</code>, because rename is atomic. If they will not, wait for the size to stop
+      changing.
+    </li>
+    <li>
+      <strong>Reprocessing.</strong> Move each file to <code>processed/</code> or
+      <code>failed/</code> when you are done. A folder you only read from will eventually be read
+      twice.
+    </li>
+  </ol>
+</div>
+
+<h2 id="testing">Testing an integration without the third party</h2>
+
+<div class="code-head">a stub handler — no package, no network, works in any test</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">StubHandler</span>(<span class="ty">HttpStatusCode</span> code, <span class="kw">string</span> body) : <span class="ty">HttpMessageHandler</span>
+{
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">HttpRequestMessage</span>&gt; Seen { get; } = [];
+
+    <span class="kw">protected override</span> <span class="ty">Task</span>&lt;<span class="ty">HttpResponseMessage</span>&gt; SendAsync(
+        <span class="ty">HttpRequestMessage</span> req, <span class="ty">CancellationToken</span> ct)
+    {
+        Seen.Add(req);
+        <span class="kw">return</span> <span class="ty">Task</span>.FromResult(<span class="kw">new</span> <span class="ty">HttpResponseMessage</span>(code)
+        {
+            Content = <span class="kw">new</span> <span class="ty">StringContent</span>(body, <span class="ty">Encoding</span>.UTF8, <span class="st">"application/json"</span>)
+        });
+    }
+}
+
+<span class="cm">// The tests that actually matter are the unhappy ones:</span>
+[Fact] <span class="kw">public async</span> <span class="ty">Task</span> Unknown_status_does_not_throw() { … }        <span class="cm">// their new enum value</span>
+[Fact] <span class="kw">public async</span> <span class="ty">Task</span> Timeout_is_not_treated_as_failure() { … }
+[Fact] <span class="kw">public async</span> <span class="ty">Task</span> Retries_stop_after_three() { … }
+[Fact] <span class="kw">public async</span> <span class="ty">Task</span> Malformed_json_is_reported_not_swallowed() { … }</code></pre>
+
+<p>
+  For anything larger, <strong>WireMock.Net</strong> gives you a real HTTP server in the test
+  process that you can program with responses, delays and failures &mdash; which is the only
+  practical way to test a circuit breaker. And keep one recorded real response per endpoint as a
+  fixture: when they change their payload silently, that file is the evidence.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <ol>
+    <li>Register a typed client against any free public API with a 2-second timeout. Point it at a
+        URL that never responds and watch the timeout fire. Then remove the timeout and wait a
+        hundred seconds, once, so the default stops being abstract.</li>
+    <li>Add <code>AddStandardResilienceHandler()</code>, point it at a URL returning 500, and log
+        each attempt. Count the retries and measure the gaps.</li>
+    <li>Turn jitter off and run ten clients at once. Watch the attempts line up.</li>
+    <li>Write the webhook endpoint above. Sign a request correctly with a small script, then change
+        one space in the JSON and watch the signature fail. That is the raw-body lesson, learned
+        cheaply.</li>
+    <li>Save an Italian CSV with <code>1.234,56</code> in it from Excel. Read it with
+        <code>InvariantCulture</code> and then with <code>it-IT</code>. Note that one of the wrong
+        answers does not throw.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Across a boundary there are three outcomes, not two.</strong> Success, failure, and <em>unknown</em> — and the timeout is the interesting one.</li>
+    <li><strong>Never <code>new HttpClient()</code> per call, never one static forever.</strong> Register a typed client and let <code>IHttpClientFactory</code> rotate the handler.</li>
+    <li><strong>Set an explicit timeout on every outbound client.</strong> The 100-second default is not a timeout, it is a hang.</li>
+    <li><strong>Retry only what is safe to repeat.</strong> A retried <code>POST</code> without an idempotency key is a duplicate order.</li>
+    <li><strong>Always jitter the backoff.</strong> Synchronised retries turn their blip into their outage.</li>
+    <li><strong>A circuit breaker protects both sides.</strong> Fail fast rather than queueing every thread against a dead dependency.</li>
+    <li><strong>Honour <code>Retry-After</code> over your own schedule.</strong> They know when they will be ready; you are guessing.</li>
+    <li><strong>Map their DTO to your model at the boundary, in one place</strong> — and give the unknown value an explicit arm.</li>
+    <li><strong>Parse their dates and numbers with an explicit culture.</strong> The default is the server's locale, and it will differ from your laptop's.</li>
+    <li><strong>Verify a webhook against the raw body, in constant time</strong>, reject stale timestamps, queue the work and answer immediately.</li>
+    <li><strong>Assume every event and every file arrives twice.</strong> Deduplicate on their id; move files once processed.</li>
+    <li><strong>Test the failures, not the happy path.</strong> The happy path was never the problem.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Why should you not create a new <code>HttpClient</code> for every request?"</p>
+  <p class="a">
+    Disposing it leaves the underlying socket in <code>TIME_WAIT</code> for minutes, so under load
+    you exhaust the ephemeral ports and start seeing "address in use" &mdash; which looks like a
+    server fault, not a client bug. But then give the second half, or the answer is incomplete: a
+    single static client fixes the sockets and never picks up DNS changes.
+    <code>IHttpClientFactory</code> solves both by pooling handlers and rotating them, which is why
+    a typed client is the right default.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Your call to a partner API times out. Do you retry?"</p>
+  <p class="a">
+    It depends on whether the operation is idempotent, because a timeout means <em>unknown</em>, not
+    failed &mdash; the work may have completed. For a <code>GET</code>, retry freely. For a
+    <code>POST</code> that creates something, either send an idempotency key that lets them
+    recognise the repeat, or query first to see whether it landed. Retrying blindly is how a
+    customer gets charged twice.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a circuit breaker, and why not just retry?"</p>
+  <p class="a">
+    After a threshold of failures it opens and fails immediately for a cooling-off period, then lets
+    a trial request through. Retrying alone makes an overloaded dependency worse &mdash; you add
+    traffic exactly when it cannot cope &mdash; and meanwhile every one of your threads is parked
+    waiting, so their outage becomes yours. The breaker protects both sides. Pair it with jittered
+    backoff so your instances do not all retry in unison.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you secure a webhook endpoint?"</p>
+  <p class="a">
+    Verify an HMAC signature computed over the <strong>raw request body</strong> &mdash;
+    deserialising and re-serialising changes the bytes and the signature will never match &mdash;
+    compare it in constant time with <code>FixedTimeEquals</code>, and reject requests whose
+    timestamp is old so a captured call cannot be replayed. Then acknowledge quickly and do the work
+    on a queue, because if you process inline they will time out and redeliver. And deduplicate on
+    their event id, since every provider is at-least-once.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"They return a status value your code has never seen. What happens?"</p>
+  <p class="a">
+    It should map to an explicit <em>unknown</em> rather than throw or silently pick a default,
+    because their new enum value is a normal event and it must not take your service down. That is
+    the argument for translating their DTO into your own model at the boundary: the unknown value is
+    handled once, in one place, instead of leaking through every layer that touched their type.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you test code that calls an external API?"</p>
+  <p class="a">
+    Inject the client behind an interface, and test the mapping and the failure handling with a stub
+    <code>HttpMessageHandler</code> &mdash; no network, no flakiness. Use WireMock.Net when the
+    behaviour under test is HTTP-level, like retries or a circuit breaker, since you need real
+    responses and delays. Keep one recorded real payload as a fixture so a silent change on their
+    side shows up as a failing test rather than a production surprise. And test the unhappy paths;
+    the happy one was never the risk.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

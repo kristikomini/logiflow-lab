@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Architecture tests are unit tests over your *dependency graph* rather than your
+    behaviour. They fail the build when someone references EF Core from the Domain,
+    or makes a handler public that should be internal. Cheap, and they keep a
+    codebase honest for years.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogiFlow.Api\LogiFlow.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+</Project>

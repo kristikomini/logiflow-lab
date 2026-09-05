@@ -1,0 +1,55 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "academy",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8777",
+        "--directory",
+        "site"
+      ],
+      "port": 8777,
+      "autoPort": false
+    },
+    {
+      "name": "academy-learn",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8791",
+        "--directory",
+        "site"
+      ],
+      "port": 8791,
+      "autoPort": false
+    },
+    {
+      "name": "academy-chapters",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8803",
+        "--directory",
+        "site"
+      ],
+      "port": 8803,
+      "autoPort": false
+    },
+    {
+      "name": "academy-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/LogiFlow.Academy.Api"
+      ],
+      "port": 5280,
+      "autoPort": false
+    }
+  ]
+}

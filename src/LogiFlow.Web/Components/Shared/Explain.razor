@@ -1,0 +1,62 @@
+@* A callout that explains the thing next to it in words a child would understand, and then
+   names the grown-up term for it underneath.
+
+   Why the two halves matter: the plain sentence is what makes the screen usable by someone who
+   has never seen it, and the technical line is what makes this an interview answer rather than a
+   party trick. "We page in the database" is a claim; "we only ever carry ten sheets out of the
+   filing cabinet, because carrying the whole cabinet is what makes screens slow" is an
+   explanation. Both, in that order, is the format that lands.
+
+   The component renders NOTHING when explain mode is off, so a page can be written with these
+   sprinkled everywhere and still look like a serious admin tool to a colleague who never touches
+   the switch. *@
+
+@if (Mode?.Enabled == true)
+{
+    <aside class="explain">
+        <span class="explain-emoji" aria-hidden="true">@Emoji</span>
+
+        <div class="explain-body">
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <p class="explain-title">@Title</p>
+            }
+
+            @ChildContent
+
+            @if (!string.IsNullOrWhiteSpace(Grownup))
+            {
+                <p class="explain-grownup"><b>Grown-up words</b>@Grownup</p>
+            }
+        </div>
+    </aside>
+}
+
+@code {
+    /// <summary>
+    /// Supplied by the layout. Null when no provider is present, which reads as "off".
+    /// </summary>
+    /// <remarks>
+    /// Nullable on purpose. A component that throws because nobody cascaded a value is a component
+    /// that cannot be dropped into a test host or a new page without ceremony.
+    /// </remarks>
+    [CascadingParameter]
+    public ExplainMode? Mode { get; set; }
+
+    /// <summary>Decoration for the callout. Carries no meaning, hence aria-hidden.</summary>
+    [Parameter]
+    public string Emoji { get; set; } = "🧸";
+
+    /// <summary>The question this callout answers, phrased as the reader would ask it.</summary>
+    [Parameter]
+    [EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>The explanation itself.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The same idea in the vocabulary an interviewer would use. Optional.</summary>
+    [Parameter]
+    public string? Grownup { get; set; }
+}

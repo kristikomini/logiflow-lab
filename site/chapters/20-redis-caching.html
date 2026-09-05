@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20 · Caching with Redis — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="20-redis-caching">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 4 &mdash; Fast at scale <span>&rsaquo;</span> Chapter 20</p>
+<h1>Caching with Redis</h1>
+<p class="lede">
+  A cache is a bet: that the same question will be asked again before the answer goes stale. When
+  the bet is right it removes most of your database load. When it is wrong it serves confidently
+  incorrect data, which is worse than being slow.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Esperienza con sistemi di ricerca e caching (ElasticSearch/OpenSearch, Redis)."</em>
+  Redis on a requirements list is a <em>symptom</em>: somebody measured, found the same queries
+  repeating thousands of times a minute, and reached for a cache.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why">Why cache at all</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Every time someone asks what day Christmas falls on this year, you could walk to the calendar
+    in the other room, look, and walk back. Or you could look once and write the answer on a
+    sticky note by your desk.
+  </p>
+  <p>
+    The sticky note is a cache. It is much faster &mdash; and it has exactly one danger: someone
+    changes the calendar and forgets to change your note. Now you are answering wrong, quickly and
+    with total confidence.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Caching trades <strong>freshness</strong> for <strong>latency and load</strong>. It is worth
+    doing when the read/write ratio is high, the computation or query is expensive, and the data
+    tolerates being briefly out of date. A rough sense of the numbers is what makes the decision
+    concrete:
+  </p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Where the answer comes from</th><th>Order of magnitude</th></tr></thead>
+    <tbody>
+      <tr><td>In-process memory</td><td>tens of nanoseconds</td></tr>
+      <tr><td>Redis on the same network</td><td>a fraction of a millisecond</td></tr>
+      <tr><td>SQL Server, indexed query</td><td>a few milliseconds</td></tr>
+      <tr><td>SQL Server, unindexed on a large table</td><td>hundreds of milliseconds, or worse</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="subtle">
+    Note the order: <strong>fix the query first</strong>. A cache in front of a missing index hides
+    the problem until the cache is cold, and then everything falls over at once.
+  </p>
+</div>
+
+<h2 id="in-memory-vs-distributed">In-memory or distributed?</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="cache-title">
+    <title id="cache-title">Per-instance memory cache versus a shared distributed cache</title>
+    <defs>
+      <marker id="a14" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">IMemoryCache — one per instance</text>
+    <rect x="20" y="36" width="110" height="70" rx="8" class="d-panel"/>
+    <rect x="20" y="36" width="110" height="70" rx="8" class="d-stroke"/>
+    <text x="75" y="60" class="d-small" text-anchor="middle">API #1</text>
+    <rect x="34" y="70" width="82" height="24" rx="5" class="d-brand" opacity=".9"/>
+    <text x="75" y="86" class="d-white" text-anchor="middle" style="font-size:10.5px">cache A</text>
+
+    <rect x="146" y="36" width="110" height="70" rx="8" class="d-panel"/>
+    <rect x="146" y="36" width="110" height="70" rx="8" class="d-stroke"/>
+    <text x="201" y="60" class="d-small" text-anchor="middle">API #2</text>
+    <rect x="160" y="70" width="82" height="24" rx="5" class="d-brand" opacity=".9"/>
+    <text x="201" y="86" class="d-white" text-anchor="middle" style="font-size:10.5px">cache B</text>
+
+    <rect x="272" y="36" width="110" height="70" rx="8" class="d-panel"/>
+    <rect x="272" y="36" width="110" height="70" rx="8" class="d-stroke"/>
+    <text x="327" y="60" class="d-small" text-anchor="middle">API #3</text>
+    <rect x="286" y="70" width="82" height="24" rx="5" class="d-brand" opacity=".9"/>
+    <text x="327" y="86" class="d-white" text-anchor="middle" style="font-size:10.5px">cache C</text>
+
+    <text x="410" y="60" class="d-small">Three copies, three different ages.</text>
+    <text x="410" y="80" class="d-small">Invalidate on #1 and #2 keeps serving</text>
+    <text x="410" y="100" class="d-small">the old value. Restart = all cold.</text>
+
+    <text x="20" y="164" class="d-text" style="font-weight:700">Redis — one shared cache</text>
+    <rect x="20" y="176" width="110" height="56" rx="8" class="d-panel"/>
+    <rect x="20" y="176" width="110" height="56" rx="8" class="d-stroke"/>
+    <text x="75" y="208" class="d-small" text-anchor="middle">API #1</text>
+
+    <rect x="146" y="176" width="110" height="56" rx="8" class="d-panel"/>
+    <rect x="146" y="176" width="110" height="56" rx="8" class="d-stroke"/>
+    <text x="201" y="208" class="d-small" text-anchor="middle">API #2</text>
+
+    <rect x="272" y="176" width="110" height="56" rx="8" class="d-panel"/>
+    <rect x="272" y="176" width="110" height="56" rx="8" class="d-stroke"/>
+    <text x="327" y="208" class="d-small" text-anchor="middle">API #3</text>
+
+    <path d="M75 234 L200 262"  class="d-arrow" stroke-width="1.5" marker-end="url(#a14)"/>
+    <path d="M201 234 L201 262" class="d-arrow" stroke-width="1.5" marker-end="url(#a14)"/>
+    <path d="M327 234 L212 262" class="d-arrow" stroke-width="1.5" marker-end="url(#a14)"/>
+
+    <rect x="96" y="264" width="212" height="30" rx="7" class="d-brand" opacity=".92"/>
+    <text x="202" y="284" class="d-white" text-anchor="middle">Redis — one truth, survives restarts</text>
+
+    <text x="410" y="200" class="d-small">One copy. Invalidation works everywhere.</text>
+    <text x="410" y="220" class="d-small">Costs a network hop, and becomes a</text>
+    <text x="410" y="240" class="d-small">dependency you must handle failing.</text>
+  </svg>
+  <figcaption>The reason Redis appears the moment you run more than one instance.</figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th><code>IMemoryCache</code></th><th><code>IDistributedCache</code> (Redis)</th></tr></thead>
+  <tbody>
+    <tr><td>Lives in</td><td>The process</td><td>A separate server</td></tr>
+    <tr><td>Speed</td><td>Nanoseconds</td><td>Sub-millisecond + network</td></tr>
+    <tr><td>Shared</td><td>No</td><td>Yes</td></tr>
+    <tr><td>Survives restart</td><td>No</td><td>Yes</td></tr>
+    <tr><td>Stores</td><td>Any object, by reference</td><td><code>byte[]</code> &mdash; must serialise</td></tr>
+    <tr><td>Right for</td><td>Single instance, or truly static data</td><td>Multiple instances, session-like data</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>IMemoryCache</code> hands back a reference</div>
+  <p>
+    It stores the object itself, not a copy. If a caller mutates what they got from the cache, they
+    have mutated the cached entry for everyone. Cache immutable types &mdash; records or DTOs
+    &mdash; or clone on read.
+  </p>
+</div>
+
+<h2 id="cache-aside">The cache-aside pattern</h2>
+
+<p>
+  Ninety per cent of application caching is this one pattern. Learn it as a shape.
+</p>
+
+<div class="code-head">read: try cache, else load, then store</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">CachedOrderService</span>(
+    <span class="ty">IOrderRepository</span> repo,
+    <span class="ty">IDistributedCache</span> cache,
+    <span class="ty">ILogger</span>&lt;<span class="ty">CachedOrderService</span>&gt; log) : <span class="ty">IOrderService</span>
+{
+    <span class="kw">private static string</span> Key(<span class="ty">int</span> id) =&gt; $<span class="st">"order:v1:{id}"</span>;
+    <span class="cm">//                                    ↑ version the key: a DTO shape change</span>
+    <span class="cm">//                                      then cannot collide with old entries</span>
+
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">OrderDto</span>?&gt; GetAsync(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> key = Key(id);
+
+        <span class="cm">// 1. try the cache — and never let a cache failure fail the request</span>
+        <span class="kw">try</span>
+        {
+            <span class="kw">var</span> cached = <span class="kw">await</span> cache.GetStringAsync(key, ct);
+            <span class="kw">if</span> (cached <span class="kw">is not null</span>)
+                <span class="kw">return</span> <span class="ty">JsonSerializer</span>.Deserialize&lt;<span class="ty">OrderDto</span>&gt;(cached);
+        }
+        <span class="kw">catch</span> (<span class="ty">RedisConnectionException</span> ex)
+        {
+            log.LogWarning(ex, <span class="st">"Cache unavailable; falling through to the database."</span>);
+        }
+
+        <span class="cm">// 2. miss → the real source</span>
+        <span class="kw">var</span> dto = <span class="kw">await</span> repo.GetAsync(id, ct);
+        <span class="kw">if</span> (dto <span class="kw">is null</span>) <span class="kw">return null</span>;
+
+        <span class="cm">// 3. store, with an expiry that is NOT optional</span>
+        <span class="kw">await</span> cache.SetStringAsync(key,
+            <span class="ty">JsonSerializer</span>.Serialize(dto),
+            <span class="kw">new</span> <span class="ty">DistributedCacheEntryOptions</span>
+            {
+                AbsoluteExpirationRelativeToNow = <span class="ty">TimeSpan</span>.FromMinutes(10),
+                SlidingExpiration               = <span class="ty">TimeSpan</span>.FromMinutes(2)
+            }, ct);
+
+        <span class="kw">return</span> dto;
+    }
+
+    <span class="kw">public async</span> <span class="ty">Task</span> UpdateAsync(<span class="ty">int</span> id, <span class="ty">UpdateOrder</span> cmd, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">await</span> repo.UpdateAsync(id, cmd, ct);
+        <span class="kw">await</span> cache.RemoveAsync(Key(id), ct);   <span class="cm">// evict, do not update</span>
+    }
+}</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Why evict rather than overwrite on write</div>
+  <p>
+    Writing the new value into the cache looks tidier and introduces a race: two concurrent updates
+    can leave the cache holding the older of the two. Deleting the key is idempotent and safe
+    &mdash; the next read repopulates from the source of truth. <em>Invalidate, do not
+    update.</em>
+  </p>
+</div>
+
+<div class="code-head">registering it</div>
+<pre><code>builder.Services.AddStackExchangeRedisCache(o =&gt;
+{
+    o.Configuration = builder.Configuration.GetConnectionString(<span class="st">"Redis"</span>);
+    o.InstanceName  = <span class="st">"logiflow:"</span>;   <span class="cm">// prefix — lets several apps share one Redis</span>
+});
+
+<span class="cm">// HybridCache (.NET 9+) combines an in-process L1 with a distributed L2</span>
+<span class="cm">// and solves the stampede problem below for you.</span>
+builder.Services.AddHybridCache();</code></pre>
+
+<h2 id="expiry">Expiry and invalidation</h2>
+
+<blockquote class="box">
+  <p style="margin:0">
+    <em>"There are only two hard things in Computer Science: cache invalidation and naming
+    things."</em> &mdash; Phil Karlton
+  </p>
+</blockquote>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>Right for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Absolute TTL</strong></td><td>Expires N minutes after being written</td><td>The default. Bounds staleness whatever else happens.</td></tr>
+    <tr><td><strong>Sliding</strong></td><td>The clock resets on each read</td><td>Session-like data. <em>Always pair it with an absolute cap</em>, or a hot key never expires.</td></tr>
+    <tr><td><strong>Explicit eviction</strong></td><td><code>RemoveAsync</code> on write</td><td>Data you own and can reliably intercept every write to.</td></tr>
+    <tr><td><strong>Key versioning</strong></td><td><code>order:v2:42</code></td><td>Shape changes on deploy &mdash; the whole old generation is orphaned at once.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Never cache without an expiry</div>
+  <p>
+    A cache entry with no TTL is a memory leak with a business-logic bug attached. Even when you
+    invalidate explicitly, set a TTL as a backstop: some day a write will happen through a path you
+    did not intercept &mdash; a stored procedure, an integration job, someone in SSMS &mdash; and
+    the TTL is what limits the damage to minutes instead of for ever.
+  </p>
+</div>
+
+<h3>The two failure modes worth naming</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple — the stampede</div>
+  <p>
+    One popular sticky note falls off the desk. In the same second, five hundred people ask the
+    question &mdash; and all five hundred walk to the other room to check the calendar, because
+    none of them knows the others are already going.
+  </p>
+  <p>
+    The room, which comfortably handles one visitor, now has five hundred people in it.
+  </p>
+</div>
+
+<div class="code-head">the fix: one loader, everyone else waits</div>
+<pre><code><span class="cm">// HybridCache does this for you — a single flight per key</span>
+<span class="kw">var</span> dto = <span class="kw">await</span> hybrid.GetOrCreateAsync(
+    Key(id),
+    <span class="kw">async</span> token =&gt; <span class="kw">await</span> repo.GetAsync(id, token),
+    <span class="kw">new</span> <span class="ty">HybridCacheEntryOptions</span> { Expiration = <span class="ty">TimeSpan</span>.FromMinutes(10) },
+    cancellationToken: ct);
+
+<span class="cm">// By hand: a per-key SemaphoreSlim, or add jitter to the TTL so a whole</span>
+<span class="cm">// generation of keys does not expire on the same tick.</span></code></pre>
+
+<p>
+  The second failure mode is <strong>cache penetration</strong>: repeated requests for a key that
+  does not exist miss the cache every time and hit the database every time. The fix is to cache the
+  absence too &mdash; a short-TTL null marker.
+</p>
+
+<h2 id="what-to-cache">What to cache, and what never to</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>✓ Good candidates</th><th>✗ Bad candidates</th></tr></thead>
+  <tbody>
+    <tr><td>Reference data: countries, VAT rates, product categories</td><td>Anything a user must see change immediately after acting</td></tr>
+    <tr><td>Expensive aggregates: dashboards, reports</td><td>Stock levels and account balances at the point of decision</td></tr>
+    <tr><td>Rendered fragments and permission lookups</td><td>Personal data, unless encrypted and scoped &mdash; Redis is not a secure store</td></tr>
+    <tr><td>Results of slow third-party API calls</td><td>Data whose staleness has legal or financial consequences</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">Redis is more than a cache</div>
+  <p>
+    It is an in-memory data structure server: strings, hashes, lists, sets, sorted sets, streams,
+    pub/sub, and atomic operations like <code>INCR</code>. Common uses beyond caching are
+    distributed rate limiting, ASP.NET Core data-protection key storage,
+    <code>AddStackExchangeRedis</code> as a SignalR backplane, and distributed locks (with
+    Redlock&rsquo;s caveats). Mentioning one of these shows you know it is not just a hashtable in
+    the sky.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>docker run -d -p 6379:6379 redis:latest
+docker <span class="kw">exec</span> -it $(docker ps -qf ancestor=redis) redis-cli</code></pre>
+  <pre><code>SET order:1 <span class="st">"{\"id\":1,\"total\":49.9}"</span>
+GET order:1
+TTL order:1                 <span class="cm"># -1 → no expiry. This is the bug.</span>
+EXPIRE order:1 60
+TTL order:1                 <span class="cm"># 60</span>
+KEYS order:*                <span class="cm"># never run this in production — it blocks the server</span>
+SCAN 0 MATCH order:* COUNT 100   <span class="cm"># the safe version</span>
+INFO stats                  <span class="cm"># keyspace_hits vs keyspace_misses = your hit rate</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then wire <code>AddStackExchangeRedisCache</code> into the chapter 14 API, cache one endpoint,
+    and watch the SQL log go quiet on the second request. Then update the row directly in SSMS
+    &mdash; and watch the API keep serving the old value. That is cache invalidation, felt rather
+    than read about.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Fix the query and the index before you add a cache. A cache over a missing index just moves
+        the failure.</li>
+    <li>Cache-aside is the default pattern: try, load, store.</li>
+    <li><strong>Always set a TTL.</strong> No exceptions, even with explicit invalidation.</li>
+    <li>Pair sliding expiration with an absolute cap.</li>
+    <li>On write, <em>evict</em> the key. Do not try to update it.</li>
+    <li>Version your keys so a deployed shape change cannot read old entries.</li>
+    <li>A cache outage must degrade to slow, never to broken. Catch and fall through.</li>
+    <li>Guard against stampedes with single-flight loading or TTL jitter.</li>
+    <li>Cache negative results too, briefly, or a missing key hits the database every time.</li>
+    <li><code>IMemoryCache</code> per instance; Redis when there is more than one instance.</li>
+    <li>Never cache data whose staleness has financial or legal consequences.</li>
+    <li>Measure the hit rate. A cache below roughly 80% is often costing more than it saves.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"When would you add a cache?"</p>
+  <p class="a">
+    After measuring: a read-heavy path, an expensive query, and data that tolerates being a little
+    stale. Say explicitly that the first move is to look at the execution plan and the index, and
+    that a cache is what you reach for when the query is already as good as it can be.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>IMemoryCache</code> or Redis?"</p>
+  <p class="a">
+    Memory is faster but per-instance, so behind a load balancer you get N inconsistent copies and
+    invalidation that only works on one of them. Redis is shared and survives restarts, at the cost
+    of a network hop and a new dependency.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you invalidate a cache?"</p>
+  <p class="a">
+    TTL as the backstop, explicit eviction on write, key versioning for shape changes. Be honest
+    that the hard case is a write path you do not control &mdash; a stored procedure or an
+    integration job &mdash; which is exactly why the TTL is never optional.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a cache stampede?"</p>
+  <p class="a">
+    A hot key expires and every concurrent request misses simultaneously, so they all hit the
+    database at once. Fix with single-flight loading (one request loads, the rest wait) or by
+    adding jitter to expiry times so keys do not expire together.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What happens if Redis goes down?"</p>
+  <p class="a">
+    It should degrade to slow, not to broken: catch connection failures and fall through to the
+    database. Then note the real risk &mdash; if the system was sized assuming an 80% hit rate, a
+    cold cache means five times the database load arriving at once, so a circuit breaker and some
+    load shedding belong in the design.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

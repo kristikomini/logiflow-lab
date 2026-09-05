@@ -1,0 +1,33 @@
+@*
+    The root document. This component renders the actual <html> element, which is why there is no
+    _Host.cshtml or _Layout.cshtml anywhere in this project - the .NET 8+ Blazor Web App model
+    replaced both.
+*@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+
+    @* Assets[] resolves through the manifest that MapStaticAssets builds, so this emits a
+       fingerprinted URL and the file can be cached forever without a stale-CSS bug. *@
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+
+    <title>LogiFlow</title>
+
+    @* Lets a page set its own <title> and meta tags from inside the layout. *@
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+
+<body>
+    <Routes @rendermode="InteractiveServer" />
+
+    @* blazor.web.js, not blazor.server.js. The web variant is the unified script for the Blazor
+       Web App model and knows how to start whichever render mode each component declared. *@
+    <script src="_framework/blazor.web.js"></script>
+</body>
+
+</html>

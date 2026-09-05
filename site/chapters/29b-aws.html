@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>29b · AWS, for someone who knows Azure — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="29b-aws">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 29b</p>
+<h1>AWS, for someone who knows Azure</h1>
+<p class="lede">
+  This is the shortest chapter here, deliberately. AWS appears in these adverts as
+  <em>skill facoltativa</em> and as <em>"gradita esperienza o familiarità"</em> &mdash; never as a
+  requirement. The goal is not competence, it is <strong>credibility</strong>: enough to say what
+  you would use, deploy something small, and answer the follow-up without bluffing.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the adverts</div>
+  <p>
+    <em>"Utilizzo di ambienti cloud Azure e/o AWS per deployment e supporto applicativo"</em> in one
+    advert's duties, and <em>"gradita esperienza o familiarità con Azure e AWS"</em> in its
+    requirements. Another lists AWS alone under <em>skill facoltative</em>.
+  </p>
+  <p>
+    The <em>e/o</em> is doing the work. They have one of the two and would like you to not be
+    frightened of the other. Chapter 29 covered Azure properly; this is the translation.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="translation">The translation table &mdash; most of what you need</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>What you want</th><th>Azure (chapter 29)</th><th>AWS</th></tr></thead>
+  <tbody>
+    <tr><td>Run a web app without managing servers</td><td>App Service</td><td><strong>App Runner</strong> (simplest) or <strong>ECS on Fargate</strong> (what most teams use)</td></tr>
+    <tr><td>Run containers at scale</td><td>Container Apps / AKS</td><td>ECS, or <strong>EKS</strong> for Kubernetes</td></tr>
+    <tr><td>A managed SQL Server</td><td>Azure SQL Database</td><td><strong>RDS for SQL Server</strong> &mdash; and read the trap below</td></tr>
+    <tr><td>Files and blobs</td><td>Blob Storage</td><td><strong>S3</strong></td></tr>
+    <tr><td>Secrets</td><td>Key Vault</td><td><strong>Secrets Manager</strong>, or <strong>SSM Parameter Store</strong> for plain settings</td></tr>
+    <tr><td>Logs, metrics, alerts</td><td>Application Insights / Monitor</td><td><strong>CloudWatch</strong>, plus <strong>X-Ray</strong> for traces</td></tr>
+    <tr><td>Run code on an event</td><td>Azure Functions</td><td><strong>Lambda</strong></td></tr>
+    <tr><td>Queue</td><td>Service Bus / Storage Queues</td><td><strong>SQS</strong>, with <strong>SNS</strong> for fan-out</td></tr>
+    <tr><td>Identity for your code</td><td>Managed identity</td><td><strong>IAM role</strong> (task role / instance profile)</td></tr>
+    <tr><td>Grouping and billing</td><td>Resource group / subscription</td><td>Tags and <strong>accounts</strong> &mdash; there is no resource group</td></tr>
+    <tr><td>Nearest region</td><td>Italy North, West Europe</td><td><strong>eu-south-1 (Milan)</strong>, eu-central-1 (Frankfurt), eu-west-1 (Ireland)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 The two differences that actually change how you work</div>
+  <ul>
+    <li>
+      <strong>There is no resource group.</strong> Azure gives you a container you can delete to
+      remove everything; AWS does not. Grouping is by <em>tags</em>, and isolation is by
+      <em>account</em> &mdash; separate accounts for dev, staging and production is the normal
+      pattern, not an enterprise luxury. Deleting an environment is a real task rather than one
+      click, which is why infrastructure-as-code matters more here.
+    </li>
+    <li>
+      <strong>IAM is stricter and more explicit.</strong> Nothing can talk to anything until a
+      policy says so. Coming from Azure this feels like friction for the first week and like a
+      safety rail afterwards.
+    </li>
+  </ul>
+</div>
+
+<h2 id="iam">IAM, in one page</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A <strong>user</strong> is a person with their own keys to the building. They keep those keys
+    forever, and if they lose them, whoever finds them can walk in.
+  </p>
+  <p>
+    A <strong>role</strong> is a badge kept at reception. You borrow it, it works for an hour, and
+    then it stops. If someone steals it, it has already expired.
+  </p>
+  <p>Give machines badges, never keys.</p>
+</div>
+
+<div class="code-head">what that means concretely</div>
+<pre><code><span class="cm">// ✗ The mistake, and the reason for most AWS credential leaks on GitHub:
+//    a long-lived access key, pasted into configuration.</span>
+<span class="st">"AWS": { "AccessKey": "AKIA…", "SecretKey": "wJalr…" }</span>
+
+<span class="cm">// ✓ Attach an IAM ROLE to the ECS task or EC2 instance. The SDK finds the
+//    temporary credentials itself, through the default provider chain —
+//    environment, then shared profile, then the instance metadata service.
+//
+//    The consequence worth knowing: this exact code runs unchanged on your
+//    laptop (using your local profile) and in production (using the task
+//    role). There is no credential in your application at all.</span>
+<span class="kw">var</span> s3 = <span class="kw">new</span> <span class="ty">AmazonS3Client</span>();</code></pre>
+
+<div class="code-head">registering the SDK properly in ASP.NET Core</div>
+<pre><code><span class="cm">// package: AWSSDK.Extensions.NETCore.Setup — this is the whole integration</span>
+builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+builder.Services.AddAWSService&lt;<span class="ty">IAmazonS3</span>&gt;();
+builder.Services.AddAWSService&lt;<span class="ty">IAmazonSecretsManager</span>&gt;();
+
+<span class="cm">// …and then it is ordinary constructor injection, and IAmazonS3 is an
+// interface, so it mocks in tests like anything else.</span>
+<span class="kw">public sealed class</span> <span class="ty">DocumentStore</span>(<span class="ty">IAmazonS3</span> s3) : <span class="ty">IDocumentStore</span> { … }</code></pre>
+
+<h2 id="rds">RDS for SQL Server: the differences that catch people</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ You are not <code>sysadmin</code>, and <code>BACKUP DATABASE</code> does not work</div>
+  <p>
+    RDS is a managed instance, so Amazon keeps the highest privileges. The three things that
+    surprise a .NET developer on day one:
+  </p>
+  <ul>
+    <li>
+      <strong>Native backup and restore are replaced.</strong> <code>BACKUP DATABASE … TO DISK</code>
+      fails; you call the stored procedures
+      <code>msdb.dbo.rds_backup_database</code> and <code>rds_restore_database</code>, which move
+      <code>.bak</code> files to and from an S3 bucket. Restoring the production database onto your
+      machine is therefore a different procedure from the one you know.
+    </li>
+    <li>
+      <strong>No <code>xp_cmdshell</code>, no filesystem, no OS access.</strong> Anything a legacy
+      procedure did by shelling out has to move into the application.
+    </li>
+    <li>
+      <strong>Multi-AZ failover changes the connection, not the name.</strong> The endpoint stays
+      the same and DNS repoints &mdash; which is exactly the situation where a long-lived pooled
+      connection or a cached DNS entry bites you. Enable connection resiliency
+      (<code>EnableRetryOnFailure</code>) and mean it.
+    </li>
+  </ul>
+</div>
+
+<h2 id="lambda">Lambda with .NET, briefly</h2>
+
+<p>
+  Lambda runs a function on an event &mdash; a queue message, an HTTP request through API Gateway, a
+  file landing in S3. There are managed .NET runtimes for the current LTS versions, and
+  <code>Amazon.Lambda.AspNetCoreServer</code> will host a whole ASP.NET Core application inside one
+  if you want the familiar model.
+</p>
+
+<div class="box pro">
+  <div class="box-title">🎓 The cold start, and why it is a .NET question</div>
+  <p>
+    A function that has not run recently must start a process, load the runtime and JIT your code
+    before it can answer &mdash; the <em>cold start</em>. It hits .NET harder than interpreted
+    languages, and the mitigations are all things you already know from chapter 22 of the course:
+    ReadyToRun, trimming, and <strong>Native AOT</strong>, which removes the JIT from the path
+    entirely and is the single biggest lever. AWS also offers SnapStart for .NET, which restores a
+    pre-initialised snapshot rather than starting cold.
+  </p>
+  <p>
+    The judgement, which matters more than the trivia: a steadily-loaded API is usually cheaper and
+    simpler on ECS Fargate than on Lambda. Lambda earns its place with spiky or event-driven work
+    &mdash; a file arrives, a queue drains, a webhook fires.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>An afternoon inside the free tier is enough to stop this being theoretical.</p>
+  <ol>
+    <li>Create an account, set a billing alarm <em>first</em>, and pick <strong>eu-south-1
+        (Milan)</strong> as your region &mdash; the same data-residency reasoning an Italian company
+        applies.</li>
+    <li>Put a file in S3 from a console app with <code>new AmazonS3Client()</code> and a local
+        profile. Note that there is no key in your code.</li>
+    <li>Containerise the API from chapter 28 and run it on App Runner. That is a deployment you can
+        legitimately describe in an interview.</li>
+    <li>Move a setting into Parameter Store and read it at start-up.</li>
+    <li>Deliberately remove the permission from the role and read the <code>AccessDenied</code>.
+        Learning to read an IAM denial is most of learning AWS.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Roles, never access keys.</strong> A role gives temporary credentials; a leaked long-lived key is the classic AWS incident.</li>
+    <li><strong>The SDK finds credentials itself.</strong> The same code runs on your laptop and in production with no credential in the application.</li>
+    <li><strong>There is no resource group.</strong> Group with tags, isolate with separate accounts per environment.</li>
+    <li><strong>Nothing may talk to anything until IAM says so.</strong> Assume a permissions problem before a code problem.</li>
+    <li><strong>On RDS you are not <code>sysadmin</code></strong> &mdash; backup and restore go through stored procedures and S3, and <code>xp_cmdshell</code> is gone.</li>
+    <li><strong>Multi-AZ failover repoints DNS behind the same endpoint.</strong> Turn on connection retry.</li>
+    <li><strong>Cold starts hit .NET hardest.</strong> Native AOT is the biggest lever; SnapStart is the other.</li>
+    <li><strong>Steady load belongs on containers; spiky and event-driven work belongs on Lambda.</strong></li>
+    <li><strong>Set a billing alarm before your first resource.</strong> The free tier is generous and the cliff is real.</li>
+    <li><strong>Say what you have actually done.</strong> "I deployed a containerised .NET API to App Runner and read secrets from Parameter Store" is worth more than a list of service names.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Do you have AWS experience?"</p>
+  <p class="a">
+    Answer precisely and small. Something like: <em>"I have deployed a containerised .NET API to App
+    Runner, used S3 from the SDK and read configuration from Parameter Store, with an IAM role
+    rather than access keys. I know the Azure equivalents better."</em> That is honest, specific and
+    checkable &mdash; and for an optional skill it is entirely sufficient. A vague claim to
+    "experience with AWS" invites the follow-up you cannot answer.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How does your application authenticate to AWS?"</p>
+  <p class="a">
+    Through an IAM role attached to the compute &mdash; a task role on ECS, an instance profile on
+    EC2 &mdash; which the SDK picks up automatically through the default credential provider chain.
+    That means no credentials in the application at all, and the same code runs locally against my
+    own profile. Long-lived access keys are the thing to avoid; they do not expire, so a leaked one
+    stays valid until somebody notices.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the AWS equivalent of a managed identity?"</p>
+  <p class="a">
+    An IAM role. The concept is the same &mdash; an identity attached to the compute that yields
+    short-lived credentials, so nothing has to hold a secret. The difference in feel is that AWS
+    requires an explicit policy for every action, where Azure leans more on role assignments at a
+    scope.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Anything to watch out for running SQL Server on RDS?"</p>
+  <p class="a">
+    You do not get <code>sysadmin</code>, so native <code>BACKUP</code> and <code>RESTORE</code> are
+    replaced by RDS stored procedures that move <code>.bak</code> files through S3, and
+    <code>xp_cmdshell</code> and filesystem access are gone &mdash; which matters if a legacy
+    procedure relied on them. And Multi-AZ failover keeps the endpoint but repoints DNS, so
+    connection resiliency and retry-on-failure need to be switched on rather than assumed.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Lambda or a container?"</p>
+  <p class="a">
+    Containers on ECS Fargate for a steadily-loaded API &mdash; simpler, usually cheaper, and no
+    cold-start problem. Lambda for spiky or event-driven work: a file lands in S3, a queue needs
+    draining, a webhook arrives. If it does have to be Lambda on .NET, cold start is the thing to
+    manage, and Native AOT or SnapStart is how.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

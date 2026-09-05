@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>30 · Azure DevOps and CI/CD — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="30-azure-devops-cicd">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 30</p>
+<h1>Azure DevOps and CI/CD</h1>
+<p class="lede">
+  The difference between a team that deploys on a Tuesday afternoon and a team that deploys on a
+  Friday night with everyone watching is not talent. It is a pipeline that runs the same way every
+  time, and that anyone can read.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Familiarit&agrave; con &hellip; strumenti di CI/CD (Azure DevOps)."</em> Azure DevOps
+  specifically, rather than GitHub Actions, is the norm in Italian enterprise .NET &mdash; often
+  alongside on-premises TFS history.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="ci-cd">What CI and CD actually mean</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Four people are building one Lego castle, each working on their own piece at home. If they only
+    bring the pieces together at the very end, nothing fits and everyone blames everyone.
+  </p>
+  <p>
+    So instead they meet <em>every single day</em> and click the pieces together. If something does
+    not fit, they find out that day, when it is one small mistake &mdash; not in three months, when
+    it is a hundred tangled ones.
+  </p>
+  <p>
+    That daily meeting is <strong>continuous integration</strong>. Doing it automatically, on every
+    change, is what a pipeline is.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <ul>
+    <li><strong>Continuous Integration</strong> &mdash; every push builds and runs the tests on a
+        clean agent. The value is not automation; it is the <em>short feedback loop</em>, and the
+        fact that "it works on my machine" stops being an argument.</li>
+    <li><strong>Continuous Delivery</strong> &mdash; every successful build produces an artifact
+        that <em>could</em> be released. A human decides when.</li>
+    <li><strong>Continuous Deployment</strong> &mdash; it goes automatically. Needs real test
+        coverage and real monitoring to be sane.</li>
+  </ul>
+  <p>
+    Most enterprise teams do CI plus continuous <em>delivery</em>: automatic to a test environment,
+    an approval gate before production. Saying which one you have practised, and why, is a better
+    answer than reciting the definitions.
+  </p>
+</div>
+
+<h2 id="the-five">The five parts of Azure DevOps</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Part</th><th>What it is</th><th>Equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Repos</strong></td><td>Git hosting, with pull requests and branch policies</td><td>GitHub</td></tr>
+    <tr><td><strong>Pipelines</strong></td><td>Build and release, defined in YAML</td><td>GitHub Actions</td></tr>
+    <tr><td><strong>Boards</strong></td><td>Work items, sprints, backlog</td><td>Jira</td></tr>
+    <tr><td><strong>Artifacts</strong></td><td>Private NuGet and npm feeds</td><td>nuget.org, private</td></tr>
+    <tr><td><strong>Test Plans</strong></td><td>Manual test case management</td><td>&mdash;</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  Work items link to commits, pull requests and pipeline runs, so <code>Fixes AB#482</code> in a
+  commit message closes the board item and creates an audit trail from requirement to deployment.
+  In regulated industries that trail is the reason the tool was chosen.
+</p>
+
+<h2 id="pipeline">A pipeline, in full</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="cicd-title">
+    <title id="cicd-title">From a push to production</title>
+    <defs>
+      <marker id="a19" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="44" width="120" height="60" rx="8" class="d-panel"/>
+    <rect x="16" y="44" width="120" height="60" rx="8" class="d-stroke"/>
+    <text x="76" y="70" class="d-text" text-anchor="middle">git push</text>
+    <text x="76" y="90" class="d-small" text-anchor="middle">or a PR</text>
+
+    <path d="M138 74 L176 74" class="d-arrow" stroke-width="1.8" marker-end="url(#a19)"/>
+
+    <rect x="178" y="30" width="230" height="88" rx="8" class="d-brand" opacity=".92"/>
+    <text x="293" y="54" class="d-white" text-anchor="middle">CI stage — Build</text>
+    <text x="293" y="74" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">restore · build · test · scan</text>
+    <text x="293" y="92" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">publish the artifact</text>
+    <text x="293" y="110" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11px;opacity:.85">≈ 3 minutes, on a clean agent</text>
+
+    <path d="M410 74 L448 74" class="d-arrow" stroke-width="1.8" marker-end="url(#a19)"/>
+
+    <rect x="450" y="30" width="170" height="88" rx="8" class="d-panel"/>
+    <rect x="450" y="30" width="170" height="88" rx="8" class="d-stroke"/>
+    <text x="535" y="54" class="d-text" text-anchor="middle">Deploy → Test</text>
+    <text x="535" y="76" class="d-small" text-anchor="middle">migrate the database</text>
+    <text x="535" y="94" class="d-small" text-anchor="middle">smoke tests</text>
+    <text x="535" y="112" class="d-small" text-anchor="middle">automatic</text>
+
+    <path d="M622 74 L660 74" class="d-arrow" stroke-width="1.8" marker-end="url(#a19)"/>
+
+    <rect x="662" y="30" width="162" height="88" rx="8" class="d-panel"/>
+    <rect x="662" y="30" width="162" height="88" rx="8" class="d-stroke"/>
+    <text x="743" y="54" class="d-text" text-anchor="middle">Deploy → Prod</text>
+    <text x="743" y="76" class="d-small" text-anchor="middle">⏸ approval gate</text>
+    <text x="743" y="94" class="d-small" text-anchor="middle">slot swap</text>
+    <text x="743" y="112" class="d-small" text-anchor="middle">a human decides</text>
+
+    <rect x="16" y="160" width="808" height="60" rx="8" class="d-fill"/>
+    <rect x="16" y="160" width="808" height="60" rx="8" class="d-stroke"/>
+    <text x="36" y="184" class="d-text">Build once, deploy many.</text>
+    <text x="36" y="206" class="d-small">The <tspan style="font-style:italic">same</tspan> artifact goes to test and then to production. Rebuilding per environment means the thing you tested is not the thing you shipped.</text>
+
+    <text x="16" y="256" class="d-small">Configuration — not code — is what differs between environments: app settings, Key Vault references, connection strings.</text>
+    <text x="16" y="278" class="d-small">If a deployment needs a different build, the difference belongs in configuration instead.</text>
+  </svg>
+  <figcaption>One artifact, promoted through environments. The gate is a decision, not a rebuild.</figcaption>
+</figure>
+
+<div class="code-head">azure-pipelines.yml</div>
+<pre><code><span class="ty">trigger</span>:
+  <span class="ty">branches</span>:
+    <span class="ty">include</span>: [ main, <span class="st">'release/*'</span> ]
+
+<span class="ty">pr</span>:
+  <span class="ty">branches</span>:
+    <span class="ty">include</span>: [ main ]          <span class="cm"># validate every pull request too</span>
+
+<span class="ty">variables</span>:
+  <span class="ty">buildConfiguration</span>: <span class="st">'Release'</span>
+
+<span class="ty">stages</span>:
+<span class="cm"># ───────────────────────── BUILD ─────────────────────────</span>
+- <span class="ty">stage</span>: Build
+  <span class="ty">jobs</span>:
+  - <span class="ty">job</span>: BuildAndTest
+    <span class="ty">pool</span>:
+      <span class="ty">vmImage</span>: <span class="st">'ubuntu-latest'</span>
+    <span class="ty">steps</span>:
+    - <span class="ty">task</span>: UseDotNet@2
+      <span class="ty">inputs</span>:
+        <span class="ty">useGlobalJson</span>: <span class="kw">true</span>          <span class="cm"># the SDK pin from chapter 01</span>
+
+    - <span class="ty">script</span>: dotnet restore
+      <span class="ty">displayName</span>: Restore
+
+    - <span class="ty">script</span>: dotnet build --no-restore -c $(buildConfiguration)
+      <span class="ty">displayName</span>: Build
+
+    - <span class="ty">script</span>: |
+        dotnet test --no-build -c $(buildConfiguration) \
+          --logger trx --collect:<span class="st">"XPlat Code Coverage"</span>
+      <span class="ty">displayName</span>: Test
+
+    - <span class="ty">task</span>: PublishTestResults@2
+      <span class="ty">condition</span>: succeededOrFailed()   <span class="cm"># publish results even when tests fail</span>
+      <span class="ty">inputs</span>:
+        <span class="ty">testResultsFormat</span>: VSTest
+        <span class="ty">testResultsFiles</span>: <span class="st">'**/*.trx'</span>
+
+    <span class="cm"># the database change, as a reviewable script — not Database.Migrate() (ch. 09)</span>
+    - <span class="ty">script</span>: |
+        dotnet tool install --global dotnet-ef
+        dotnet ef migrations script --idempotent \
+          -p src/LogiFlow.Infrastructure -s src/LogiFlow.Api \
+          -o $(Build.ArtifactStagingDirectory)/migrate.sql
+      <span class="ty">displayName</span>: Generate migration script
+
+    - <span class="ty">script</span>: dotnet publish src/LogiFlow.Api -c $(buildConfiguration)
+                --no-build -o $(Build.ArtifactStagingDirectory)/app
+      <span class="ty">displayName</span>: Publish
+
+    - <span class="ty">publish</span>: $(Build.ArtifactStagingDirectory)
+      <span class="ty">artifact</span>: drop
+
+<span class="cm"># ───────────────────────── DEPLOY ────────────────────────</span>
+- <span class="ty">stage</span>: DeployTest
+  <span class="ty">dependsOn</span>: Build
+  <span class="ty">condition</span>: succeeded()
+  <span class="ty">jobs</span>:
+  - <span class="ty">deployment</span>: Test
+    <span class="ty">environment</span>: <span class="st">'logiflow-test'</span>       <span class="cm"># environments carry approvals and checks</span>
+    <span class="ty">strategy</span>:
+      <span class="ty">runOnce</span>:
+        <span class="ty">deploy</span>:
+          <span class="ty">steps</span>:
+          - <span class="ty">task</span>: SqlAzureDacpacDeployment@1
+            <span class="ty">inputs</span>: { deployType: SqlTask, sqlFile: <span class="st">'$(Pipeline.Workspace)/drop/migrate.sql'</span> }
+          - <span class="ty">task</span>: AzureWebApp@1
+            <span class="ty">inputs</span>:
+              <span class="ty">appName</span>: app-logiflow-api-test
+              <span class="ty">package</span>: <span class="st">'$(Pipeline.Workspace)/drop/app'</span>
+
+- <span class="ty">stage</span>: DeployProd
+  <span class="ty">dependsOn</span>: DeployTest
+  <span class="ty">condition</span>: <span class="kw">and</span>(succeeded(), eq(variables[<span class="st">'Build.SourceBranch'</span>], <span class="st">'refs/heads/main'</span>))
+  <span class="ty">jobs</span>:
+  - <span class="ty">deployment</span>: Prod
+    <span class="ty">environment</span>: <span class="st">'logiflow-prod'</span>       <span class="cm"># ← the approval gate lives on this</span>
+    <span class="ty">strategy</span>:
+      <span class="ty">runOnce</span>:
+        <span class="ty">deploy</span>:
+          <span class="ty">steps</span>:
+          - <span class="ty">task</span>: AzureWebApp@1
+            <span class="ty">inputs</span>:
+              <span class="ty">appName</span>: app-logiflow-api-prod
+              <span class="ty">deployToSlotOrASE</span>: <span class="kw">true</span>
+              <span class="ty">slotName</span>: staging
+              <span class="ty">package</span>: <span class="st">'$(Pipeline.Workspace)/drop/app'</span>
+          - <span class="ty">task</span>: AzureAppServiceManage@0
+            <span class="ty">inputs</span>: { action: <span class="st">'Swap Slots'</span>, sourceSlot: staging }</code></pre>
+
+<h2 id="migrations">Database changes are the hard part</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ During a slot swap, two versions run at once</div>
+  <p>
+    For a few seconds the old code and the new code both talk to the <em>same</em> schema. So a
+    migration that drops or renames a column breaks the version still serving traffic.
+  </p>
+  <p>
+    The discipline is <strong>expand / contract</strong>, across two releases:
+  </p>
+  <ol>
+    <li><strong>Expand</strong> &mdash; add the new column, nullable. Deploy code that writes both
+        old and new and reads whichever is present.</li>
+    <li>Backfill the data.</li>
+    <li><strong>Contract</strong> &mdash; in the <em>next</em> release, once nothing reads the old
+        column, drop it.</li>
+  </ol>
+  <p>
+    Slower, and the only way to change a schema without a maintenance window. Describing this is
+    one of the strongest things you can say in a deployment question.
+  </p>
+</div>
+
+<h2 id="quality-gates">Branch policies &mdash; where quality is actually enforced</h2>
+
+<p>
+  A pipeline that runs after merging tells you what broke. A <strong>branch policy</strong> stops
+  it being merged. On <code>main</code>, the standard set:
+</p>
+
+<ul>
+  <li>Require a pull request &mdash; no direct pushes.</li>
+  <li>At least one reviewer approval, and reset approvals when new commits are pushed.</li>
+  <li>The build must succeed, including the tests.</li>
+  <li>All comments resolved.</li>
+  <li>A linked work item &mdash; the audit trail.</li>
+  <li>Merge strategy fixed (squash is common) so history stays readable.</li>
+</ul>
+
+<div class="code-head">what belongs in the build, beyond compiling</div>
+<pre><code><span class="cm"># fail on formatting drift — .editorconfig, enforced (ch. 17)</span>
+dotnet format --verify-no-changes
+
+<span class="cm"># known vulnerabilities in dependencies</span>
+dotnet list package --vulnerable --include-transitive
+
+<span class="cm"># secret scanning, static analysis, container scanning…</span>
+<span class="cm"># the principle: every rule a human would have to remember becomes a build step</span></code></pre>
+
+<h2 id="secrets">Secrets in pipelines</h2>
+
+<ul>
+  <li><strong>Variable groups</strong> linked to Key Vault, so the pipeline never stores the secret
+      itself.</li>
+  <li><strong>Service connections</strong> with a workload identity federation, rather than a
+      long-lived service principal secret.</li>
+  <li>Secret variables are masked in logs &mdash; and are <em>not</em> passed to pipelines
+      triggered by a pull request from a fork, deliberately.</li>
+  <li>Never <code>echo</code> a secret to diagnose it. The masking is best-effort.</li>
+</ul>
+
+<h2 id="iac">Infrastructure as code</h2>
+
+<p>
+  Anything you clicked in the Azure portal is undocumented and unreproducible. Bicep is the
+  Azure-native option and reads far better than raw ARM templates.
+</p>
+
+<div class="code-head">main.bicep — a fragment</div>
+<pre><code><span class="kw">param</span> location <span class="ty">string</span> = resourceGroup().location
+<span class="kw">param</span> appName  <span class="ty">string</span>
+
+<span class="kw">resource</span> plan <span class="st">'Microsoft.Web/serverfarms@2023-01-01'</span> = {
+  name: <span class="st">'plan-</span>${appName}<span class="st">'</span>
+  location: location
+  sku: { name: <span class="st">'P1v3'</span> }
+  properties: { reserved: <span class="kw">true</span> }
+}
+
+<span class="kw">resource</span> web <span class="st">'Microsoft.Web/sites@2023-01-01'</span> = {
+  name: <span class="st">'app-</span>${appName}<span class="st">'</span>
+  location: location
+  identity: { type: <span class="st">'SystemAssigned'</span> }      <span class="cm">// managed identity (ch. 18)</span>
+  properties: {
+    serverFarmId: plan.id
+    siteConfig: { linuxFxVersion: <span class="st">'DOTNETCORE|10.0'</span>, alwaysOn: <span class="kw">true</span> }
+  }
+}</code></pre>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Azure DevOps is free for small teams, and so is GitHub Actions &mdash; the concepts transfer
+    exactly, so use whichever you can sign into.
+  </p>
+  <ol>
+    <li>Push a small .NET project and add a pipeline that restores, builds and tests.</li>
+    <li><strong>Break a test deliberately</strong> and push. Watch the build go red and the PR
+        become unmergeable. That feedback loop is the entire point.</li>
+    <li>Add <code>dotnet format --verify-no-changes</code> and push badly formatted code.</li>
+    <li>Add a second stage with an <code>environment</code> and an approval, and watch the pipeline
+        wait for you.</li>
+    <li>Publish an artifact in stage one and consume it in stage two &mdash; prove to yourself it
+        is the same build.</li>
+  </ol>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-12-testing/README.md">Module 12</a> covers what should be in the
+    test step, and <a href="../../course/module-13-deployment/README.md">Module 13</a> covers
+    deployment.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Build once, deploy many.</strong> The artifact you tested is the artifact you ship.</li>
+    <li>Configuration differs between environments; the build does not.</li>
+    <li>Pipelines live in YAML in the repository, versioned and reviewed with the code.</li>
+    <li>Branch policies are where quality is enforced. A pipeline alone only reports.</li>
+    <li>Every rule a human would have to remember becomes a build step.</li>
+    <li>Keep CI under about ten minutes. Slower than that and people stop waiting for it.</li>
+    <li>A red build is the top priority. A build that is red "normally" is worth nothing.</li>
+    <li>Migrations run as a reviewed script from the pipeline, never from application startup.</li>
+    <li>Schema changes are expand/contract across two releases. Two versions run at once during a
+        swap.</li>
+    <li>Secrets come from Key Vault via variable groups, never from the YAML.</li>
+    <li>Automate rollback and practise it. An untested rollback is a hope.</li>
+    <li>Infrastructure in Bicep or Terraform. Anything created by clicking is undocumented.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between continuous delivery and continuous deployment?"</p>
+  <p class="a">
+    Delivery means every build is <em>releasable</em> and a human chooses when; deployment means it
+    goes automatically. Then say which one the situation warrants &mdash; automatic to production
+    needs the test coverage and monitoring to back it up.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you handle database migrations in a deployment?"</p>
+  <p class="a">
+    Generate an idempotent script at build time, review it, and run it as an explicit pipeline step
+    before deploying the code. Never <code>Database.Migrate()</code> at startup &mdash; instances
+    race and nobody reviewed the DDL. Then expand/contract for anything destructive.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A deployment broke production. What do you do?"</p>
+  <p class="a">
+    Restore service first &mdash; swap the slot back &mdash; then diagnose, because investigating
+    while users are down is the wrong order. Afterwards: a regression test that would have caught
+    it, and a blameless look at why the pipeline let it through. Interviewers listen for whether
+    "rollback" comes before "root cause".
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What would you put in a build pipeline besides compile and test?"</p>
+  <p class="a">
+    Format verification, static analysis, dependency vulnerability scanning, secret scanning, and
+    publishing test results and coverage. The principle worth stating: anything a reviewer would
+    otherwise have to remember should be a build step.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why keep the pipeline in YAML rather than the classic editor?"</p>
+  <p class="a">
+    It is versioned with the code, reviewable in a pull request, branchable, and reproducible. A
+    UI-defined pipeline has no history and no review, and cannot differ per branch.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

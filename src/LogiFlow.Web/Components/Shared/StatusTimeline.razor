@@ -1,0 +1,145 @@
+@using System.Globalization
+
+@* The order's life, drawn as a rail with the finished part filled in.
+
+   Two things this component deliberately does NOT do:
+
+     * It does not decide what may happen next. The rail shows where the order HAS been, which is
+       a fact carried by timestamps. What it may do next is `AllowedTransitions`, and that comes
+       from the domain's state machine - the same rule the action buttons obey. A timeline that
+       predicted the next step would be a second copy of the rules, and the copy would be the one
+       that was wrong.
+     * It does not invent history it was not given. A cancelled order shows only the steps it can
+       prove it reached: the draft, the submission if there is a timestamp for it, and the stop.
+       Drawing a greyed-out "Delivered" on an order that was cancelled would be drawing a future
+       that is never coming.
+
+   The fill is a width driven by a CSS custom property, so when a submit succeeds and the page
+   reloads, the line GROWS to the new step instead of being repainted at it. That 420ms is the
+   only feedback that says "the thing you clicked moved the order forward". *@
+
+<ol class="lifecycle @(IsStopped ? "is-stopped" : null)" style="@ProgressStyle">
+    @foreach (Step step in Steps)
+    {
+        <li class="step @StateClass(step)" title="@OrderStatusText.Kid(step.Status)">
+            <span class="step-dot" aria-hidden="true"></span>
+            <span class="step-name">@step.Status</span>
+            <span class="step-when">@(step.When is { } when ? Date(when) : null)</span>
+        </li>
+    }
+</ol>
+
+@code {
+    /// <summary>The order whose history is being drawn.</summary>
+    [Parameter]
+    [EditorRequired]
+    public OrderDetail Order { get; set; } = default!;
+
+    /// <summary>The happy path, in order. Cancellation is a fork off it, not a step on it.</summary>
+    private static readonly OrderStatus[] HappyPath =
+    [
+        OrderStatus.Draft,
+        OrderStatus.Submitted,
+        OrderStatus.Confirmed,
+        OrderStatus.Shipped,
+        OrderStatus.Delivered,
+    ];
+
+    private bool IsStopped => Order.Status == OrderStatus.Cancelled;
+
+    private IReadOnlyList<Step> Steps => IsStopped ? CancelledSteps() : HappyPathSteps();
+
+    private IReadOnlyList<Step> HappyPathSteps()
+    {
+        // The enum's numeric values ARE the order of the lifecycle (see OrderStatus), so the index
+        // is just a lookup. Array.IndexOf rather than arithmetic on the enum value: if someone
+        // renumbers the enum, this returns -1 and the timeline renders nothing, instead of
+        // silently pointing at the wrong step.
+        int current = Array.IndexOf(HappyPath, Order.Status);
+
+        return
+        [
+            .. HappyPath.Select((status, index) => new Step(
+                status,
+                TimestampFor(status),
+                index < current ? StepState.Done
+                    : index == current ? StepState.Now
+                    : StepState.Ahead)),
+        ];
+    }
+
+    private IReadOnlyList<Step> CancelledSteps()
+    {
+        List<Step> steps = [new(OrderStatus.Draft, Order.CreatedAtUtc, StepState.Done)];
+
+        if (Order.SubmittedAtUtc is { } submitted)
+        {
+            steps.Add(new Step(OrderStatus.Submitted, submitted, StepState.Done));
+        }
+
+        // No CancelledAtUtc on the contract, so no date is shown rather than a guessed one.
+        steps.Add(new Step(OrderStatus.Cancelled, null, StepState.Stopped));
+
+        return steps;
+    }
+
+    private DateTimeOffset? TimestampFor(OrderStatus status) => status switch
+    {
+        OrderStatus.Draft => Order.CreatedAtUtc,
+        OrderStatus.Submitted => Order.SubmittedAtUtc,
+        OrderStatus.Shipped => Order.ShippedAtUtc,
+        OrderStatus.Delivered => Order.DeliveredAtUtc,
+
+        // Confirmed has no timestamp on the contract. An empty slot is honest; reusing the
+        // submission time would be a lie that looks like data.
+        _ => null,
+    };
+
+    /// <summary>How far along the rail the fill runs, as a 0-1 fraction.</summary>
+    private string ProgressStyle
+    {
+        get
+        {
+            int last = Steps.Count - 1;
+            int reached = IsStopped ? last : Math.Max(Array.IndexOf(HappyPath, Order.Status), 0);
+            double fraction = last == 0 ? 0 : reached / (double)last;
+
+            // Invariant, always. A comma decimal separator is not a CSS number, so on an Italian
+            // machine "--progress:0,5" is silently ignored and the rail never fills.
+            return string.Create(CultureInfo.InvariantCulture, $"--progress:{fraction:0.###}");
+        }
+    }
+
+    private static string StateClass(Step step) => step.State switch
+    {
+        StepState.Done => "is-done",
+        StepState.Now => "is-done is-now",
+        StepState.Stopped => "step-stopped",
+        _ => string.Empty,
+    };
+
+    private static string Date(DateTimeOffset value) =>
+        value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>One marker on the rail.</summary>
+    /// <param name="Status">The state it represents.</param>
+    /// <param name="When">When the order entered it, where that is known.</param>
+    /// <param name="State">How to draw it.</param>
+    private sealed record Step(OrderStatus Status, DateTimeOffset? When, StepState State);
+
+    /// <summary>How far the order has got, relative to one step.</summary>
+    private enum StepState
+    {
+        /// <summary>Not reached.</summary>
+        Ahead,
+
+        /// <summary>Passed.</summary>
+        Done,
+
+        /// <summary>Where the order is right now.</summary>
+        Now,
+
+        /// <summary>Where the order stopped for good.</summary>
+        Stopped,
+    }
+}

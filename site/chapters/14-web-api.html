@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14 · ASP.NET Core Web API — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="14-web-api">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 14</p>
+<h1>ASP.NET Core Web API</h1>
+<p class="lede">
+  The framework that turns <a href="13-rest-principles.html">chapter 13</a>&rsquo;s principles into
+  running code. Three things carry most of it: the middleware pipeline, dependency injection, and
+  the discipline of never letting a database entity reach the wire.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Comprensione dei principi REST e sviluppo di Web API."</em> This is the day job. If one
+  chapter is going to come up in a live-coding round, it is this one.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="program-cs">Program.cs &mdash; the whole application in one file</h2>
+
+<div class="code-head">Program.cs</div>
+<pre><code><span class="kw">var</span> builder = <span class="ty">WebApplication</span>.CreateBuilder(args);
+
+<span class="cm">// ─── 1. REGISTER services: what the application can use ────────────────</span>
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddDbContext&lt;<span class="ty">LogiFlowDbContext</span>&gt;(o =&gt;
+    o.UseSqlServer(builder.Configuration.GetConnectionString(<span class="st">"Default"</span>)));
+
+builder.Services.AddScoped&lt;<span class="ty">IOrderService</span>, <span class="ty">OrderService</span>&gt;();
+builder.Services.AddScoped&lt;<span class="ty">IOrderRepository</span>, <span class="ty">SqlOrderRepository</span>&gt;();
+builder.Services.AddHttpClient&lt;<span class="ty">IPricingClient</span>, <span class="ty">PricingClient</span>&gt;();
+builder.Services.AddHealthChecks().AddDbContextCheck&lt;<span class="ty">LogiFlowDbContext</span>&gt;();
+
+<span class="kw">var</span> app = builder.Build();
+
+<span class="cm">// ─── 2. BUILD the pipeline: ORDER IS THE BEHAVIOUR ─────────────────────</span>
+app.UseExceptionHandler();      <span class="cm">// outermost: catches everything below</span>
+<span class="kw">if</span> (!app.Environment.IsDevelopment()) app.UseHsts();
+app.UseHttpsRedirection();
+app.UseRouting();
+app.UseAuthentication();        <span class="cm">// who are you?   ← must come before…</span>
+app.UseAuthorization();         <span class="cm">// may you?       ← …this. Always.</span>
+app.MapControllers();
+app.MapHealthChecks(<span class="st">"/health"</span>);
+
+app.Run();</code></pre>
+
+<h2 id="middleware">The middleware pipeline</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Getting into a football stadium, you pass through a line of people: someone checks your ticket,
+    someone searches your bag, someone points you to your seat. Each one can either wave you
+    through to the next person, or stop you and send you straight back out.
+  </p>
+  <p>
+    On the way out you pass all of them again, in reverse.
+  </p>
+  <p>
+    The order is not a detail &mdash; it is the whole design. Searching bags <em>after</em> people
+    are already in their seats would be pointless.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Middleware components form a chain of delegates. Each receives the
+    <code>HttpContext</code> and a reference to the next component, and decides whether to call it.
+    Because control returns after the <code>await</code>, every component sees the request on the
+    way in <em>and</em> the response on the way out &mdash; which is what allows one component to
+    both log a request and record its duration.
+  </p>
+  <p>
+    A component that does not call <code>next</code> <strong>short-circuits</strong> the pipeline:
+    that is exactly how authorisation returns 403 without the controller ever running.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 350" role="img" aria-labelledby="mw-title">
+    <title id="mw-title">The middleware pipeline, in and out</title>
+    <defs>
+      <marker id="a11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-small">request →</text>
+
+    <rect x="20"  y="36" width="796" height="230" rx="10" class="d-panel"/>
+    <rect x="20"  y="36" width="796" height="230" rx="10" class="d-stroke"/>
+    <text x="36" y="58" class="d-mono">UseExceptionHandler</text>
+
+    <rect x="60"  y="70" width="716" height="182" rx="9" class="d-fill"/>
+    <rect x="60"  y="70" width="716" height="182" rx="9" class="d-stroke"/>
+    <text x="76" y="92" class="d-mono">UseHttpsRedirection</text>
+
+    <rect x="100" y="104" width="636" height="134" rx="9" class="d-panel"/>
+    <rect x="100" y="104" width="636" height="134" rx="9" class="d-stroke"/>
+    <text x="116" y="126" class="d-mono">UseRouting</text>
+
+    <rect x="140" y="138" width="556" height="86" rx="9" class="d-fill"/>
+    <rect x="140" y="138" width="556" height="86" rx="9" class="d-stroke"/>
+    <text x="156" y="160" class="d-mono">UseAuthentication → UseAuthorization</text>
+
+    <rect x="200" y="172" width="436" height="38" rx="8" class="d-brand" opacity=".92"/>
+    <text x="418" y="196" class="d-white" text-anchor="middle">your controller action</text>
+
+    <path d="M20 300 L816 300" class="d-arrow" stroke-width="1.6" marker-end="url(#a11)"/>
+    <text x="30" y="292" class="d-small">in: each layer runs its &ldquo;before&rdquo; code, then calls next()</text>
+    <path d="M816 326 L20 326" class="d-arrow" stroke-width="1.6" marker-end="url(#a11)"/>
+    <text x="500" y="344" class="d-small">out: control unwinds — each layer runs its &ldquo;after&rdquo; code</text>
+  </svg>
+  <figcaption>
+    Nested, not sequential. Registration order is the nesting order, which is why
+    <code>UseAuthorization</code> after <code>MapControllers</code> silently authorises nothing.
+  </figcaption>
+</figure>
+
+<div class="code-head">a custom middleware — the shape</div>
+<pre><code><span class="kw">public class</span> <span class="ty">RequestTimingMiddleware</span>(<span class="ty">RequestDelegate</span> next, <span class="ty">ILogger</span>&lt;<span class="ty">RequestTimingMiddleware</span>&gt; log)
+{
+    <span class="kw">public async</span> <span class="ty">Task</span> InvokeAsync(<span class="ty">HttpContext</span> ctx)
+    {
+        <span class="kw">var</span> sw = <span class="ty">Stopwatch</span>.StartNew();     <span class="cm">// before</span>
+
+        <span class="kw">await</span> next(ctx);                    <span class="cm">// ← everything further in</span>
+
+        log.LogInformation(<span class="st">"{Method} {Path} → {Status} in {Ms}ms"</span>,  <span class="cm">// after</span>
+            ctx.Request.Method, ctx.Request.Path, ctx.Response.StatusCode,
+            sw.ElapsedMilliseconds);
+    }
+}</code></pre>
+
+<h2 id="di">Dependency injection</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Instead of a chef going out to buy their own ingredients halfway through cooking, the
+    ingredients are handed to them at the door. The chef says what they need; someone else decides
+    where it comes from.
+  </p>
+  <p>
+    Now, on a day when you want to test the recipe, you can hand them plastic vegetables and the
+    chef neither knows nor cares.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    ASP.NET Core has a built-in IoC container. A class declares its dependencies as constructor
+    parameters typed as <em>interfaces</em>; the container supplies concrete implementations from
+    the registrations in <code>Program.cs</code>. That is the Dependency Inversion principle from
+    <a href="03-oop.html#solid">chapter 03</a>, made operational: it is what allows a test to
+    substitute a fake repository without touching production code.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Lifetime</th><th>One instance per</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><code>AddSingleton</code></td><td>The whole application</td><td>Stateless, thread-safe services; caches; configuration.</td></tr>
+    <tr><td><code>AddScoped</code></td><td>HTTP request</td><td><strong>The default choice.</strong> <code>DbContext</code>, repositories, services.</td></tr>
+    <tr><td><code>AddTransient</code></td><td>Every injection</td><td>Cheap, stateless helpers.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The captive dependency</div>
+  <p>
+    Injecting a <strong>scoped</strong> service into a <strong>singleton</strong> captures the
+    first request&rsquo;s instance for the lifetime of the application. With a
+    <code>DbContext</code> that means one context shared across every request and every thread
+    &mdash; leaking memory and throwing concurrency errors under load.
+  </p>
+  <p>
+    ASP.NET Core detects this at startup in the Development environment and refuses to start. If
+    a singleton genuinely needs a scoped service, inject <code>IServiceScopeFactory</code> and
+    create a scope per unit of work &mdash; the standard pattern inside a
+    <code>BackgroundService</code>.
+  </p>
+</div>
+
+<h2 id="controllers">Controllers, routing and binding</h2>
+
+<div class="code-head">OrdersController.cs</div>
+<pre><code>[<span class="ty">ApiController</span>]                       <span class="cm">// automatic 400 on invalid model, binding inference</span>
+[<span class="ty">Route</span>(<span class="st">"api/v1/[controller]"</span>)]         <span class="cm">// → /api/v1/orders</span>
+<span class="kw">public class</span> <span class="ty">OrdersController</span>(<span class="ty">IOrderService</span> service) : <span class="ty">ControllerBase</span>
+{
+    [<span class="ty">HttpGet</span>(<span class="st">"{id:int}"</span>)]                                 <span class="cm">// GET /api/v1/orders/42</span>
+    [<span class="ty">ProducesResponseType</span>&lt;<span class="ty">OrderDto</span>&gt;(<span class="ty">StatusCodes</span>.Status200OK)]
+    [<span class="ty">ProducesResponseType</span>(<span class="ty">StatusCodes</span>.Status404NotFound)]
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">ActionResult</span>&lt;<span class="ty">OrderDto</span>&gt;&gt; Get(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> dto = <span class="kw">await</span> service.GetAsync(id, ct);
+        <span class="kw">return</span> dto <span class="kw">is null</span> ? NotFound() : Ok(dto);
+    }
+
+    [<span class="ty">HttpGet</span>]                                            <span class="cm">// GET /api/v1/orders?page=2</span>
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">ActionResult</span>&lt;<span class="ty">PagedResult</span>&lt;<span class="ty">OrderDto</span>&gt;&gt;&gt; List(
+        [<span class="ty">FromQuery</span>] <span class="ty">OrderQuery</span> query, <span class="ty">CancellationToken</span> ct)
+        =&gt; Ok(<span class="kw">await</span> service.SearchAsync(query, ct));
+
+    [<span class="ty">HttpPost</span>]                                           <span class="cm">// POST /api/v1/orders</span>
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">ActionResult</span>&lt;<span class="ty">OrderDto</span>&gt;&gt; Create(
+        [<span class="ty">FromBody</span>] <span class="ty">CreateOrderRequest</span> request, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> created = <span class="kw">await</span> service.CreateAsync(request, ct);
+
+        <span class="cm">// 201 + Location: /api/v1/orders/1001 — exactly what chapter 13 asked for</span>
+        <span class="kw">return</span> CreatedAtAction(<span class="kw">nameof</span>(Get), <span class="kw">new</span> { id = created.Id }, created);
+    }
+
+    [<span class="ty">HttpPost</span>(<span class="st">"{id:int}/submit"</span>)]                        <span class="cm">// a state transition, not a field edit</span>
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IActionResult</span>&gt; Submit(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> result = <span class="kw">await</span> service.SubmitAsync(id, ct);
+        <span class="kw">return</span> result <span class="kw">switch</span>
+        {
+            <span class="ty">SubmitResult</span>.Ok           =&gt; NoContent(),                     <span class="cm">// 204</span>
+            <span class="ty">SubmitResult</span>.NotFound     =&gt; NotFound(),                      <span class="cm">// 404</span>
+            <span class="ty">SubmitResult</span>.AlreadySent  =&gt; Conflict(<span class="st">"Already submitted."</span>),  <span class="cm">// 409</span>
+            _                          =&gt; <span class="kw">throw new</span> <span class="ty">UnreachableException</span>()
+        };
+    }
+}</code></pre>
+
+<h3>Where binding gets its values</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Attribute</th><th>Source</th></tr></thead>
+  <tbody>
+    <tr><td><code>[FromRoute]</code></td><td>The URL path &mdash; <code>{id}</code>. Inferred for simple types matching a route token.</td></tr>
+    <tr><td><code>[FromQuery]</code></td><td>The query string. Inferred for other simple types.</td></tr>
+    <tr><td><code>[FromBody]</code></td><td>The JSON body. Inferred for complex types with <code>[ApiController]</code>. Only one per action.</td></tr>
+    <tr><td><code>[FromHeader]</code></td><td>A request header.</td></tr>
+    <tr><td><code>[FromServices]</code></td><td>The DI container.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  Route constraints like <code>{id:int}</code> are worth using: a request to
+  <code>/orders/abc</code> then fails to match the route and returns 404 before your code runs,
+  rather than producing a confusing binding error.
+</p>
+
+<h2 id="dtos">DTOs &mdash; never return an entity</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ Why this rule is absolute</div>
+  <p>Returning an EF Core entity directly from a controller causes four separate problems:</p>
+  <ol>
+    <li><strong>Over-exposure.</strong> Add an internal <code>CostPrice</code> column and it is
+        published to every client the same afternoon. This is how data leaks happen.</li>
+    <li><strong>Coupling.</strong> Your public API contract silently becomes your database schema.
+        Renaming a column becomes a breaking API change.</li>
+    <li><strong>Serialisation cycles.</strong> <code>Order.Customer.Orders.Customer…</code></li>
+    <li><strong>Over-fetching.</strong> Twenty columns serialised where the client uses three.</li>
+  </ol>
+</div>
+
+<div class="code-head">request and response models</div>
+<pre><code><span class="cm">// Inbound: exactly what a caller may send. Note there is no Id and no Status —</span>
+<span class="cm">// the client does not get to choose those.</span>
+<span class="kw">public record</span> <span class="ty">CreateOrderRequest</span>(
+    [<span class="kw">property</span>: <span class="ty">Required</span>]              <span class="ty">int</span> CustomerId,
+    [<span class="kw">property</span>: <span class="ty">MinLength</span>(1)]           <span class="ty">IReadOnlyList</span>&lt;<span class="ty">CreateOrderLine</span>&gt; Lines,
+    [<span class="kw">property</span>: <span class="ty">StringLength</span>(500)]     <span class="ty">string</span>? Notes);
+
+<span class="cm">// Outbound: exactly what you are willing to publish.</span>
+<span class="kw">public record</span> <span class="ty">OrderDto</span>(<span class="ty">int</span> Id, <span class="ty">string</span> OrderNumber, <span class="ty">decimal</span> Total, <span class="ty">string</span> Status);
+
+<span class="cm">// Map in the query — one SQL statement, only the needed columns (ch. 09)</span>
+<span class="kw">var</span> dto = <span class="kw">await</span> db.Orders
+    .Where(o =&gt; o.Id == id)
+    .Select(o =&gt; <span class="kw">new</span> <span class="ty">OrderDto</span>(o.Id, o.OrderNumber, o.Total, o.Status.ToString()))
+    .FirstOrDefaultAsync(ct);</code></pre>
+
+<h2 id="validation">Validation and error handling</h2>
+
+<p>
+  With <code>[ApiController]</code>, a failed <code>DataAnnotations</code> check automatically
+  returns <code>400</code> with a Problem Details body &mdash; you write no code for it. For rules
+  that need more than an attribute, FluentValidation is the common choice.
+</p>
+
+<div class="code-head">one place for every unhandled exception</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">GlobalExceptionHandler</span>(<span class="ty">ILogger</span>&lt;<span class="ty">GlobalExceptionHandler</span>&gt; log)
+    : <span class="ty">IExceptionHandler</span>
+{
+    <span class="kw">public async</span> <span class="ty">ValueTask</span>&lt;<span class="ty">bool</span>&gt; TryHandleAsync(
+        <span class="ty">HttpContext</span> ctx, <span class="ty">Exception</span> ex, <span class="ty">CancellationToken</span> ct)
+    {
+        log.LogError(ex, <span class="st">"Unhandled on {Path}"</span>, ctx.Request.Path);
+
+        <span class="kw">var</span> (status, title) = ex <span class="kw">switch</span>
+        {
+            <span class="ty">NotFoundException</span>              =&gt; (404, <span class="st">"Not found"</span>),
+            <span class="ty">DbUpdateConcurrencyException</span>   =&gt; (409, <span class="st">"The record was modified by someone else"</span>),
+            <span class="ty">ValidationException</span>            =&gt; (400, <span class="st">"Validation failed"</span>),
+            _                              =&gt; (500, <span class="st">"An unexpected error occurred"</span>)
+            <span class="cm">// ↑ never echo ex.Message to the client on a 500</span>
+        };
+
+        <span class="kw">await</span> <span class="ty">Results</span>.Problem(
+            title: title, statusCode: status,
+            extensions: <span class="kw">new</span> <span class="ty">Dictionary</span>&lt;<span class="ty">string</span>, <span class="ty">object</span>?&gt;
+            {
+                [<span class="st">"traceId"</span>] = <span class="ty">Activity</span>.Current?.Id ?? ctx.TraceIdentifier
+            })
+            .ExecuteAsync(ctx);
+
+        <span class="kw">return true</span>;
+    }
+}
+
+<span class="cm">// Program.cs</span>
+builder.Services.AddExceptionHandler&lt;<span class="ty">GlobalExceptionHandler</span>&gt;();
+builder.Services.AddProblemDetails();
+app.UseExceptionHandler();</code></pre>
+
+<p class="subtle">
+  Returning a <code>traceId</code> is a small thing that makes support enormously easier: a user
+  reports the id, and you find the exact request in your logs.
+</p>
+
+<h2 id="config">Configuration and secrets</h2>
+
+<div class="code-head">strongly-typed options</div>
+<pre><code><span class="kw">public class</span> <span class="ty">PricingOptions</span>
+{
+    <span class="kw">public const string</span> Section = <span class="st">"Pricing"</span>;
+
+    [<span class="ty">Required</span>, <span class="ty">Url</span>]  <span class="kw">public string</span> BaseUrl { <span class="kw">get</span>; <span class="kw">init</span>; } = <span class="st">""</span>;
+    [<span class="ty">Range</span>(1, 60)]    <span class="kw">public int</span>    TimeoutSeconds { <span class="kw">get</span>; <span class="kw">init</span>; } = 10;
+}
+
+builder.Services
+    .AddOptions&lt;<span class="ty">PricingOptions</span>&gt;()
+    .Bind(builder.Configuration.GetSection(<span class="ty">PricingOptions</span>.Section))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();          <span class="cm">// fail at boot, not at 3am on the first call</span></code></pre>
+
+<p>
+  Configuration sources are layered, each overriding the last: <code>appsettings.json</code> &rarr;
+  <code>appsettings.{Environment}.json</code> &rarr; user secrets (development) &rarr; environment
+  variables &rarr; command line. <strong>Connection strings and API keys never go into
+  <code>appsettings.json</code></strong> &mdash; use <code>dotnet user-secrets</code> locally and
+  <a href="29-azure.html">Key Vault</a> or pipeline variables in production.
+</p>
+
+<h2 id="swagger">OpenAPI, and minimal APIs</h2>
+
+<p>
+  <code>AddSwaggerGen()</code> plus the <code>[ProducesResponseType]</code> attributes above give
+  you a browsable, testable contract at <code>/swagger</code>. It is also the deliverable a
+  front-end colleague will ask you for &mdash; which is why the attributes matter.
+</p>
+
+<div class="code-head">the same endpoint as a minimal API</div>
+<pre><code>app.MapGet(<span class="st">"/api/v1/orders/{id:int}"</span>,
+    <span class="kw">async</span> (<span class="ty">int</span> id, <span class="ty">IOrderService</span> service, <span class="ty">CancellationToken</span> ct) =&gt;
+    {
+        <span class="kw">var</span> dto = <span class="kw">await</span> service.GetAsync(id, ct);
+        <span class="kw">return</span> dto <span class="kw">is null</span> ? <span class="ty">Results</span>.NotFound() : <span class="ty">Results</span>.Ok(dto);
+    })
+    .WithName(<span class="st">"GetOrder"</span>)
+    .Produces&lt;<span class="ty">OrderDto</span>&gt;()
+    .Produces(<span class="ty">StatusCodes</span>.Status404NotFound);</code></pre>
+
+<p class="subtle">
+  Minimal APIs are leaner and marginally faster; controllers scale better organisationally with
+  filters, conventions and shared base classes. Most enterprise codebases &mdash; and almost
+  certainly the one behind this advert &mdash; use controllers. Know both, and have an opinion.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>dotnet new webapi -o DemoApi
+<span class="kw">cd</span> DemoApi &amp;&amp; dotnet run</code></pre>
+  <p>Then, in order:</p>
+  <ol>
+    <li>Open <code>/swagger</code> and call the default endpoint.</li>
+    <li>Add a middleware that logs method, path and duration. Put it <em>first</em>, then move it
+        <em>last</em>, and watch the numbers change.</li>
+    <li>Move <code>app.UseAuthorization()</code> to <em>after</em> <code>app.MapControllers()</code>
+        and confirm that authorisation silently stops working. This is the lesson that sticks.</li>
+    <li>Register a service as singleton with a scoped dependency and read the startup error.</li>
+    <li>Add a <code>[Required]</code> property to a request record and POST without it &mdash; look
+        at the Problem Details you get for free.</li>
+  </ol>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-15-aspnetcore-in-depth/README.md">Module 15</a> follows a request
+    through the framework in detail;
+    <a href="../../course/module-10-cross-cutting/README.md">Module 10</a> covers cross-cutting
+    concerns and <a href="../../course/module-05-clean-architecture/README.md">Module 05</a> the
+    layering. Working code: <a href="../../src/LogiFlow.Api/">src/LogiFlow.Api</a>.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Middleware order <em>is</em> behaviour. Exception handler outermost;
+        <code>UseAuthentication</code> before <code>UseAuthorization</code>; both before
+        <code>MapControllers</code>.</li>
+    <li>Scoped is the default lifetime. <code>DbContext</code> is always scoped.</li>
+    <li>Never inject a scoped service into a singleton. Use
+        <code>IServiceScopeFactory</code>.</li>
+    <li>Never return an entity. DTO in, DTO out, always.</li>
+    <li>Project into the DTO inside the query, so the SQL fetches only what you send.</li>
+    <li>Thin controllers: bind, delegate, translate the result into a status code. Business rules
+        live below.</li>
+    <li>Accept a <code>CancellationToken</code> in every action and pass it down.</li>
+    <li>Handle exceptions in one place with <code>IExceptionHandler</code>, return Problem Details,
+        and include a trace id. Never leak <code>ex.Message</code> on a 500.</li>
+    <li>Bind configuration to typed options and <code>ValidateOnStart()</code>.</li>
+    <li>Secrets never live in <code>appsettings.json</code>.</li>
+    <li>Annotate responses with <code>[ProducesResponseType]</code> &mdash; the OpenAPI document is
+        a deliverable for your colleagues.</li>
+    <li>Return the right status code. 201 with <code>Location</code> on create, 204 on a
+        contentless success, 409 on a state conflict.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is middleware, and why does order matter?"</p>
+  <p class="a">
+    A chain of components each deciding whether to call the next; because control returns after the
+    await, each sees both request and response. Order is nesting order, so authorisation registered
+    after endpoint mapping never runs. Offer that example &mdash; it proves you have hit it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Explain the DI lifetimes."</p>
+  <p class="a">
+    Singleton per application, scoped per request, transient per injection. Then the captive
+    dependency problem: a scoped service inside a singleton is captured for the process lifetime,
+    which with a <code>DbContext</code> means shared state across threads.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why not return your EF entities from a controller?"</p>
+  <p class="a">
+    Over-exposure of columns you never meant to publish, coupling of the API contract to the
+    database schema, serialisation cycles through navigation properties, and over-fetching. A DTO
+    is a contract you control deliberately.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Where do you handle exceptions?"</p>
+  <p class="a">
+    Centrally, in an <code>IExceptionHandler</code> registered with
+    <code>UseExceptionHandler</code>, mapping known exception types to status codes and returning
+    Problem Details with a trace id. Try/catch in controllers only when there is a genuine local
+    recovery.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Minimal APIs or controllers?"</p>
+  <p class="a">
+    Minimal APIs for small services and lower overhead; controllers for larger codebases, where
+    filters, conventions and grouping pay off. Then say which the team&rsquo;s existing code uses,
+    because consistency beats preference.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

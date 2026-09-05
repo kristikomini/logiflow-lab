@@ -1,0 +1,18 @@
+<Project>
+
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      xUnit1051 - tests pass CancellationToken explicitly where it actually matters.
+      EnableGenerateDocumentationFile - Roslyn notes that IDE0005 (unused usings) needs
+        GenerateDocumentationFile=true. We deliberately turn XML docs OFF for test projects,
+        so this note is expected and is pure noise.
+    -->
+    <NoWarn>$(NoWarn);CS1998;xUnit1051;EnableGenerateDocumentationFile</NoWarn>
+  </PropertyGroup>
+
+</Project>

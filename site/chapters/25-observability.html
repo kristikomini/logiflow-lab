@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>25 · Logging and observability — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="25-observability">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 5 &mdash; Building it properly <span>&rsaquo;</span> Chapter 25</p>
+<h1>Logging and observability</h1>
+<p class="lede">
+  <a href="27-visual-studio-vscode.html">Chapter 27</a> is about the debugger. This one is about
+  what you do when you cannot use it — because the code is running on
+  <a href="29-azure.html">Azure App Service</a>, it failed once at 14:32 for one customer, and
+  nobody can reproduce it. Observability is the discipline of building software that can answer
+  questions you did not think to ask in advance.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Adverts ask for <em>"monitoraggio"</em> and <em>"troubleshooting in produzione"</em> without
+    saying what that means. It means this. It is also the skill that most visibly separates
+    somebody who has supported software in production from somebody who has only written it — and
+    an interviewer can tell within one answer.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="problem">The problem</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a friend tells you their bike made a horrible noise yesterday afternoon. Not now —
+    yesterday. You cannot hear it, and it will not do it again while you watch.
+  </p>
+  <p>
+    So instead you fit the bike with a little recorder that writes down what happened and when.
+    Next time it makes the noise, you do not have to be there. You just read the notes.
+  </p>
+  <p>
+    Logging is writing the notes. The trick is writing down the <em>right</em> things, before
+    anything goes wrong.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Monitoring answers questions you prepared for: is CPU high, is the site up.
+    <strong>Observability</strong> is the property of being able to answer questions you did not
+    prepare for, from the data the system already emits — "why were <em>these</em> three
+    customers slow, only on Tuesday, only on checkout?"
+  </p>
+  <p>
+    It is conventionally built from three signals, and they answer different questions:
+  </p>
+  <ul>
+    <li><strong>Logs</strong> — discrete events. <em>What happened?</em></li>
+    <li><strong>Metrics</strong> — numbers aggregated over time. <em>How much, how often, how
+        fast?</em></li>
+    <li><strong>Traces</strong> — one request's journey across services. <em>Where did the time
+        go?</em></li>
+  </ul>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="obs-title">
+    <title id="obs-title">Logs, metrics and traces flowing from the application to a backend, joined by a trace id</title>
+    <defs>
+      <marker id="a20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="100" width="150" height="70" rx="8" class="d-brand"/>
+    <text x="95" y="130" class="d-white" text-anchor="middle" style="font-size:12.5px">LogiFlow.Api</text>
+    <text x="95" y="150" class="d-white" text-anchor="middle" style="font-size:10.5px">one request, one trace id</text>
+
+    <rect x="270" y="24"  width="200" height="54" rx="8" class="d-panel d-stroke"/>
+    <text x="370" y="46"  class="d-text" text-anchor="middle" style="font-size:12px">Logs</text>
+    <text x="370" y="65"  class="d-small" text-anchor="middle">"Order 1042 rejected: no stock"</text>
+
+    <rect x="270" y="108" width="200" height="54" rx="8" class="d-panel d-stroke"/>
+    <text x="370" y="130" class="d-text" text-anchor="middle" style="font-size:12px">Metrics</text>
+    <text x="370" y="149" class="d-small" text-anchor="middle">p95 latency, 5xx/min, queue depth</text>
+
+    <rect x="270" y="192" width="200" height="54" rx="8" class="d-panel d-stroke"/>
+    <text x="370" y="214" class="d-text" text-anchor="middle" style="font-size:12px">Traces</text>
+    <text x="370" y="233" class="d-small" text-anchor="middle">api 12ms &rarr; sql 480ms &rarr; redis 1ms</text>
+
+    <line x1="172" y1="122" x2="266" y2="56"  class="d-arrow" marker-end="url(#a20)"/>
+    <line x1="172" y1="135" x2="266" y2="135" class="d-arrow" marker-end="url(#a20)"/>
+    <line x1="172" y1="148" x2="266" y2="214" class="d-arrow" marker-end="url(#a20)"/>
+
+    <line x1="474" y1="56"  x2="566" y2="122" class="d-arrow" marker-end="url(#a20)"/>
+    <line x1="474" y1="135" x2="566" y2="135" class="d-arrow" marker-end="url(#a20)"/>
+    <line x1="474" y1="214" x2="566" y2="148" class="d-arrow" marker-end="url(#a20)"/>
+
+    <rect x="570" y="100" width="250" height="70" rx="8" class="d-panel d-stroke"/>
+    <text x="695" y="126" class="d-text" text-anchor="middle" style="font-size:12px">Application Insights / Seq /</text>
+    <text x="695" y="144" class="d-text" text-anchor="middle" style="font-size:12px">Grafana &mdash; via OpenTelemetry</text>
+    <text x="695" y="162" class="d-small" text-anchor="middle">one query joins all three by trace id</text>
+
+    <text x="20" y="278" class="d-small">The trace id is the thread through all three. Without it you have three piles of data and no way to connect them.</text>
+  </svg>
+  <figcaption>
+    OpenTelemetry is the vendor-neutral standard for emitting all three. You instrument once;
+    changing backend later is a configuration change, not a rewrite.
+  </figcaption>
+</figure>
+
+<h2 id="structured">Structured logging &mdash; the single most useful habit</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Two ways to keep a diary. One: <em>"Today I ran 5 km in 30 minutes."</em> Two: a table with
+    columns <em>date, distance, minutes</em>.
+  </p>
+  <p>
+    Both say the same thing. But only the table lets you ask <em>"which of my runs were slower
+    than 6 minutes per kilometre?"</em> without reading every page.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The difference is one character, and it is the highest-value thing in this chapter:
+  </p>
+  <pre><code>logger.LogInformation($<span class="st">"Handled {name} in {ms}ms"</span>);        <span class="cm">// ✗ one opaque string</span>
+logger.LogInformation(<span class="st">"Handled {Name} in {Ms}ms"</span>, name, ms); <span class="cm">// ✓ message + fields</span></code></pre>
+  <p>
+    The second form reaches Seq or Application Insights with <code>Name</code> and <code>Ms</code>
+    as separately indexed properties. You can then ask <em>"every request over 500 ms, grouped by
+    name, last 24 hours"</em> as a query. With interpolation you get a million unique strings and
+    the only tool left is text search.
+  </p>
+  <p>
+    The Roslyn analyser <strong>CA2254</strong> exists to catch exactly this. Turn it on and let
+    the compiler enforce it.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Level</th><th>Use it when</th><th>Who gets woken up</th></tr></thead>
+  <tbody>
+    <tr><td><code>Trace</code></td><td>Firehose. Local only, never production.</td><td>nobody</td></tr>
+    <tr><td><code>Debug</code></td><td>Developer detail. Off in production by default.</td><td>nobody</td></tr>
+    <tr><td><code>Information</code></td><td>A business thing happened: order created, payment taken.</td><td>nobody</td></tr>
+    <tr><td><code>Warning</code></td><td>Something recovered, or a limit is close. A retry succeeded.</td><td>a dashboard</td></tr>
+    <tr><td><code>Error</code></td><td>This request failed. A user is affected.</td><td>an alert</td></tr>
+    <tr><td><code>Critical</code></td><td>The application cannot continue.</td><td>a human, at night</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  If everything is <code>Error</code>, nothing is. The test for <code>Error</code>: would you want
+  to be told about a hundred of these in an hour? If not, it is a <code>Warning</code>.
+</p>
+
+<h2 id="correlation">Correlation: one id through everything</h2>
+
+<p>
+  A single request touches the endpoint, a handler, EF Core, Redis and maybe another service. Ten
+  concurrent users produce interleaved log lines. What makes them separable is a
+  <strong>correlation id</strong> attached to every line — and in .NET you get one for free,
+  because <code>Activity.Current.TraceId</code> is set by the framework.
+</p>
+
+<div class="code-head">a scope makes it stick to every line inside</div>
+<pre><code><span class="kw">using</span> (logger.BeginScope(<span class="kw">new</span> <span class="ty">Dictionary</span>&lt;<span class="kw">string</span>, <span class="kw">object</span>&gt;
+{
+    [<span class="st">"CorrelationId"</span>] = <span class="ty">Activity</span>.Current?.TraceId.ToString() ?? traceId,
+    [<span class="st">"RequestName"</span>]   = <span class="kw">typeof</span>(TRequest).Name
+}))
+{
+    logger.LogInformation(<span class="st">"Handling {RequestName}"</span>, name);
+    <span class="kw">var</span> response = <span class="kw">await</span> next();          <span class="cm">// everything in here inherits the scope,</span>
+    <span class="cm">//                                        including EF Core's own logging</span>
+    logger.LogInformation(<span class="st">"Handled {RequestName} in {Ms}ms"</span>, name, sw.ElapsedMilliseconds);
+    <span class="kw">return</span> response;
+}</code></pre>
+
+<p>
+  Two things follow. First, this belongs in <em>one</em> place — a
+  <a href="05-solid-and-patterns.html#decorator">pipeline behaviour</a>, not in every handler; see
+  <a href="../../src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>.
+  Second, return the trace id to the caller in your error response, as
+  <a href="14-web-api.html">chapter 14</a> does with Problem Details. Then a customer can say
+  "the error said <code>0HN7…</code>" and you have their entire request in one query.
+</p>
+
+<h2 id="health">Health checks</h2>
+
+<div class="code-head">liveness and readiness are different questions</div>
+<pre><code>builder.Services.AddHealthChecks()
+    .AddSqlServer(connectionString, tags: [<span class="st">"ready"</span>])
+    .AddRedis(redisConnection,      tags: [<span class="st">"ready"</span>]);
+
+<span class="cm">// "Am I alive?" — if this fails, restart me.</span>
+app.MapHealthChecks(<span class="st">"/health/live"</span>, <span class="kw">new</span>() { Predicate = _ =&gt; <span class="kw">false</span> });
+
+<span class="cm">// "Can I serve traffic?" — if this fails, take me out of rotation</span>
+<span class="cm">// but do NOT restart me: the database being down is not my fault.</span>
+app.MapHealthChecks(<span class="st">"/health/ready"</span>, <span class="kw">new</span>() { Predicate = h =&gt; h.Tags.Contains(<span class="st">"ready"</span>) });</code></pre>
+
+<p class="subtle">
+  Collapsing these into one endpoint is a classic outage amplifier: the database has a five-second
+  blip, every instance reports unhealthy, the orchestrator restarts all of them at once, and now
+  you have a cold start storm on top of a database blip.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ Logging personal data</div>
+  <p>
+    <code>logger.LogInformation("Login attempt {@Request}", request)</code> where the request
+    contains a password, a token, an IBAN or a customer's address. It is now in your log backend,
+    replicated, retained for ninety days and readable by anyone with dashboard access.
+  </p>
+  <p>
+    Under GDPR that is a processing activity you probably have not documented, and in Italy it is
+    the kind of thing a <em>DPO</em> asks about directly. Log identifiers, not people: a customer
+    id, not a name and e-mail. Never serialise a whole request object without knowing every field
+    in it.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Log and rethrow</div>
+  <pre><code><span class="kw">catch</span> (<span class="ty">Exception</span> ex)
+{
+    logger.LogError(ex, <span class="st">"Failed"</span>);
+    <span class="kw">throw</span>;                      <span class="cm">// …and the layer above does the same</span>
+}</code></pre>
+  <p>
+    One failure, five stack traces, and the on-call engineer counting how many incidents there
+    were. Handle it or log it — not both. Log once, at the boundary that decides what the caller
+    sees; a global exception handler is that boundary. And use
+    <code>throw;</code>, never <code>throw ex;</code>, which resets the stack trace to the line
+    you are standing on.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>docker compose up -d
+dotnet run --project src/LogiFlow.Api</code></pre>
+  <p>Make a request, then take the trace id from the response and find everything it touched:</p>
+  <pre><code>curl -i http://localhost:5000/orders/does-not-exist
+<span class="cm"># the Problem Details body carries a traceId — grep the console for it</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then the experiment worth doing: change one log call in
+    <code>LoggingBehavior</code> from a message template to string interpolation, restart, and
+    look at the output. The line still reads fine to a human — and the structured fields are
+    gone. That is the whole argument, visible in ten seconds.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Message templates with named placeholders. Never string interpolation. Enable CA2254.</li>
+    <li>Log identifiers, never people. No passwords, tokens, IBANs or addresses — ever.</li>
+    <li>One correlation id, attached with a scope, returned to the caller on failure.</li>
+    <li>Log once, at the boundary. Log-and-rethrow multiplies one failure into five.</li>
+    <li><code>throw;</code> preserves the stack trace. <code>throw ex;</code> destroys it.</li>
+    <li>If everything is an Error, nothing is. Reserve it for "a user is affected".</li>
+    <li>Cross-cutting logging is a pipeline behaviour, not a line in every method.</li>
+    <li>Liveness and readiness are different endpoints with different consequences.</li>
+    <li>Metrics answer "how many"; logs answer "what happened"; traces answer "where did the time go".</li>
+    <li>Instrument with OpenTelemetry so the backend stays a configuration choice.</li>
+    <li>Never log inside a tight loop — you will DoS your own log backend and your bill.</li>
+    <li>A log line nobody would ever query is noise. Write it for the incident, not for now.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is structured logging and why does it matter?"</p>
+  <p class="a">
+    Logging a message template plus named fields rather than one formatted string, so the backend
+    indexes the fields. Give the payoff as a question you can answer with one and not the other:
+    "show me every request over 500 ms grouped by endpoint" is a query with structured logs and a
+    text search with interpolated ones. Mention CA2254 — it shows you have actually enforced it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"An error happened in production at 14:32 for one customer. What do you do?"</p>
+  <p class="a">
+    This is really "have you ever supported software?" Walk the path: get the trace id from the
+    customer or from the error response, query the log backend filtered on it, and read the whole
+    request across every component in order. Then say what makes that possible — a correlation id
+    on every line and the trace id returned in the Problem Details body — because that is the part
+    you have to build in advance.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What are the three pillars of observability?"</p>
+  <p class="a">
+    Logs, metrics, traces — and immediately what each is for: discrete events, aggregated numbers,
+    one request's path across services. Add that they are only useful joined, which is what the
+    trace id does, and that OpenTelemetry is the standard for emitting all three so the backend
+    stays swappable.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What would you never put in a log?"</p>
+  <p class="a">
+    Passwords, tokens, card numbers, and personal data you have no reason to retain. Frame it as
+    GDPR, not just tidiness: logs are replicated and retained, so a serialised request object with
+    a customer's name and address is undocumented processing. Log the customer id instead.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Difference between a liveness and a readiness probe?"</p>
+  <p class="a">
+    Liveness asks "is this process broken" and the remedy is a restart. Readiness asks "can it
+    serve traffic right now" and the remedy is removal from the load balancer. Then give the
+    reason to keep them apart: if a database blip fails liveness, every instance restarts
+    simultaneously and you have turned a small blip into an outage.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-11-observability/README.md">Module 11 — Observability</a> wires
+    Serilog and OpenTelemetry into this application end to end. The working example is
+    <a href="../../src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>,
+    which is worth reading in full — the comments explain each decision.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

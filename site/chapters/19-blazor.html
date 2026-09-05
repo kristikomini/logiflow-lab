@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19 · Blazor — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="19-blazor">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 19</p>
+<h1>Blazor</h1>
+<p class="lede">
+  Blazor is components like <a href="18-spa-and-typescript.html">the previous chapter</a>, written
+  in C#. No npm, no bundler, no second language. For a region full of teams maintaining large
+  WinForms and WPF applications with no JavaScript developer in the building, that is not a
+  detail &mdash; it is the whole reason Blazor turns up in Bologna job adverts.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Emilia-Romagna's software estate is heavily Microsoft and heavily <em>desktop</em>:
+    <em>gestionali</em>, shop-floor supervisors and internal tools written in WinForms or WPF over
+    SQL Server, some of them fifteen years old and still earning money. Those applications have to
+    reach the browser eventually, and the team that will do it writes C#. Ads in Bologna now name
+    Blazor Server and WebAssembly explicitly. This repository ships
+    <a href="../../src/LogiFlow.Web/"><code>src/LogiFlow.Web</code></a> — a Blazor front end over
+    the API — for exactly that reason.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="idea">The idea</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine you only speak Italian, and to build a website you were told you also had to learn
+    Japanese. Annoying. Blazor is someone saying: actually, you can build it in Italian.
+  </p>
+  <p>
+    There are two ways it works. Either your program stays on the big computer at the office and
+    sends the screen down a wire very fast &mdash; or your whole program is copied into the
+    browser and runs there. Same code. Different place.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Blazor is a component model where components are <code>.razor</code> files: markup plus C#,
+    compiled into ordinary .NET classes. The framework builds a render tree, diffs it after each
+    state change, and applies the difference to the DOM &mdash; conceptually the same as React's
+    virtual DOM.
+  </p>
+  <p>
+    The interesting decision is <strong>where the C# runs</strong>, and Blazor gives you four
+    render modes:
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Render mode</th><th>Runs</th><th>Costs</th><th>Good for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Static SSR</strong></td><td>on the server, once</td><td>no interactivity</td><td>content pages, forms with a POST</td></tr>
+    <tr><td><strong>InteractiveServer</strong></td><td>on the server, over a SignalR circuit</td><td>a live connection per user; latency is felt</td><td>internal LAN apps — the region's default</td></tr>
+    <tr><td><strong>InteractiveWebAssembly</strong></td><td>in the browser, on a .NET runtime</td><td>multi-MB first load; no direct DB access</td><td>public apps, offline, static hosting</td></tr>
+    <tr><td><strong>InteractiveAuto</strong></td><td>server first, then WASM once cached</td><td>most complexity; two environments to support</td><td>public apps wanting a fast first visit</td></tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 290" role="img" aria-labelledby="bl-title">
+    <title id="bl-title">Blazor Server keeps C# on the server behind a SignalR circuit; WebAssembly ships the runtime to the browser</title>
+    <defs>
+      <marker id="a17" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">InteractiveServer</text>
+    <rect x="20" y="40" width="150" height="120" rx="8" class="d-panel d-stroke"/>
+    <text x="95" y="62" class="d-text" text-anchor="middle" style="font-size:11.5px">Browser</text>
+    <text x="95" y="84" class="d-small" text-anchor="middle">DOM only</text>
+    <rect x="34" y="98" width="122" height="46" rx="6" class="d-panel d-stroke"/>
+    <text x="95" y="120" class="d-small" text-anchor="middle">tiny JS shim</text>
+    <text x="95" y="136" class="d-small" text-anchor="middle">~100 KB</text>
+
+    <line x1="172" y1="88"  x2="236" y2="88"  class="d-arrow" marker-end="url(#a17)"/>
+    <text x="204" y="80" class="d-small" text-anchor="middle">click</text>
+    <line x1="236" y1="112" x2="174" y2="112" class="d-arrow" marker-end="url(#a17)"/>
+    <text x="204" y="132" class="d-small" text-anchor="middle">DOM diff</text>
+
+    <rect x="240" y="40" width="150" height="120" rx="8" class="d-brand"/>
+    <text x="315" y="72" class="d-white" text-anchor="middle" style="font-size:11.5px">Server</text>
+    <text x="315" y="94" class="d-white" text-anchor="middle" style="font-size:10.5px">your component</text>
+    <text x="315" y="112" class="d-white" text-anchor="middle" style="font-size:10.5px">state lives here</text>
+    <text x="315" y="134" class="d-white" text-anchor="middle" style="font-size:10.5px">SignalR circuit</text>
+
+    <text x="20" y="186" class="d-small">Every keystroke is a round trip. Fine on a factory LAN,</text>
+    <text x="20" y="202" class="d-small">painful over a slow connection. Server holds memory</text>
+    <text x="20" y="218" class="d-small">per connected user, so scale is measured in circuits.</text>
+
+    <line x1="415" y1="20" x2="415" y2="270" class="d-stroke" stroke-dasharray="4 4"/>
+
+    <text x="450" y="26" class="d-small">InteractiveWebAssembly</text>
+    <rect x="450" y="40" width="230" height="120" rx="8" class="d-brand"/>
+    <text x="565" y="66" class="d-white" text-anchor="middle" style="font-size:11.5px">Browser</text>
+    <text x="565" y="88" class="d-white" text-anchor="middle" style="font-size:10.5px">.NET runtime on WASM</text>
+    <text x="565" y="106" class="d-white" text-anchor="middle" style="font-size:10.5px">your component runs HERE</text>
+    <text x="565" y="128" class="d-white" text-anchor="middle" style="font-size:10.5px">first load: several MB</text>
+
+    <line x1="684" y1="88"  x2="746" y2="88"  class="d-arrow" marker-end="url(#a17)"/>
+    <text x="715" y="80" class="d-small" text-anchor="middle">HTTP</text>
+    <line x1="746" y1="112" x2="686" y2="112" class="d-arrow" marker-end="url(#a17)"/>
+    <text x="715" y="132" class="d-small" text-anchor="middle">JSON</text>
+
+    <rect x="750" y="60" width="70" height="80" rx="8" class="d-panel d-stroke"/>
+    <text x="785" y="96"  class="d-small" text-anchor="middle">Web</text>
+    <text x="785" y="112" class="d-small" text-anchor="middle">API</text>
+
+    <text x="450" y="186" class="d-small">No live connection, works offline, hosts as static files.</text>
+    <text x="450" y="202" class="d-small">But your code is now ON the user's machine: no connection</text>
+    <text x="450" y="218" class="d-small">strings, no secrets, and every call must be authorised.</text>
+
+    <text x="20" y="262" class="d-small">Same .razor components either way. The render mode is a hosting decision you can change later — which is the real selling point.</text>
+  </svg>
+  <figcaption>
+    The mistake is choosing WebAssembly because it sounds modern. For an internal application on a
+    company network, InteractiveServer is simpler, faster to first paint, and can talk to the
+    database directly.
+  </figcaption>
+</figure>
+
+<h2 id="component">What a component looks like</h2>
+
+<div class="code-head">Orders.razor — markup and C# in one file</div>
+<pre><code>@page <span class="st">"/orders"</span>
+@rendermode <span class="ty">InteractiveServer</span>
+@inject <span class="ty">LogiFlowApiClient</span> Api
+
+&lt;h1&gt;Ordini&lt;/h1&gt;
+
+@<span class="kw">if</span> (_orders <span class="kw">is null</span>)
+{
+    &lt;p&gt;&lt;em&gt;Caricamento&hellip;&lt;/em&gt;&lt;/p&gt;      <span class="cm">// null means "not loaded yet" —</span>
+}                                       <span class="cm">// empty list means "none exist". Different.</span>
+<span class="kw">else if</span> (_orders.Count == <span class="nu">0</span>)
+{
+    &lt;p&gt;Nessun ordine.&lt;/p&gt;
+}
+<span class="kw">else</span>
+{
+    &lt;table&gt;
+    @<span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> _orders)
+    {
+        &lt;tr @key="o.Id"&gt;                          <span class="cm">// @key: keeps the diff stable</span>
+            &lt;td&gt;@o.OrderNumber&lt;/td&gt;
+            &lt;td&gt;@o.Total.ToString(<span class="st">"C"</span>, _it)&lt;/td&gt;  <span class="cm">// 1.234,56 € — see module 23</span>
+            &lt;td&gt;&lt;StatusPill Status="o.Status" /&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+    }
+    &lt;/table&gt;
+}
+
+@code {
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">OrderSummary</span>&gt;? _orders;
+    <span class="kw">private readonly</span> <span class="ty">CultureInfo</span> _it = <span class="ty">CultureInfo</span>.GetCultureInfo(<span class="st">"it-IT"</span>);
+
+    <span class="kw">protected override async</span> <span class="ty">Task</span> OnInitializedAsync()
+        =&gt; _orders = <span class="kw">await</span> Api.GetOrdersAsync();
+}</code></pre>
+
+<p class="subtle">
+  Everything you already know applies: <code>@inject</code> is the DI container from
+  <a href="14-web-api.html#di">chapter 14</a>, <code>OnInitializedAsync</code> is ordinary
+  <a href="07-async-and-errors.html">async</a>, and <code>StatusPill</code> is a component you
+  wrote. No new language, no build chain.
+</p>
+
+<h2 id="traps">The four that cost everyone an afternoon</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>OnInitializedAsync</code> runs twice</div>
+  <p>
+    With prerendering, the component initialises once on the server to produce the initial HTML,
+    then again when the interactive circuit starts. Two loads, two API calls, and any side effect
+    happens twice. Guard side effects with <code>OnAfterRenderAsync(bool firstRender)</code>, or
+    disable prerendering for that component and know why you did.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Injecting a <code>DbContext</code> into a component</div>
+  <p>
+    A Blazor Server component can live for hours, and a scoped <code>DbContext</code> injected
+    into it lives exactly as long — accumulating tracked entities, holding a connection, and
+    breaking the moment two events overlap, because <code>DbContext</code> is not thread-safe.
+    Use <code>IDbContextFactory&lt;T&gt;</code> and create one per operation. This is the
+    Blazor-shaped version of the captive-dependency trap.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Updating state from a timer or an event</div>
+  <p>
+    Anything that changes state outside a UI event — a <code>System.Threading.Timer</code>, a
+    SignalR message, a background callback — must marshal back with
+    <code>InvokeAsync(StateHasChanged)</code>. Without it the screen simply does not update, and
+    you spend an hour looking for a bug in your data.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Secrets in a WebAssembly app</div>
+  <p>
+    WebAssembly code is downloaded to the user's machine. Anything in it — an API key, a
+    connection string, a "hidden" admin check — is readable. Client-side authorisation in Blazor
+    WASM controls what the UI <em>shows</em>, never what the user may <em>do</em>. The API must
+    enforce every rule again, exactly as in <a href="15-api-security.html">chapter 15</a>.
+    Blazor Server does not have this problem: the code never leaves the server.
+  </p>
+</div>
+
+<h2 id="migration">Migrating a desktop application, honestly</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a very old bridge that everyone still drives over every day. You cannot close it for
+    two years to build a new one &mdash; the town would stop.
+  </p>
+  <p>
+    So you build the new bridge one lane at a time, right next to it, and move the traffic across
+    lane by lane. For a while both bridges are standing and that looks silly. Then one day the old
+    one has no cars on it, and you take it away.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    This is the conversation a Modena or Reggio Emilia employer is actually having, and having an
+    opinion about it is worth more than knowing Blazor's API surface.
+  </p>
+  <p>
+    <a href="31-desktop-wpf-winforms.html">Chapter 31</a> covers those applications from the
+    inside; this is the part where they reach the browser.
+  </p>
+  <p>
+    The naive plan is a rewrite: freeze the WinForms application, build the replacement, switch
+    over. It fails for the usual reason — the old system keeps changing during the two years you
+    are not shipping, and fifteen years of undocumented business rules do not survive a
+    re-derivation.
+  </p>
+  <p>
+    The <strong>strangler fig</strong> approach instead: put an API in front of the existing
+    database, move one screen at a time to Blazor, and run both until the desktop application has
+    nothing left. Each step ships. Each step is reversible. The awkward parts are shared
+    authentication, and the fact that business logic buried in form event handlers has to be lifted
+    into a service layer before either UI can call it — which is precisely what
+    <a href="23-architecture-and-cqrs.html">chapter 23</a> is about.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>dotnet run --project src/LogiFlow.Web
+<span class="cm"># then open the orders page and watch the network tab</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    On an InteractiveServer page, click around and notice that almost nothing is transferred except
+    small WebSocket frames — the HTML is being diffed on the server. Then the experiment worth
+    doing: open developer tools, throttle the connection to "Slow 3G", and type in a filter box.
+    Every keystroke now visibly lags, because every keystroke is a round trip. That single
+    observation is the whole Server-versus-WebAssembly decision, and it is why a factory LAN and a
+    public website give opposite answers.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Components are C# classes. Everything you know about DI and async still applies.</li>
+    <li>Choose the render mode from the network, not from fashion.</li>
+    <li>InteractiveServer: a circuit and server memory per user, and latency on every interaction.</li>
+    <li>WebAssembly: a multi-megabyte first load, and your code is on the user's machine.</li>
+    <li>Never put a secret in a WebAssembly app. Client-side authorisation is cosmetic.</li>
+    <li>The API enforces the rules. The UI only decides what to show.</li>
+    <li><code>OnInitializedAsync</code> runs twice with prerendering. Plan for it.</li>
+    <li><code>IDbContextFactory</code>, never an injected <code>DbContext</code>, in a long-lived component.</li>
+    <li>State changed outside a UI event needs <code>InvokeAsync(StateHasChanged)</code>.</li>
+    <li><code>@key</code> on anything rendered in a loop that can reorder.</li>
+    <li><code>null</code> means "not loaded"; an empty list means "none". Render them differently.</li>
+    <li>Migrate a desktop app one screen at a time behind an API. Never a big-bang rewrite.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Blazor Server o WebAssembly?"</p>
+  <p class="a">
+    Refuse the false choice and give the deciding factors: network quality, whether the app must
+    work offline, how many concurrent users, and whether any secret would end up client-side. Then
+    commit: for an internal application on a company network, InteractiveServer — simpler, instant
+    first paint, and it can reach the database directly. For a public or offline app, WebAssembly.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the circuit, and what happens when it drops?"</p>
+  <p class="a">
+    A SignalR connection holding that user's component state on the server. Drop it — a tunnel, a
+    laptop lid, a deploy — and the UI freezes with a reconnect banner; if it cannot resume, the
+    state is gone. So keep anything that matters in the database rather than in component fields,
+    and be honest that this is Blazor Server's main operational weakness.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is my page not updating?"</p>
+  <p class="a">
+    Almost always state changed outside a UI event without <code>InvokeAsync(StateHasChanged)</code>.
+    Blazor re-renders automatically after its own event handlers, not after a timer tick or a
+    background callback. Naming this instantly signals you have actually built something in Blazor.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"We have a WinForms application from 2011. How would you move it to the web?"</p>
+  <p class="a">
+    This is the region's real question. Strangler fig: an API over the existing database, one
+    screen at a time in Blazor, both running side by side until the desktop app is empty. Name the
+    hard parts — shared authentication, and lifting business logic out of form event handlers into
+    a service layer — and say plainly why you would not do a big-bang rewrite.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Is Blazor a real alternative to Angular or React?"</p>
+  <p class="a">
+    For internal line-of-business applications in a C# team, yes — one language, one toolchain, no
+    npm supply chain, and your DTOs are literally shared types rather than copies. Be fair about
+    the costs too: a smaller ecosystem and hiring pool, and JavaScript interop the moment you want
+    a specific charting or mapping library. Balance is what makes the answer credible.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-18-blazor/README.md">Module 18 — Blazor: a UI over the API</a> is
+    the longest module in the course: render modes, the circuit and error boundaries, the lifecycle
+    bugs, cascading values and concurrency from the UI's side. The working application is
+    <a href="../../src/LogiFlow.Web/"><code>src/LogiFlow.Web</code></a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>23 · Layers, clean architecture and CQRS — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="23-architecture-and-cqrs">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 5 &mdash; Building it properly <span>&rsaquo;</span> Chapter 23</p>
+<h1>Layers, clean architecture and CQRS</h1>
+<p class="lede">
+  You now know C#, SQL, EF Core and HTTP. This chapter is about the question that comes after all
+  of them and has no compiler to answer it: <em>where does this code go?</em> Get it consistently
+  right and a stranger can find anything in your codebase in thirty seconds. Get it wrong and
+  every change touches every file.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Clean architecture"</em>, <em>"DDD"</em> and <em>"CQRS"</em> appear in backend adverts
+    across Bologna, Modena and Milano constantly, usually with no explanation of what the company
+    means by them. More importantly, <em>"dove metteresti questa regola?"</em> — where would you
+    put this rule? — is how a reviewer finds out in one question whether you have worked on a real
+    codebase or only on tutorials.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why">Why layers at all</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think of a kitchen. Ingredients in the pantry, cooking at the stove, plates out through the
+    hatch. Now imagine a kitchen where the pantry is also the stove and the hatch, all in one
+    heap. You could still cook &mdash; for a while. Then somebody wants to change the menu and
+    has to move the fridge.
+  </p>
+  <p>
+    Layers are just deciding, once, which shelf each thing lives on, so that everyone puts things
+    back in the same place.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Layering is about <strong>the direction of dependencies</strong>, not about folders. Anyone
+    can create four folders. The value appears only when there is a rule about which may
+    reference which, and something that enforces it.
+  </p>
+  <p>
+    The rule in clean architecture (also called hexagonal, ports-and-adapters, or onion — they are
+    variations on one idea) is: <strong>dependencies point inwards, towards the business rules,
+    and the business rules point at nothing.</strong> Everything volatile — the database, the web
+    framework, the message broker, the clock — sits on the outside where it can be replaced
+    without the centre noticing.
+  </p>
+</div>
+
+<h2 id="four-projects">The four projects, and the one rule</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="arch-title">
+    <title id="arch-title">Four concentric layers with all dependencies pointing inwards toward the domain</title>
+    <defs>
+      <marker id="a18" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="40"  y="30" width="420" height="270" rx="12" class="d-panel d-stroke"/>
+    <text x="56"  y="52" class="d-small">LogiFlow.Api &mdash; endpoints, JSON, auth, middleware</text>
+
+    <rect x="80"  y="66" width="340" height="200" rx="12" class="d-panel d-stroke"/>
+    <text x="96"  y="88" class="d-small">LogiFlow.Application &mdash; use cases, handlers, interfaces</text>
+
+    <rect x="130" y="104" width="240" height="130" rx="12" class="d-brand"/>
+    <text x="250" y="150" class="d-white" text-anchor="middle" style="font-size:13px">LogiFlow.Domain</text>
+    <text x="250" y="172" class="d-white" text-anchor="middle" style="font-size:11px">entities, value objects,</text>
+    <text x="250" y="190" class="d-white" text-anchor="middle" style="font-size:11px">invariants, domain events</text>
+    <text x="250" y="214" class="d-white" text-anchor="middle" style="font-size:10.5px">references nothing</text>
+
+    <rect x="540" y="96" width="250" height="110" rx="12" class="d-panel d-stroke"/>
+    <text x="665" y="128" class="d-text" text-anchor="middle" style="font-size:12.5px">LogiFlow.Infrastructure</text>
+    <text x="665" y="150" class="d-small" text-anchor="middle">EF Core, SQL Server, Redis,</text>
+    <text x="665" y="166" class="d-small" text-anchor="middle">Elasticsearch, e-mail, clock</text>
+    <text x="665" y="190" class="d-small" text-anchor="middle">implements Application's interfaces</text>
+
+    <path d="M536 151 L424 151" class="d-arrow" fill="none" marker-end="url(#a18)"/>
+
+    <text x="40" y="322" class="d-small">Infrastructure depends on Application. Application never depends on Infrastructure — that is the whole trick.</text>
+  </svg>
+  <figcaption>
+    The API composes; Infrastructure plugs in from outside. At startup <code>Program.cs</code> is
+    the only place that knows both an interface and its implementation.
+  </figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Project</th><th>Contains</th><th>May reference</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Domain</strong></td><td>Entities, value objects, business rules, domain events</td><td>nothing but the BCL</td></tr>
+    <tr><td><strong>Application</strong></td><td>Use cases (one class per operation), interfaces it needs, DTOs</td><td>Domain</td></tr>
+    <tr><td><strong>Infrastructure</strong></td><td>EF Core, repositories, Redis, HTTP clients, the clock</td><td>Application, Domain</td></tr>
+    <tr><td><strong>Api / Web</strong></td><td>Endpoints, model binding, auth, DI composition</td><td>Application (+ Infrastructure at startup only)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 What this actually buys you</div>
+  <p>
+    Not "we could swap SQL Server for MongoDB" — nobody does that. Three real things:
+  </p>
+  <ul>
+    <li><strong>Fast tests.</strong> Domain rules test in milliseconds with no container, because
+        <code>Order</code> has no idea a database exists.</li>
+    <li><strong>A place for every rule.</strong> New joiners stop asking, and stop guessing
+        differently each time.</li>
+    <li><strong>Framework churn is contained.</strong> The web framework you use will change over
+        ten years; the rule about when an order may be cancelled will not.</li>
+  </ul>
+</div>
+
+<h2 id="where">Where does this rule go?</h2>
+
+<p>
+  This is the question worth being able to answer instantly. A rough decision procedure:
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>The rule</th><th>Goes in</th><th>Because</th></tr></thead>
+  <tbody>
+    <tr><td>"An order must have at least one line"</td><td>Domain</td><td>True regardless of who asks, or how</td></tr>
+    <tr><td>"A cancelled order cannot be submitted"</td><td>Domain</td><td>An invariant of the aggregate itself</td></tr>
+    <tr><td>"Only a manager may cancel over €10 000"</td><td>Application</td><td>Needs the current user — a use-case concern</td></tr>
+    <tr><td>"Reserve stock, then save, in one transaction"</td><td>Application</td><td>Orchestration across aggregates</td></tr>
+    <tr><td>"Retry the e-mail send three times"</td><td>Infrastructure</td><td>A property of that particular technology</td></tr>
+    <tr><td>"Return 409 when the state is wrong"</td><td>Api</td><td>HTTP is a delivery detail</td></tr>
+    <tr><td>"The date must not be empty"</td><td>Api / Application</td><td>Input validation, not a business rule</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The anemic domain model</div>
+  <p>
+    The most common failure. <code>Order</code> becomes a bag of public setters, and every rule
+    lives in a service that reaches in and mutates it. You now have the ceremony of four projects
+    with none of the benefit: the invariants are scattered, nothing stops the next handler from
+    setting <code>Status = Cancelled</code> directly, and the "domain" is a database row with a
+    class around it.
+  </p>
+  <p>
+    The tell is a setter. In this repository <code>Order</code> exposes behaviour
+    (<code>AddLine</code>, <code>Submit</code>, <code>Cancel</code>) and its state is private, so
+    an illegal transition does not compile.
+  </p>
+</div>
+
+<h2 id="cqrs">CQRS: what it really separates</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    In a café there is a queue for ordering and a queue for picking up. They are different
+    queues, because they need different things: ordering needs someone who can take money and get
+    it right; pickup just needs to be fast.
+  </p>
+  <p>
+    CQRS is that: one lane for <strong>things that change something</strong>, another for
+    <strong>things that only look</strong>. Same café, two lanes.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Command Query Responsibility Segregation says: use a different <em>model</em> for writing than
+    for reading. That is all it says. In particular it does <strong>not</strong> require two
+    databases, event sourcing, or eventual consistency — those are things people often build
+    alongside it, and conflating them is the most common misunderstanding.
+  </p>
+  <p>
+    The motivation is that the two sides genuinely want opposite things. A write must protect
+    invariants, so it loads a whole aggregate and works through behaviour. A read wants three
+    columns joined across four tables, shaped for a screen, as fast as possible — and loading
+    aggregates to build it is pure waste.
+  </p>
+  <p>
+    So in this repository: commands go through the domain and EF Core with change tracking;
+    queries are <code>IOrderQueries</code> / <code>IReportingQueries</code>, projecting straight
+    to DTOs with <code>AsNoTracking</code> or Dapper. Same database, two paths.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 260" role="img" aria-labelledby="cqrs-title">
+    <title id="cqrs-title">Commands routed through the domain, queries projected straight to DTOs, over one database</title>
+    <defs>
+      <marker id="b18" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="30" width="140" height="48" rx="8" class="d-brand"/>
+    <text x="90" y="60" class="d-white" text-anchor="middle" style="font-size:12px">POST /orders</text>
+
+    <rect x="20" y="150" width="140" height="48" rx="8" class="d-panel d-stroke"/>
+    <text x="90" y="180" class="d-text" text-anchor="middle" style="font-size:12px">GET /orders?…</text>
+
+    <line x1="162" y1="54"  x2="216" y2="54"  class="d-arrow" marker-end="url(#b18)"/>
+    <line x1="162" y1="174" x2="216" y2="174" class="d-arrow" marker-end="url(#b18)"/>
+
+    <rect x="220" y="24" width="230" height="60" rx="8" class="d-panel d-stroke"/>
+    <text x="335" y="46" class="d-text" text-anchor="middle" style="font-size:12px">CreateOrderCommand</text>
+    <text x="335" y="66" class="d-small" text-anchor="middle">handler &rarr; aggregate &rarr; invariants</text>
+
+    <rect x="220" y="144" width="230" height="60" rx="8" class="d-panel d-stroke"/>
+    <text x="335" y="166" class="d-text" text-anchor="middle" style="font-size:12px">SearchOrdersQuery</text>
+    <text x="335" y="186" class="d-small" text-anchor="middle">projection &rarr; DTO, no tracking</text>
+
+    <line x1="452" y1="54"  x2="560" y2="96"  class="d-arrow" marker-end="url(#b18)"/>
+    <line x1="452" y1="174" x2="560" y2="132" class="d-arrow" marker-end="url(#b18)"/>
+
+    <rect x="565" y="84" width="230" height="60" rx="8" class="d-panel d-stroke"/>
+    <text x="680" y="110" class="d-text" text-anchor="middle" style="font-size:12px">One SQL Server database</text>
+    <text x="680" y="130" class="d-small" text-anchor="middle">no second store, no eventual consistency</text>
+
+    <text x="20" y="238" class="d-small">Two models, one database. Splitting the storage is a separate, much later decision — and a much more expensive one.</text>
+  </svg>
+  <figcaption>
+    Commands change state and return little. Queries return data and change nothing. Keeping that
+    line clean is 90% of the benefit, at almost none of the cost.
+  </figcaption>
+</figure>
+
+<h3 id="dispatcher">One handler per operation</h3>
+
+<div class="code-head">the shape every use case takes</div>
+<pre><code><span class="cm">// The request: a record, no behaviour, names the intent.</span>
+<span class="kw">public sealed record</span> <span class="ty">CreateOrderCommand</span>(
+    <span class="ty">Guid</span> CustomerId,
+    <span class="ty">IReadOnlyList</span>&lt;<span class="ty">OrderLineDto</span>&gt; Lines) : <span class="ty">IRequest</span>&lt;<span class="ty">Result</span>&lt;<span class="ty">Guid</span>&gt;&gt;;
+
+<span class="cm">// The handler: orchestration only. No HTTP, no SQL, no logging,</span>
+<span class="cm">// no transaction — those are behaviours wrapped around it.</span>
+<span class="kw">public sealed class</span> <span class="ty">CreateOrderCommandHandler</span>(
+    <span class="ty">ICustomerRepository</span> customers,
+    <span class="ty">IOrderRepository</span> orders,
+    <span class="ty">IOrderNumberGenerator</span> numbers) : <span class="ty">IRequestHandler</span>&lt;<span class="ty">CreateOrderCommand</span>, <span class="ty">Result</span>&lt;<span class="ty">Guid</span>&gt;&gt;
+{
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">Result</span>&lt;<span class="ty">Guid</span>&gt;&gt; HandleAsync(
+        <span class="ty">CreateOrderCommand</span> request, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> customer = <span class="kw">await</span> customers.GetByIdAsync(request.CustomerId, ct);
+        <span class="kw">if</span> (customer <span class="kw">is null</span>) <span class="kw">return</span> <span class="ty">OrderErrors</span>.CustomerNotFound;
+
+        <span class="kw">var</span> order = <span class="ty">Order</span>.Create(customer, <span class="kw">await</span> numbers.NextAsync(ct));
+        <span class="cm">//          ↑ the rules live in here, not out here</span>
+        ...
+    }
+}</code></pre>
+
+<p>
+  Notice what the handler does <em>not</em> contain: no <code>try/catch</code> for logging, no
+  <code>BeginTransaction</code>, no validation, no cache lookup. Those are the four
+  <a href="05-solid-and-patterns.html#decorator">pipeline behaviours</a> from chapter 05, wrapped
+  around every request. That is the practical reason CQRS-with-a-mediator is popular: once every
+  operation has the same shape, cross-cutting concerns become one class instead of a line in two
+  hundred methods.
+</p>
+
+<h3 id="slices">Vertical slices beat horizontal folders</h3>
+
+<p>
+  Inside Application, organise by <em>feature</em>, not by kind. Not
+  <code>Commands/</code>, <code>Handlers/</code>, <code>Validators/</code>, <code>Dtos/</code> —
+  that spreads one change across four folders forever. Instead:
+</p>
+
+<pre><code>Features/Orders/
+    CreateOrder.cs        <span class="cm">// command + handler + validator, one file</span>
+    SubmitOrder.cs
+    CancelOrder.cs
+    GetOrderById.cs
+    SearchOrders.cs</code></pre>
+
+<p class="subtle">
+  Changing "create order" means opening one file. Deleting the feature means deleting one file.
+  This is the layout this repository uses, and it is the single easiest improvement to make to a
+  codebase that already has layers.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ Architecture as costume</div>
+  <p>
+    Four projects, a mediator and a repository over a CRUD app with nine tables and no business
+    rules is <em>more</em> expensive than a controller talking to <code>DbContext</code>, not
+    less. Be able to say this out loud, because an interviewer who has been burned by an
+    over-engineered internal tool is listening for it.
+  </p>
+  <p>
+    The honest test: <em>does this application have rules that must hold no matter who asks?</em>
+    If yes, the domain layer earns its keep. If it is forms over data, a tidy two-layer app is the
+    professional answer.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Watch the architecture defend itself. Add this line to any file in the Domain project:</p>
+  <pre><code><span class="kw">using</span> <span class="ty">Microsoft</span>.EntityFrameworkCore;</code></pre>
+  <pre><code>dotnet test tests/LogiFlow.ArchitectureTests</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    It fails, by name, in milliseconds &mdash; see
+    <a href="../../tests/LogiFlow.ArchitectureTests/LayeringTests.cs"><code>LayeringTests.cs</code></a>.
+    That is the difference between a convention written in a README and a rule the build enforces.
+    Then try the opposite direction: reference <code>LogiFlow.Infrastructure</code> from
+    <code>LogiFlow.Application</code> and watch it fail too.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Layers are about dependency direction. Folders alone achieve nothing.</li>
+    <li>Dependencies point inwards. The Domain references nothing.</li>
+    <li>The interface lives with the code that <em>needs</em> it, not with the code that implements it.</li>
+    <li>A rule that is always true belongs in the Domain; a rule about this use case belongs in Application.</li>
+    <li>HTTP status codes, JSON and headers are delivery details. Keep them in the Api project.</li>
+    <li>Public setters on an entity are the beginning of an anemic domain model.</li>
+    <li>CQRS separates models, not databases. Two databases is a later, separate decision.</li>
+    <li>Commands change state and return little; queries return data and change nothing.</li>
+    <li>One file per use case, grouped by feature, not by artefact type.</li>
+    <li>Cross-cutting concerns are pipeline behaviours, not lines inside handlers.</li>
+    <li>Enforce the layering with architecture tests, or it will decay within a year.</li>
+    <li>Do not put four layers around an application that has no rules to protect.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Che cos'è la clean architecture?"</p>
+  <p class="a">
+    One sentence: dependencies point inwards, and the business rules depend on nothing. Then make
+    it concrete with the file-location trick — the repository interface lives in Application and
+    the EF Core implementation in Infrastructure, so Infrastructure depends on Application and
+    never the reverse. Finish with the benefit you actually get: the domain tests run in
+    milliseconds with no database.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is CQRS, and does it need two databases?"</p>
+  <p class="a">
+    Different models for reads and writes; no, it does not. Say plainly that CQRS is routinely
+    confused with event sourcing and read replicas, which are separate choices you might add
+    later. Then describe your own version: aggregates and change tracking on the write side,
+    <code>AsNoTracking</code> projections straight to DTOs on the read side, one database.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Where would you put the rule 'only a manager can cancel an order over €10 000'?"</p>
+  <p class="a">
+    Application, not Domain — it depends on who is asking, and the Domain does not know about
+    users or the current request. The Domain owns "a cancelled order cannot be submitted", which
+    is true no matter who asks. The distinction they are testing is invariant versus policy, so
+    name it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Is this not over-engineering for a small application?"</p>
+  <p class="a">
+    Sometimes yes, and say so. Give the test you apply: does the application have invariants that
+    must hold regardless of the caller? If it is forms over data, a controller and a
+    <code>DbContext</code> is the right answer and four projects are cost with no return. An
+    interviewer asking this is usually checking for judgement, not loyalty to a diagram.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you stop the architecture decaying?"</p>
+  <p class="a">
+    Tests over the dependency graph. NetArchTest asserts that Domain references nothing and that
+    Application does not reference Infrastructure; they run in milliseconds because they only read
+    assembly metadata. Conventions in a README decay silently — a red build does not.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-05-clean-architecture/README.md">Module 05 — Clean architecture</a>
+    for the layering,
+    <a href="../../course/module-08-cqrs/README.md">Module 08 — CQRS</a> for building the
+    dispatcher and pipeline by hand, and
+    <a href="../../course/module-16-the-layer-map/README.md">Module 16 — The layer map</a>, which
+    follows one request all the way down and back.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>21 · Search with ElasticSearch / OpenSearch — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="21-search-elastic">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 4 &mdash; Fast at scale <span>&rsaquo;</span> Chapter 21</p>
+<h1>Search with ElasticSearch / OpenSearch</h1>
+<p class="lede">
+  A relational database answers <em>"which rows match exactly?"</em>. A search engine answers
+  <em>"which documents are most relevant?"</em> &mdash; a different question, needing a different
+  data structure. Understanding why <code>LIKE '%…%'</code> cannot be made fast is most of this
+  chapter.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Esperienza con sistemi di ricerca (ElasticSearch/OpenSearch)."</em> The slash matters:
+  OpenSearch is Amazon&rsquo;s open-source fork of Elasticsearch 7.10, created in 2021 after a
+  licence change. For everything in this chapter they behave the same way.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why-not-like">Why <code>LIKE</code> stops being enough</h2>
+
+<div class="code-head">the query every project starts with</div>
+<pre><code><span class="kw">SELECT</span> * <span class="kw">FROM</span> dbo.Products <span class="kw">WHERE</span> Name <span class="kw">LIKE</span> <span class="st">'%pompa idraulica%'</span>;</code></pre>
+
+<p>Four separate problems, and none of them is fixable with an index:</p>
+<ol>
+  <li><strong>It cannot use an index.</strong> A leading <code>%</code> means the engine has no
+      prefix to seek on, so it scans every row &mdash; and it gets linearly worse as you grow.
+      (<a href="11-tsql-performance.html">Chapter 11</a>.)</li>
+  <li><strong>It is literal.</strong> "pompa idraulica" does not match "pompe idrauliche". A
+      plural defeats it.</li>
+  <li><strong>It has no notion of better.</strong> Every matching row is equally matching. There is
+      no "most relevant first".</li>
+  <li><strong>It is unforgiving.</strong> A user typing "pompa idralica" gets nothing at all.</li>
+</ol>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You want every page in a big book that talks about elephants. You could read all five hundred
+    pages, every time somebody asks. That is <code>LIKE</code>.
+  </p>
+  <p>
+    Or, once, you could go through the book and write a list: <em>"elephant &mdash; pages 12, 88,
+    312"</em>, <em>"lion &mdash; pages 4, 91"</em>. After that, any question is answered instantly
+    by reading your list instead of the book.
+  </p>
+  <p>
+    That backwards list &mdash; from <em>words</em> to <em>pages</em>, instead of from pages to
+    words &mdash; is called an <strong>inverted index</strong>, and it is the whole idea.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="inv-title">
+    <title id="inv-title">Documents turned into an inverted index</title>
+    <defs>
+      <marker id="a15" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">Documents</text>
+    <rect x="20" y="36" width="250" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="36" width="250" height="34" rx="7" class="d-stroke"/>
+    <text x="34" y="58" class="d-mono">1 · &ldquo;Pompa idraulica 12V&rdquo;</text>
+
+    <rect x="20" y="78" width="250" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="78" width="250" height="34" rx="7" class="d-stroke"/>
+    <text x="34" y="100" class="d-mono">2 · &ldquo;Pompe idrauliche pro&rdquo;</text>
+
+    <rect x="20" y="120" width="250" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="120" width="250" height="34" rx="7" class="d-stroke"/>
+    <text x="34" y="142" class="d-mono">3 · &ldquo;Filtro idraulico&rdquo;</text>
+
+    <path d="M274 95 L340 95" class="d-arrow" stroke-width="1.8" marker-end="url(#a15)"/>
+    <text x="307" y="86" class="d-small" text-anchor="middle">analyze</text>
+
+    <rect x="342" y="40" width="200" height="114" rx="8" class="d-fill"/>
+    <rect x="342" y="40" width="200" height="114" rx="8" class="d-stroke"/>
+    <text x="356" y="62" class="d-small">lowercase</text>
+    <text x="356" y="82" class="d-small">strip accents</text>
+    <text x="356" y="102" class="d-small">split into tokens</text>
+    <text x="356" y="122" class="d-small">stem: pompe → pomp</text>
+    <text x="356" y="142" class="d-small">idrauliche → idraul</text>
+
+    <path d="M546 95 L604 95" class="d-arrow" stroke-width="1.8" marker-end="url(#a15)"/>
+
+    <text x="606" y="24" class="d-text" style="font-weight:700">Inverted index</text>
+    <rect x="606" y="36" width="212" height="118" rx="8" class="d-brand" opacity=".92"/>
+    <text x="620" y="60" class="d-white" style="font-size:12px">pomp    → 1, 2</text>
+    <text x="620" y="82" class="d-white" style="font-size:12px">idraul  → 1, 2, 3</text>
+    <text x="620" y="104" class="d-white" style="font-size:12px">12v     → 1</text>
+    <text x="620" y="126" class="d-white" style="font-size:12px">filtr   → 3</text>
+    <text x="620" y="146" class="d-white" style="font-size:12px;opacity:.85">+ term frequencies</text>
+
+    <rect x="20" y="196" width="798" height="100" rx="9" class="d-fill"/>
+    <rect x="20" y="196" width="798" height="100" rx="9" class="d-stroke"/>
+    <text x="38" y="222" class="d-text">A user searches &ldquo;pompe idrauliche&rdquo;</text>
+    <text x="38" y="248" class="d-small">The same analyzer runs on the query → tokens <tspan class="d-mono">pomp</tspan>, <tspan class="d-mono">idraul</tspan> → look both up → documents 1 and 2.</text>
+    <text x="38" y="272" class="d-small">Document 1 scores higher: it contains both terms, and <tspan class="d-mono">idraul</tspan> is common across the index so it counts for less.</text>
+    <text x="38" y="290" class="d-small">No scan. No plural problem. Ranked by relevance.</text>
+  </svg>
+  <figcaption>The same analyzer runs at index time and at query time — that is what makes the two sides meet.</figcaption>
+</figure>
+
+<h2 id="vocabulary">The vocabulary</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Term</th><th>Meaning</th><th>SQL analogue</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Document</strong></td><td>One JSON object &mdash; the unit of indexing</td><td>A row</td></tr>
+    <tr><td><strong>Index</strong></td><td>A collection of similar documents</td><td>A table <em>(careful: not a SQL index)</em></td></tr>
+    <tr><td><strong>Field</strong></td><td>A property of a document</td><td>A column</td></tr>
+    <tr><td><strong>Mapping</strong></td><td>Field types and how each is analysed</td><td>A schema</td></tr>
+    <tr><td><strong>Analyzer</strong></td><td>The text &rarr; tokens pipeline</td><td>No analogue</td></tr>
+    <tr><td><strong>Shard</strong></td><td>A slice of an index; how it scales horizontally</td><td>A partition</td></tr>
+    <tr><td><strong>Replica</strong></td><td>A copy of a shard, for redundancy and read throughput</td><td>A read replica</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3><code>text</code> vs <code>keyword</code> &mdash; the mapping decision that matters</h3>
+
+<div class="code-head">a mapping, with an Italian analyzer</div>
+<pre><code>PUT /products
+{
+  <span class="st">"mappings"</span>: {
+    <span class="st">"properties"</span>: {
+      <span class="st">"name"</span>: {
+        <span class="st">"type"</span>: <span class="st">"text"</span>,              <span class="cm">// analysed → for searching</span>
+        <span class="st">"analyzer"</span>: <span class="st">"italian"</span>,       <span class="cm">// Italian stemming + stop words</span>
+        <span class="st">"fields"</span>: {
+          <span class="st">"keyword"</span>: { <span class="st">"type"</span>: <span class="st">"keyword"</span> }   <span class="cm">// NOT analysed → sort, filter, aggregate</span>
+        }
+      },
+      <span class="st">"category"</span>: { <span class="st">"type"</span>: <span class="st">"keyword"</span> },   <span class="cm">// exact values only</span>
+      <span class="st">"price"</span>:    { <span class="st">"type"</span>: <span class="st">"double"</span> },
+      <span class="st">"inStock"</span>:  { <span class="st">"type"</span>: <span class="st">"boolean"</span> },
+      <span class="st">"createdAt"</span>:{ <span class="st">"type"</span>: <span class="st">"date"</span> }
+    }
+  }
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The mistake everyone makes once</div>
+  <p>
+    A <code>text</code> field is broken into tokens, so you cannot sort or group by it &mdash;
+    "Pompa Idraulica" was stored as <code>pomp</code> and <code>idraul</code>, and there is no
+    original string left to sort. A <code>keyword</code> field is stored whole and untouched, so it
+    is exact-match only and useless for real searching.
+  </p>
+  <p>
+    The answer is the <strong>multi-field</strong> above: index the same value both ways, then use
+    <code>name</code> for matching and <code>name.keyword</code> for sorting, filtering and
+    aggregating.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Why the Italian analyzer is not a detail here</div>
+  <p>
+    Italian is heavily inflected. The <code>italian</code> analyzer applies Italian stop words
+    (<em>di, che, per, il</em>&hellip;), a light stemmer that reduces
+    <em>idrauliche / idraulici / idraulico</em> to a common stem, and elision handling for
+    <em>l&rsquo;acqua</em> &rarr; <em>acqua</em>. With the default <code>standard</code> analyzer,
+    a search for "pompe" simply will not find "pompa" &mdash; and that is what a user will report
+    as "the search is broken".
+  </p>
+</div>
+
+<h2 id="querying">Querying</h2>
+
+<div class="code-head">match, term, and bool</div>
+<pre><code>POST /products/_search
+{
+  <span class="st">"query"</span>: {
+    <span class="st">"bool"</span>: {
+      <span class="cm">// must → contributes to the relevance score</span>
+      <span class="st">"must"</span>: [
+        { <span class="st">"match"</span>: { <span class="st">"name"</span>: <span class="st">"pompe idrauliche"</span> } }
+      ],
+      <span class="cm">// filter → yes/no only. No scoring, and cacheable — much faster.</span>
+      <span class="st">"filter"</span>: [
+        { <span class="st">"term"</span>:  { <span class="st">"category"</span>: <span class="st">"ricambi"</span> } },
+        { <span class="st">"range"</span>: { <span class="st">"price"</span>: { <span class="st">"lte"</span>: <span class="nu">500</span> } } },
+        { <span class="st">"term"</span>:  { <span class="st">"inStock"</span>: <span class="kw">true</span> } }
+      ],
+      <span class="cm">// should → optional; a match pushes the document up the list</span>
+      <span class="st">"should"</span>: [
+        { <span class="st">"match"</span>: { <span class="st">"brand"</span>: <span class="st">"bosch"</span> } }
+      ],
+      <span class="st">"must_not"</span>: [
+        { <span class="st">"term"</span>: { <span class="st">"discontinued"</span>: <span class="kw">true</span> } }
+      ]
+    }
+  },
+  <span class="st">"from"</span>: <span class="nu">0</span>, <span class="st">"size"</span>: <span class="nu">20</span>,
+  <span class="st">"sort"</span>: [ <span class="st">"_score"</span>, { <span class="st">"name.keyword"</span>: <span class="st">"asc"</span> } ],
+  <span class="st">"highlight"</span>: { <span class="st">"fields"</span>: { <span class="st">"name"</span>: {} } }
+}</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Clause</th><th>Effect</th><th>Use for</th></tr></thead>
+  <tbody>
+    <tr><td><code>match</code></td><td>Analyses the query text, then matches tokens</td><td>What the user typed</td></tr>
+    <tr><td><code>term</code></td><td>Exact, unanalysed</td><td><code>keyword</code>, numbers, booleans, ids</td></tr>
+    <tr><td><code>must</code></td><td>Required, and scored</td><td>The search phrase</td></tr>
+    <tr><td><code>filter</code></td><td>Required, not scored, cached</td><td><strong>Every facet and toggle.</strong> Prefer this.</td></tr>
+    <tr><td><code>should</code></td><td>Optional, boosts score</td><td>Preferences: same brand, in stock, recent</td></tr>
+    <tr><td><code>fuzziness</code></td><td>Tolerates typos (edit distance)</td><td><code>"fuzziness": "AUTO"</code> for user-facing search boxes</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  <strong>Relevance</strong> is scored with BM25: a term counts for more when it appears often in
+  <em>this</em> document (term frequency) and rarely across the <em>whole index</em> (inverse
+  document frequency). That is why "idraulica" &mdash; present in half your catalogue &mdash;
+  contributes far less than a specific part number.
+</p>
+
+<h2 id="dotnet">From C#</h2>
+
+<div class="code-head">the Elastic.Clients.Elasticsearch client</div>
+<pre><code>builder.Services.AddSingleton(_ =&gt;
+{
+    <span class="kw">var</span> settings = <span class="kw">new</span> <span class="ty">ElasticsearchClientSettings</span>(<span class="kw">new</span> <span class="ty">Uri</span>(cfg[<span class="st">"Elastic:Url"</span>]!))
+        .DefaultIndex(<span class="st">"products"</span>);
+    <span class="kw">return new</span> <span class="ty">ElasticsearchClient</span>(settings);
+});
+
+<span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IReadOnlyList</span>&lt;<span class="ty">ProductDto</span>&gt;&gt; SearchAsync(
+    <span class="ty">string</span> text, <span class="ty">string</span>? category, <span class="ty">CancellationToken</span> ct)
+{
+    <span class="kw">var</span> response = <span class="kw">await</span> _client.SearchAsync&lt;<span class="ty">ProductDocument</span>&gt;(s =&gt; s
+        .Index(<span class="st">"products"</span>)
+        .Query(q =&gt; q.Bool(b =&gt; b
+            .Must(m =&gt; m.Match(mm =&gt; mm
+                .Field(f =&gt; f.Name)
+                .Query(text)
+                .Fuzziness(<span class="kw">new</span> <span class="ty">Fuzziness</span>(<span class="st">"AUTO"</span>))))
+            .Filter(f =&gt; f.Term(t =&gt; t
+                .Field(ff =&gt; ff.Category)
+                .Value(category ?? <span class="st">""</span>)))))
+        .Size(20), ct);
+
+    <span class="kw">if</span> (!response.IsValidResponse)
+    {
+        _log.LogError(<span class="st">"Search failed: {Debug}"</span>, response.DebugInformation);
+        <span class="cm">// degrade: fall back to a SQL query rather than showing an error page</span>
+        <span class="kw">return await</span> _sqlFallback.SearchAsync(text, category, ct);
+    }
+
+    <span class="kw">return</span> response.Documents.Select(d =&gt; d.ToDto()).ToList();
+}</code></pre>
+
+<h2 id="keeping-in-sync">Keeping it in sync &mdash; the real hard part</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    SQL Server remains the <strong>source of truth</strong>. The search index is a derived,
+    <em>eventually consistent</em> projection of it &mdash; and treating it as anything else is the
+    root of most production problems with search. Never write only to Elasticsearch, and never
+    read a value from it that must be exactly right at that instant (a price at checkout, a stock
+    level at reservation): search to <em>find</em> the ids, then read the authoritative row from
+    SQL.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>Trade-off</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Dual write</strong></td><td>Write to SQL and Elastic in the same method</td>
+        <td>Simple, and wrong under failure: the second write can fail after the first succeeded, leaving them permanently divergent.</td></tr>
+    <tr><td><strong>Outbox</strong></td><td>Write an event row in the same SQL transaction; a worker publishes it</td>
+        <td><strong>The correct default.</strong> Atomic with the business data, retryable, at-least-once.</td></tr>
+    <tr><td><strong>Periodic reindex</strong></td><td>A job re-reads changed rows every N minutes</td>
+        <td>Easy and robust; staleness is bounded by N. Often enough.</td></tr>
+    <tr><td><strong>CDC</strong></td><td>Change Data Capture / Debezium reads the transaction log</td>
+        <td>No application changes; more infrastructure to own.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">Reindexing without downtime</div>
+  <p>
+    Mappings are largely immutable &mdash; you cannot change a field&rsquo;s type in place. The
+    standard move is an <strong>alias</strong>: the application always queries
+    <code>products</code>, which is an alias pointing at <code>products_v3</code>. To change the
+    mapping you build <code>products_v4</code> alongside it and atomically repoint the alias.
+    Zero downtime, and instant rollback. This is a very good thing to know.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>docker run -d -p 9200:9200 -e <span class="st">"discovery.type=single-node"</span> \
+  -e <span class="st">"xpack.security.enabled=false"</span> \
+  docker.elastic.co/elasticsearch/elasticsearch:8.15.0</code></pre>
+  <p>Then, with <code>curl</code> or the REST client in VS Code:</p>
+  <ol>
+    <li>Create the <code>products</code> mapping above, with the Italian analyzer.</li>
+    <li>Index three products with Italian names.</li>
+    <li>Search for the <em>plural</em> of a word you indexed as singular. It matches &mdash; that
+        is stemming.</li>
+    <li>Run <code>POST /products/_analyze</code> with
+        <code>{"analyzer":"italian","text":"Le pompe idrauliche"}</code> and read the tokens. This
+        single call explains more than any documentation page.</li>
+    <li>Try to sort by <code>name</code>, get the error, then sort by <code>name.keyword</code>.</li>
+    <li>Misspell a search term, then add <code>"fuzziness": "AUTO"</code>.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>SQL answers "which rows match". A search engine answers "which documents are most
+        relevant". Different questions.</li>
+    <li><code>LIKE '%x%'</code> cannot use an index and cannot rank. That is why this technology
+        exists.</li>
+    <li>The inverted index maps terms &rarr; documents. That inversion is the whole trick.</li>
+    <li>The same analyzer must run at index time and query time, or the two never meet.</li>
+    <li>Use the <strong>Italian</strong> analyzer for Italian text. The default will not match
+        plurals.</li>
+    <li><code>text</code> to search, <code>keyword</code> to sort, filter and aggregate. Index both
+        with a multi-field.</li>
+    <li>Prefer <code>filter</code> to <code>must</code> for anything not contributing to relevance
+        &mdash; it is unscored and cached.</li>
+    <li>SQL Server stays the source of truth. The index is a derived, eventually consistent
+        projection.</li>
+    <li>Sync with an outbox, not a dual write. A dual write diverges the first time the second call
+        fails.</li>
+    <li>Never read a value that must be exact from the index. Search for ids, then read the row.</li>
+    <li>Use aliases so you can reindex and repoint atomically.</li>
+    <li>Search must degrade gracefully. If the cluster is down, fall back to a SQL query rather
+        than an error page.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Why not just use <code>LIKE</code>?"</p>
+  <p class="a">
+    A leading wildcard cannot use an index, so it scans; it is literal, so plurals and typos fail;
+    and it cannot rank results. Full-text search solves all three with an inverted index and
+    relevance scoring.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is an inverted index?"</p>
+  <p class="a">
+    A map from term to the list of documents containing it, plus frequency information for scoring.
+    It is built once at index time so that queries never scan the documents themselves.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>text</code> or <code>keyword</code>?"</p>
+  <p class="a">
+    <code>text</code> is analysed into tokens for searching and therefore cannot be sorted;
+    <code>keyword</code> is stored whole for exact matching, sorting and aggregation. Use a
+    multi-field to get both from one value.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you keep the index in sync with the database?"</p>
+  <p class="a">
+    Outbox pattern: write the event in the same transaction as the business data, then a worker
+    publishes it &mdash; atomic and retryable. Reject the dual write explicitly, because the second
+    call can fail after the first committed. And say plainly that the index is eventually
+    consistent, so anything requiring exactness is read from SQL.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between Elasticsearch and OpenSearch?"</p>
+  <p class="a">
+    OpenSearch is AWS&rsquo;s fork of Elasticsearch 7.10, created after Elastic changed the licence
+    away from Apache 2.0 in 2021. The core concepts, query DSL and analyzers are the same; the
+    clients and newer features have diverged. For work at this level they are interchangeable.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock exam — LogiFlow Academy</title>
+<meta name="description" content="A timed, mixed paper drawn from every chapter — the closest thing on this site to the pressure of a real technical round.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="exam">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Mock exam</p>
+    <h1>Mock exam</h1>
+    <p class="lede">
+      Questions drawn at random from across the whole course, against a clock, with no
+      indication of which chapter each one comes from until after you answer. That last
+      detail is the point: knowing a question is &ldquo;the async one&rdquo; does half the
+      work for you, and an interviewer will never tell you.
+    </p>
+
+    <div class="box note">
+      <div class="box-title">How to use this</div>
+      <ul>
+        <li><strong>Once a fortnight, not daily.</strong> This is a measurement, not a study
+            method &mdash; the <a href="review.html">review page</a> is where learning happens.</li>
+        <li><strong>Do not look anything up.</strong> A score you inflated tells you nothing,
+            and the wrong answers are the entire value: they go straight into your review deck.</li>
+        <li><strong>80% is the bar</strong> for treating a topic as interview-ready. Below 50%,
+            go back to the chapters rather than sitting it again.</li>
+      </ul>
+    </div>
+
+    <div id="setup"></div>
+    <div id="quiz"></div>
+
+    <h2 id="history">Your papers</h2>
+    <div id="history-body"></div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var LF = window.LF, Q = window.LFQuiz, esc = window.LFLearn.esc;
+
+  var setup = document.getElementById("setup");
+  var quizHost = document.getElementById("quiz");
+
+  var SCOPES = [
+    { id: "all",     label: "The whole course",
+      hint: "Every chapter, including the ones the advert never mentioned.",
+      filter: function () { return true; } },
+    { id: "advert",  label: "Only what the advert asks for",
+      hint: "The chapters that answer a line of the job posting.",
+      filter: function (c) { return !!c.req; } },
+    { id: "beyond",  label: "Only the regional extras",
+      hint: "Desktop, industrial, Business Central, the human rounds — the differentiators.",
+      filter: function (c) { return !!c.extra; } },
+    { id: "core",    label: "Language and data only",
+      hint: "Parts 1 and 2 — C#, OOP, collections, async, SQL Server, EF Core.",
+      filter: function (c) { return /Part 1|Part 2/.test(c.part); } },
+  ];
+
+  var LENGTHS = [
+    { n: 15, minutes: 10, label: "Short — 15 questions, 10 minutes" },
+    { n: 30, minutes: 22, label: "Standard — 30 questions, 22 minutes" },
+    { n: 50, minutes: 40, label: "Full paper — 50 questions, 40 minutes" },
+  ];
+
+  function paintSetup() {
+    var html = '<div class="quiz-intro">' +
+      '<label style="display:block;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);margin-bottom:.3em">Scope</label>' +
+      '<select id="scope" style="font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:100%;max-width:440px">';
+    SCOPES.forEach(function (s) {
+      html += '<option value="' + s.id + '">' + esc(s.label) + "</option>";
+    });
+    html += "</select>" +
+      '<p class="subtle" id="scope-hint" style="margin:.4em 0 0"></p>' +
+
+      '<label style="display:block;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);margin:1em 0 .3em">Length</label>' +
+      '<select id="length" style="font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:100%;max-width:440px">';
+    LENGTHS.forEach(function (l, i) {
+      html += '<option value="' + i + '"' + (i === 1 ? " selected" : "") + ">" + esc(l.label) + "</option>";
+    });
+    html += "</select>" +
+      '<p style="margin:1em 0 0">' +
+        '<label style="font-size:14.5px"><input type="checkbox" id="untimed"> Untimed (practice, not measurement)</label>' +
+      "</p>" +
+      '<p style="margin:1.1em 0 0"><button type="button" class="btn primary big" id="go">Begin</button></p>' +
+      '<p class="subtle" id="pool" style="margin:.6em 0 0"></p>' +
+      "</div>";
+
+    setup.innerHTML = html;
+
+    var scope = document.getElementById("scope");
+    var length = document.getElementById("length");
+    scope.addEventListener("change", updateHint);
+    length.addEventListener("change", updateHint);
+    updateHint();
+
+    document.getElementById("go").addEventListener("click", begin);
+  }
+
+  function currentScope() {
+    var id = document.getElementById("scope").value;
+    return SCOPES.filter(function (s) { return s.id === id; })[0] || SCOPES[0];
+  }
+
+  function pool() {
+    var s = currentScope();
+    var allowed = {};
+    (window.CHAPTERS || []).filter(s.filter).forEach(function (c) { allowed[c.id] = 1; });
+    return Q.all().filter(function (q) { return allowed[q.chapter]; });
+  }
+
+  function updateHint() {
+    document.getElementById("scope-hint").textContent = currentScope().hint;
+    var p = pool().length;
+    var want = LENGTHS[parseInt(document.getElementById("length").value, 10)].n;
+    document.getElementById("pool").textContent =
+      p + " questions available in this scope" + (want > p ? " — the paper will be " + p + " long." : ".");
+  }
+
+  function begin() {
+    var lengthIndex = parseInt(document.getElementById("length").value, 10);
+    var spec = LENGTHS[lengthIndex];
+    var untimed = document.getElementById("untimed").checked;
+    var questions = Q.shuffle(pool()).slice(0, spec.n);
+    if (!questions.length) return;
+
+    setup.innerHTML = "";
+    Q.mount(quizHost, {
+      questions: questions,
+      mode: "exam",
+      title: "Mock exam — " + currentScope().label.toLowerCase(),
+      subtitle: questions.length + " questions" + (untimed ? ", untimed" : ", " + spec.minutes + " minutes"),
+      timeLimit: untimed ? 0 : spec.minutes * 60,
+      onFinish: function () {
+        setTimeout(function () { paintSetup(); paintHistory(); }, 200);
+      },
+    });
+    quizHost.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* --------------------------------------------------------------- history */
+
+  function paintHistory() {
+    var p = LF.profile;
+    var host = document.getElementById("history-body");
+    if (!p.examCount) {
+      host.innerHTML = '<p class="subtle">You have not sat one yet. The result is stored so you ' +
+        "can watch the number move over the weeks — which is the only reason to keep it.</p>";
+      return;
+    }
+    host.innerHTML =
+      '<div class="stat-grid">' +
+        '<div class="stat"><div class="stat-num">' + Math.round(p.examBest * 100) + "%</div>" +
+        '<div class="stat-label">best paper</div></div>' +
+        '<div class="stat"><div class="stat-num">' + p.examCount + "</div>" +
+        '<div class="stat-label">papers sat</div></div>' +
+      "</div>" +
+      "<p>" + (p.examBest >= 0.8
+        ? "Above the 80% bar. At this point the useful work is the chapters you are still missing — the " +
+          '<a href="dashboard.html#weak">dashboard</a> lists them.'
+        : "Below 80%. Keep going: the wrong answers from each paper are already in your " +
+          '<a href="review.html">review deck</a>, which is where the score actually moves.') + "</p>";
+  }
+
+  paintSetup();
+  paintHistory();
+})();
+</script>
+</body>
+</html>

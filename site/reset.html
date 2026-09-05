@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forgotten password — LogiFlow Academy</title>
+<meta name="description" content="Recover a LogiFlow Academy account with the recovery code you were given when you signed up, and choose a new password.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="reset">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main auth-main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Forgotten password</p>
+    <h1>Forgotten password</h1>
+    <p class="lede">
+      Two steps: prove the account is yours with the recovery code you were given when you
+      signed up, then choose a new password. It is also how you change a password you still
+      know &mdash; the flow is the same either way, and it signs you out everywhere else.
+    </p>
+
+    <div id="auth-host"></div>
+
+    <div class="box kid">
+      <div class="box-title">🧒 The spare key you were given at the start</div>
+      <p>
+        Most websites do this by post: you say &ldquo;I forgot&rdquo;, they send a letter to
+        the address they have for you, and being able to open that letterbox is how they know
+        it is really you. This site has no post office at all &mdash; it cannot send you
+        anything, ever.
+      </p>
+      <p>
+        So instead, on the day you joined, it handed you a <strong>spare key</strong> and said
+        keep this somewhere safe. Showing the spare key is how you prove who you are. Use it
+        once and it stops working, and you get a new spare key on your way out &mdash; so
+        somebody who saw it over your shoulder last year cannot use it now.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 Why a reset is two requests and not one</div>
+      <p>
+        <code>POST /api/auth/forgot-password</code> takes the username and recovery code and
+        returns a <strong>reset ticket</strong>: 256 random bits, stored server-side as a
+        SHA-256 hash, valid for fifteen minutes, usable once, and superseded the moment another
+        is issued for that account. <code>POST /api/auth/reset-password</code> then spends the
+        ticket on the new password.
+      </p>
+      <p>
+        That ticket is precisely what an emailed reset link carries in its query string. Every
+        property above is one that a real breach has turned on at some point &mdash; tickets
+        stored in the clear, tickets that never expire, tickets that can be replayed, and old
+        tickets left live while the user requests another five. Splitting the flow in two is
+        what lets the proof arrive by one channel and the new password by another; here the
+        first channel is a code you already hold rather than a mailbox, and the shape is
+        otherwise identical.
+      </p>
+      <p>
+        Completing a reset revokes <em>every</em> refresh token on the account. If the reason
+        you are resetting is that somebody else got in, leaving their session alive would make
+        the whole exercise decorative. Read it:
+        <code>src/LogiFlow.Academy.Api/Endpoints/AuthEndpoints.cs</code>, and
+        <a href="chapters/15-api-security.html">15 &middot; Securing an API</a>.
+      </p>
+    </div>
+
+    <div class="box trap">
+      <div class="box-title">⚠ Both errors here say the same thing on purpose</div>
+      <p>
+        &ldquo;No such account&rdquo; and &ldquo;wrong recovery code&rdquo; come back as one
+        identical message. This form is the only place on the site where somebody can probe
+        with a username and <em>no password at all</em>, so if those two answers differed it
+        would be a free membership list &mdash; type names, watch which ones come back
+        differently.
+      </p>
+      <p>
+        The same reasoning runs through the sign-in form. It is the one place registration
+        deliberately breaks with: a username is printed on the leaderboard, so
+        &ldquo;that name is taken&rdquo; discloses nothing you could not read off the board,
+        and withholding it would only leave people guessing why signing up failed.
+      </p>
+    </div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/auth-page.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  if (window.LFAuthPage) window.LFAuthPage.mountReset(document.getElementById("auth-host"));
+})();
+</script>
+</body>
+</html>

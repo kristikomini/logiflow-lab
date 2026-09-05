@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 · Entity Framework Core — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="12-ef-core">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 2 &mdash; Data <span>&rsaquo;</span> Chapter 12</p>
+<h1>Entity Framework Core</h1>
+<p class="lede">
+  EF Core writes SQL for you. That is a genuine productivity win and a genuine hazard, because the
+  SQL it writes is invisible unless you go and look. Everything in this chapter is about making it
+  visible.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Conoscenza di ASP.NET Core MVC e Entity Framework Core"</em> &mdash; optional, and listed
+  <em>after</em> T-SQL. That ordering is the whole attitude: EF Core is a convenience over SQL, not
+  a replacement for knowing it.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what-an-orm-is">What an ORM is for</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You speak C#. The database speaks SQL. An ORM is an interpreter who stands between you.
+  </p>
+  <p>
+    Interpreters are wonderful &mdash; until you say something long and complicated and they
+    translate it into something technically correct but ridiculous. So you should always be able to
+    ask: <em>"what did you actually say to them?"</em> That is what logging the generated SQL is
+    for, and you should have it switched on while you learn.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    An ORM resolves the <em>object&ndash;relational impedance mismatch</em>: objects have identity,
+    references and inheritance; tables have keys, foreign keys and joins. EF Core provides three
+    things &mdash; a translation of LINQ expression trees into SQL, a <strong>change tracker</strong>
+    that computes an <code>UPDATE</code> statement by comparing an entity against the snapshot
+    taken when it was loaded, and a <strong>unit of work</strong> that batches all pending changes
+    into one transaction at <code>SaveChanges</code>.
+  </p>
+</div>
+
+<div class="code-head">Program.cs — switch the SQL on while you learn</div>
+<pre><code>builder.Services.AddDbContext&lt;<span class="ty">LogiFlowDbContext</span>&gt;(o =&gt;
+{
+    o.UseSqlServer(builder.Configuration.GetConnectionString(<span class="st">"Default"</span>));
+
+    <span class="kw">if</span> (builder.Environment.IsDevelopment())
+    {
+        o.EnableSensitiveDataLogging();   <span class="cm">// shows parameter VALUES — dev only</span>
+        o.EnableDetailedErrors();
+    }
+});
+
+<span class="cm">// appsettings.Development.json — the single most useful setting in this chapter</span>
+<span class="cm">// "Microsoft.EntityFrameworkCore.Database.Command": "Information"</span></code></pre>
+
+<h2 id="dbcontext">DbContext and entity configuration</h2>
+
+<div class="code-head">the context</div>
+<pre><code><span class="kw">public class</span> <span class="ty">LogiFlowDbContext</span>(<span class="ty">DbContextOptions</span>&lt;<span class="ty">LogiFlowDbContext</span>&gt; options)
+    : <span class="ty">DbContext</span>(options)
+{
+    <span class="kw">public</span> <span class="ty">DbSet</span>&lt;<span class="ty">Order</span>&gt;    Orders    =&gt; Set&lt;<span class="ty">Order</span>&gt;();
+    <span class="kw">public</span> <span class="ty">DbSet</span>&lt;<span class="ty">Customer</span>&gt; Customers =&gt; Set&lt;<span class="ty">Customer</span>&gt;();
+
+    <span class="kw">protected override void</span> OnModelCreating(<span class="ty">ModelBuilder</span> b)
+        <span class="cm">// keep configuration out of this file — one class per entity</span>
+        =&gt; b.ApplyConfigurationsFromAssembly(<span class="kw">typeof</span>(<span class="ty">LogiFlowDbContext</span>).Assembly);
+}</code></pre>
+
+<div class="code-head">configuration — Fluent API, not attributes</div>
+<pre><code><span class="kw">public class</span> <span class="ty">OrderConfiguration</span> : <span class="ty">IEntityTypeConfiguration</span>&lt;<span class="ty">Order</span>&gt;
+{
+    <span class="kw">public void</span> Configure(<span class="ty">EntityTypeBuilder</span>&lt;<span class="ty">Order</span>&gt; b)
+    {
+        b.ToTable(<span class="st">"Orders"</span>, <span class="st">"dbo"</span>);
+        b.HasKey(o =&gt; o.Id);
+
+        b.Property(o =&gt; o.OrderNumber).HasMaxLength(20).IsRequired();
+        b.Property(o =&gt; o.Total).HasPrecision(18, 2);      <span class="cm">// DECIMAL(18,2), not FLOAT</span>
+        b.Property(o =&gt; o.RowVersion).IsRowVersion();       <span class="cm">// optimistic concurrency</span>
+
+        b.HasIndex(o =&gt; o.OrderNumber).IsUnique();
+        b.HasIndex(o =&gt; <span class="kw">new</span> { o.CustomerId, o.CreatedAtUtc });  <span class="cm">// ch. 08 — order matters</span>
+
+        b.HasOne(o =&gt; o.Customer)
+         .WithMany(c =&gt; c.Orders)
+         .HasForeignKey(o =&gt; o.CustomerId)
+         .OnDelete(<span class="ty">DeleteBehavior</span>.Restrict);           <span class="cm">// do not cascade silently</span>
+
+        <span class="cm">// Lets the entity keep a private list and stay encapsulated (ch. 03)</span>
+        b.Metadata.FindNavigation(<span class="kw">nameof</span>(<span class="ty">Order</span>.Lines))!
+         .SetPropertyAccessMode(<span class="ty">PropertyAccessMode</span>.Field);
+    }
+}</code></pre>
+
+<p class="subtle">
+  Prefer the Fluent API over data annotations: it keeps persistence concerns out of your domain
+  classes, and it can express things attributes cannot &mdash; composite keys, filtered indexes,
+  delete behaviour, backing fields.
+</p>
+
+<h2 id="change-tracking">Change tracking</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="track-title">
+    <title id="track-title">How the change tracker produces an UPDATE statement</title>
+    <defs>
+      <marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="40" width="220" height="94" rx="9" class="d-panel"/>
+    <rect x="20" y="40" width="220" height="94" rx="9" class="d-stroke"/>
+    <text x="130" y="64" class="d-text" text-anchor="middle">1 · Load</text>
+    <text x="130" y="86" class="d-mono" text-anchor="middle">var o = await db.Orders</text>
+    <text x="130" y="104" class="d-mono" text-anchor="middle">    .FindAsync(1);</text>
+    <text x="130" y="124" class="d-small" text-anchor="middle">a snapshot is taken</text>
+
+    <path d="M242 87 L296 87" class="d-arrow" stroke-width="1.8" marker-end="url(#a9)"/>
+
+    <rect x="298" y="40" width="220" height="94" rx="9" class="d-panel"/>
+    <rect x="298" y="40" width="220" height="94" rx="9" class="d-stroke"/>
+    <text x="408" y="64" class="d-text" text-anchor="middle">2 · Change</text>
+    <text x="408" y="86" class="d-mono" text-anchor="middle">o.Status = Sent;</text>
+    <text x="408" y="112" class="d-small" text-anchor="middle">no SQL yet — nothing</text>
+    <text x="408" y="128" class="d-small" text-anchor="middle">has left the process</text>
+
+    <path d="M520 87 L574 87" class="d-arrow" stroke-width="1.8" marker-end="url(#a9)"/>
+
+    <rect x="576" y="40" width="240" height="94" rx="9" class="d-brand" opacity=".92"/>
+    <text x="696" y="64" class="d-white" text-anchor="middle">3 · SaveChangesAsync()</text>
+    <text x="696" y="88" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">compares against the snapshot</text>
+    <text x="696" y="106" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">one transaction, batched</text>
+    <text x="696" y="124" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">round trips</text>
+
+    <rect x="20" y="176" width="796" height="72" rx="9" class="d-fill"/>
+    <rect x="20" y="176" width="796" height="72" rx="9" class="d-stroke"/>
+    <text x="40" y="202" class="d-small">Generated SQL — only the column that actually changed:</text>
+    <text x="40" y="228" class="d-mono">UPDATE dbo.Orders SET Status = @p0 WHERE Id = @p1 AND RowVersion = @p2;</text>
+
+    <text x="20" y="278" class="d-small">This is why <tspan class="d-mono">AsNoTracking()</tspan> matters: on a read-only query the snapshot is pure cost — memory and time you never use.</text>
+  </svg>
+  <figcaption>Load, mutate, save. The tracker turns object mutation into a minimal UPDATE.</figcaption>
+</figure>
+
+<div class="code-head">AsNoTracking — the free performance win</div>
+<pre><code><span class="cm">// ✓ read-only query: no snapshot, less memory, measurably faster</span>
+<span class="kw">var</span> list = <span class="kw">await</span> db.Orders
+    .AsNoTracking()
+    .Where(o =&gt; o.CustomerId == id)
+    .Select(o =&gt; <span class="kw">new</span> <span class="ty">OrderDto</span>(o.Id, o.Total, o.Status))   <span class="cm">// project! (see below)</span>
+    .ToListAsync(ct);
+
+<span class="cm">// ✗ tracking a thousand entities you will never modify</span>
+<span class="kw">var</span> list2 = <span class="kw">await</span> db.Orders.Where(o =&gt; o.CustomerId == id).ToListAsync(ct);</code></pre>
+
+<p class="subtle">
+  Note that projecting with <code>Select</code> into a DTO makes the query no-tracking
+  automatically &mdash; there is no entity to track. Projection is the better habit anyway: it
+  fetches three columns instead of twenty.
+</p>
+
+<h2 id="loading">Loading related data &mdash; and the N+1 problem</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You need the phone numbers of thirty classmates. You could ring the school office thirty-one
+    times: once for the list of names, then once per name. Thirty-one phone calls.
+  </p>
+  <p>
+    Or you could ring <em>once</em> and say "please send me all thirty names with their numbers".
+  </p>
+  <p>
+    The first way is called the N+1 problem, and it is by far the most common reason a .NET page
+    is slow.
+  </p>
+</div>
+
+<div class="code-head">the bug, and how to see it</div>
+<pre><code><span class="cm">// ✗ N+1 — one query for the orders, then one MORE per order</span>
+<span class="kw">var</span> orders = <span class="kw">await</span> db.Orders.ToListAsync(ct);            <span class="cm">// 1 query</span>
+<span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> orders)
+    <span class="ty">Console</span>.WriteLine(o.Customer.Name);                 <span class="cm">// + 1 query EACH</span>
+<span class="cm">// 500 orders → 501 round trips. Each one is a network hop.</span>
+
+<span class="cm">// ✓ eager loading — one query with a JOIN</span>
+<span class="kw">var</span> orders2 = <span class="kw">await</span> db.Orders
+    .Include(o =&gt; o.Customer)
+    .Include(o =&gt; o.Lines).ThenInclude(l =&gt; l.Product)
+    .ToListAsync(ct);
+
+<span class="cm">// ✓✓ better — project only what the caller needs. No Include required.</span>
+<span class="kw">var</span> dtos = <span class="kw">await</span> db.Orders
+    .Select(o =&gt; <span class="kw">new</span> <span class="ty">OrderDto</span>(o.Id, o.Customer.Name, o.Lines.Count))
+    .ToListAsync(ct);</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Eager</strong></td><td><code>.Include()</code></td><td>You know you need the related data. The default choice.</td></tr>
+    <tr><td><strong>Projection</strong></td><td><code>.Select()</code></td><td>Almost always better still &mdash; fetches only the columns used.</td></tr>
+    <tr><td><strong>Explicit</strong></td><td><code>.Entry(o).Collection(...).LoadAsync()</code></td><td>You decide later, conditionally.</td></tr>
+    <tr><td><strong>Lazy</strong></td><td>Proxies + <code>virtual</code> navigations</td><td><strong>Rarely.</strong> It makes N+1 invisible and silent.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Cartesian explosion &mdash; when Include is the problem</div>
+  <p>
+    Two collection <code>Include</code>s on one query produce a cross product: an order with 10
+    lines and 10 payments returns 100 rows, and EF must de-duplicate them in memory. The fix is
+    <code>.AsSplitQuery()</code>, which issues one statement per collection. Knowing this exists
+    marks you out immediately &mdash; most people have never heard of it.
+  </p>
+</div>
+
+<h2 id="writing">Writing data</h2>
+
+<div class="code-head">insert, update, delete</div>
+<pre><code><span class="cm">// INSERT</span>
+<span class="kw">var</span> order = <span class="ty">Order</span>.Create(customerId, orderNumber);   <span class="cm">// factory keeps invariants (ch. 03)</span>
+db.Orders.Add(order);
+<span class="kw">await</span> db.SaveChangesAsync(ct);                        <span class="cm">// order.Id is populated here</span>
+
+<span class="cm">// UPDATE — no Update() call needed; the tracker noticed</span>
+<span class="kw">var</span> existing = <span class="kw">await</span> db.Orders.FindAsync([id], ct);
+existing!.Submit();
+<span class="kw">await</span> db.SaveChangesAsync(ct);
+
+<span class="cm">// DELETE</span>
+db.Orders.Remove(existing);
+<span class="kw">await</span> db.SaveChangesAsync(ct);
+
+<span class="cm">// Bulk operations (EF Core 7+): one statement, no loading, no tracking</span>
+<span class="kw">await</span> db.Orders
+    .Where(o =&gt; o.CreatedAtUtc &lt; cutoff &amp;&amp; o.Status == <span class="ty">OrderStatus</span>.Draft)
+    .ExecuteDeleteAsync(ct);
+
+<span class="kw">await</span> db.Orders
+    .Where(o =&gt; o.Status == <span class="ty">OrderStatus</span>.Pending)
+    .ExecuteUpdateAsync(s =&gt; s.SetProperty(o =&gt; o.Status, <span class="ty">OrderStatus</span>.Expired), ct);</code></pre>
+
+<p class="subtle">
+  <code>ExecuteUpdate</code>/<code>ExecuteDelete</code> bypass the change tracker entirely, so they
+  do not fire <code>SaveChanges</code> interceptors or update already-loaded entities. That is the
+  point &mdash; and the caveat.
+</p>
+
+<h2 id="migrations">Migrations</h2>
+
+<div class="code-head">the workflow</div>
+<pre><code><span class="cm"># 1. change your entity or its configuration</span>
+<span class="cm"># 2. generate a migration — READ IT before you trust it</span>
+dotnet ef migrations add AddOrderRowVersion -p src/LogiFlow.Infrastructure -s src/LogiFlow.Api
+
+<span class="cm"># 3. apply it locally</span>
+dotnet ef database update -p src/LogiFlow.Infrastructure -s src/LogiFlow.Api
+
+<span class="cm"># 4. for production: generate idempotent SQL and let a DBA review it</span>
+dotnet ef migrations script --idempotent -o migrate.sql</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Never <code>Database.Migrate()</code> at application startup</div>
+  <p>
+    It is in every tutorial and it is wrong in production: several instances start at once and race,
+    a failed migration takes down the app rather than the deployment, and nobody reviewed the DDL.
+    Migrations belong in the <a href="30-azure-devops-cicd.html">release pipeline</a> as a
+    deliberate, reviewable step.
+  </p>
+  <p>
+    Related: <strong>never edit a migration that has already been applied elsewhere.</strong> Add a
+    new one. And read the generated file &mdash; EF will happily produce a <code>DROP COLUMN</code>
+    for a rename, which is data loss, not a schema change.
+  </p>
+</div>
+
+<h2 id="escape-hatch">When to drop to SQL</h2>
+
+<p>
+  EF Core is not an all-or-nothing commitment. Complex reporting queries, window functions, and
+  anything where the plan matters are legitimately better hand-written &mdash; which is exactly
+  why the advert asks for T-SQL.
+</p>
+
+<div class="code-head">both escape hatches</div>
+<pre><code><span class="cm">// Map raw SQL onto entities — parameters are still parameters</span>
+<span class="kw">var</span> orders = <span class="kw">await</span> db.Orders
+    .FromSqlInterpolated($<span class="st">"EXEC dbo.usp_GetCustomerOrders @CustomerId = {id}"</span>)
+    .AsNoTracking()
+    .ToListAsync(ct);
+
+<span class="cm">// Or bypass EF entirely with Dapper for a read-heavy path</span>
+<span class="kw">var</span> rows = <span class="kw">await</span> connection.QueryAsync&lt;<span class="ty">OrderRow</span>&gt;(
+    <span class="st">"SELECT Id, Total FROM dbo.Orders WHERE CustomerId = @id"</span>,
+    <span class="kw">new</span> { id });</code></pre>
+
+<h3>DbContext lifetime</h3>
+<p>
+  <code>AddDbContext</code> registers it as <strong>scoped</strong> &mdash; one per HTTP request.
+  This is correct and deliberate: <code>DbContext</code> is not thread-safe, and it is a unit of
+  work whose natural boundary is the request. Never make it a singleton (it accumulates tracked
+  entities for ever and is shared across threads); use <code>IDbContextFactory</code> in a
+  background service or when you genuinely need two at once.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Turn on <code>Microsoft.EntityFrameworkCore.Database.Command: Information</code> and then, for
+    each of these, look at the SQL in the console:
+  </p>
+  <ol>
+    <li>Load orders, then touch <code>o.Customer.Name</code> in a loop. Count the queries.</li>
+    <li>Add <code>.Include(o =&gt; o.Customer)</code>. Count again.</li>
+    <li>Replace it with a <code>.Select(...)</code> projection. Look at the column list.</li>
+    <li>Add a second collection <code>Include</code>. Count the returned rows, then add
+        <code>.AsSplitQuery()</code>.</li>
+    <li>Write <code>.Where(o =&gt; MyLocalMethod(o))</code> and read the error &mdash; EF Core
+        refuses to silently evaluate on the client, and that refusal is a feature.</li>
+  </ol>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-06-efcore/README.md">Module 06</a> covers the model and the
+    tracker in depth; the working context is in
+    <a href="../../src/LogiFlow.Infrastructure/Persistence/">src/LogiFlow.Infrastructure/Persistence</a>.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Log the generated SQL in development. An ORM you cannot see is an ORM you cannot debug.</li>
+    <li><code>AsNoTracking()</code> on every read-only query &mdash; or better, project into a DTO.</li>
+    <li>N+1 is the default failure mode. <code>Include</code> or <code>Select</code>, never a
+        navigation property inside a loop.</li>
+    <li>Prefer projection to <code>Include</code>: fetch the columns you use, not the table.</li>
+    <li>Two collection <code>Include</code>s cause a cartesian explosion. <code>AsSplitQuery()</code>.</li>
+    <li>Avoid lazy loading. It turns N+1 into something invisible.</li>
+    <li><code>SaveChanges</code> is one transaction. Group related writes into one call.</li>
+    <li><code>DbContext</code> is scoped and not thread-safe. Never a singleton, never two
+        concurrent operations on one instance.</li>
+    <li>Fluent API over attributes. Keep persistence out of the domain model.</li>
+    <li>Read every generated migration. A "rename" can arrive as <code>DROP COLUMN</code>.</li>
+    <li>Apply migrations from the pipeline, not from <code>Program.cs</code>.</li>
+    <li>Drop to SQL when the query is genuinely relational. That is judgement, not defeat.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the N+1 problem?"</p>
+  <p class="a">
+    One query returns N rows, then accessing a navigation property on each issues one more query
+    &mdash; N+1 round trips instead of one. Fix with <code>Include</code> or a projection. Then say
+    how you would <em>detect</em> it: SQL logging, or a spike in query count per request in
+    telemetry.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>AsNoTracking</code> do and when would you use it?"</p>
+  <p class="a">
+    It skips the identity-resolution and snapshot bookkeeping the change tracker needs, so reads
+    use less memory and are faster. Use it whenever you will not modify the entities &mdash; which
+    is most read paths in a Web API.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"IQueryable or IEnumerable &mdash; why does it matter here?"</p>
+  <p class="a">
+    <code>IQueryable</code> is translated to SQL; the moment it becomes <code>IEnumerable</code>
+    the rest runs in memory over whatever was already fetched. A <code>ToList()</code> before a
+    <code>Where</code> is the difference between three rows and the entire table.
+    (<a href="06-collections-and-linq.html">Chapter 06</a>.)
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you handle two users editing the same record?"</p>
+  <p class="a">
+    A <code>rowversion</code> concurrency token; EF then includes it in the <code>WHERE</code> of
+    the <code>UPDATE</code>, so a stale write affects zero rows and throws
+    <code>DbUpdateConcurrencyException</code>, which you handle by reloading and showing the
+    conflict.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you not use EF Core?"</p>
+  <p class="a">
+    Bulk operations over large row counts, complex reporting with window functions, and anywhere
+    the execution plan needs hand control &mdash; use raw SQL, a stored procedure or Dapper there.
+    Mixing them in one codebase is normal and is a sign of judgement rather than inconsistency.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Infrastructure is where the abstractions defined in Application get their real
+    implementations: EF Core, SQL Server, Redis, JWT signing, the system clock.
+    This is the ONLY layer allowed to know a database exists.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>LogiFlow.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogiFlow.Application\LogiFlow.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <!-- SMTP, and the MIME construction that makes a message a message. See the note in
+         Directory.Packages.props for why this is not System.Net.Mail.SmtpClient. -->
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <!-- Design-time only: powers `dotnet ef migrations add`. PrivateAssets stops it
+         from flowing into the API's published output. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The mailing internals - transports, the redirect guard, options validation - are
+         internal because nothing outside this assembly should construct them. Their tests
+         still need to. -->
+    <InternalsVisibleTo Include="LogiFlow.Infrastructure.Tests" />
+    <!-- The queue's claim statement is T-SQL with locking hints. Only a real SQL Server can
+         say whether it does what it claims, so its test lives in the integration suite. -->
+    <InternalsVisibleTo Include="LogiFlow.Api.IntegrationTests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17b · JavaScript, the language — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="17b-javascript-language">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 17b</p>
+<h1>JavaScript, the language</h1>
+<p class="lede">
+  Chapter 17 gave you enough JavaScript to call your own API and not be frightened of the DOM. This
+  one treats it as a language you will be tested on &mdash; because at least one advert lists it
+  next to C# and SQL Server as a required skill, not a nice-to-have. Everything here is presented
+  with its C# equivalent alongside, because you already know the hard concepts under different
+  names.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    A skills list that reads <em>".NET · ASP.NET · ASP.NET Core · C# · JavaScript · Microsoft SQL
+    Server"</em> is not asking you to be a front-end developer. It is telling you that the screens
+    their API feeds are maintained by the same people who write the API &mdash; and that at some
+    point you will be handed a bug that lives in a <code>.js</code> file.
+  </p>
+  <p>
+    The good news: you have already learned the two genuinely hard ideas in this chapter. Closures
+    were chapter 04. Cooperative single-threaded scheduling was chapter 07. This is mostly a
+    translation exercise.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="event-loop">The event loop &mdash; the question you will be asked</h2>
+
+<p>
+  If a JavaScript interview asks you one conceptual question, it is this one. It is also the topic
+  that makes the language make sense, so it goes first.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A shop with exactly one shopkeeper. They serve one customer at a time, start to finish. There is
+    no second shopkeeper, ever.
+  </p>
+  <p>
+    Two queues form. One is people waiting at the door &mdash; the ordinary queue. The other is a
+    small counter beside the till for people who only need a signature; the shopkeeper clears
+    <em>everyone</em> at that counter before letting the next person in from the door.
+  </p>
+  <p>
+    That side counter is the microtask queue, and it is why a promise callback always runs before a
+    <code>setTimeout</code> that was scheduled first.
+  </p>
+</div>
+
+<div class="code-head">the ordering puzzle — predict the output before you read on</div>
+<pre><code><span class="ty">console</span>.log(<span class="st">'1'</span>);
+
+setTimeout(() =&gt; <span class="ty">console</span>.log(<span class="st">'2'</span>), <span class="nu">0</span>);          <span class="cm">// macrotask</span>
+
+<span class="ty">Promise</span>.resolve().then(() =&gt; <span class="ty">console</span>.log(<span class="st">'3'</span>));   <span class="cm">// microtask</span>
+
+<span class="ty">console</span>.log(<span class="st">'4'</span>);</code></pre>
+
+<pre><code><span class="out">1
+4
+3
+2</span></code></pre>
+
+<p>
+  <code>1</code> and <code>4</code> are synchronous, so they run first, in order. Then the stack is
+  empty and the engine drains the <strong>whole</strong> microtask queue &mdash; that is
+  <code>3</code>. Only then does it take one macrotask &mdash; <code>2</code>. The
+  <code>setTimeout</code> delay of zero does not mean "now"; it means "after the current work and
+  every microtask waiting behind it".
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 290" role="img" aria-labelledby="loop-title">
+    <title id="loop-title">The JavaScript event loop: call stack, microtask queue and macrotask queue</title>
+    <defs>
+      <marker id="a17b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" class="d-fill"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="40" width="200" height="150" rx="9" class="d-panel"/>
+    <rect x="20" y="40" width="200" height="150" rx="9" class="d-stroke"/>
+    <text x="40" y="66" class="d-text" style="font-weight:700">Call stack</text>
+    <rect x="40" y="82" width="160" height="26" rx="4" class="d-brand" opacity=".9"/>
+    <text x="120" y="100" class="d-white" text-anchor="middle" style="font-size:11px">the function running now</text>
+    <text x="40" y="132" class="d-small">One at a time. Nothing else</text>
+    <text x="40" y="150" class="d-small">in the page runs — including</text>
+    <text x="40" y="168" class="d-small">painting — until it is empty.</text>
+
+    <rect x="300" y="30" width="240" height="100" rx="9" class="d-brand" opacity=".14"/>
+    <rect x="300" y="30" width="240" height="100" rx="9" class="d-stroke"/>
+    <text x="320" y="56" class="d-text" style="font-weight:700">Microtasks</text>
+    <text x="320" y="80" class="d-small">.then() · await continuation</text>
+    <text x="320" y="100" class="d-small">queueMicrotask</text>
+    <text x="320" y="120" class="d-mono" style="font-size:11px">drained COMPLETELY, every time</text>
+
+    <rect x="300" y="152" width="240" height="100" rx="9" class="d-panel"/>
+    <rect x="300" y="152" width="240" height="100" rx="9" class="d-stroke"/>
+    <text x="320" y="178" class="d-text" style="font-weight:700">Macrotasks</text>
+    <text x="320" y="202" class="d-small">setTimeout · setInterval</text>
+    <text x="320" y="222" class="d-small">click · fetch response · I/O</text>
+    <text x="320" y="242" class="d-mono" style="font-size:11px">exactly ONE per turn</text>
+
+    <path d="M296,80 L228,110" class="d-arrow" marker-end="url(#a17b)"/>
+    <path d="M296,200 L228,130" class="d-arrow" marker-end="url(#a17b)"/>
+
+    <rect x="620" y="80" width="196" height="120" rx="9" class="d-panel"/>
+    <rect x="620" y="80" width="196" height="120" rx="9" class="d-stroke"/>
+    <text x="640" y="106" class="d-text" style="font-weight:700">Then: render</text>
+    <text x="640" y="130" class="d-small">The browser can only paint</text>
+    <text x="640" y="148" class="d-small">between turns — which is why</text>
+    <text x="640" y="166" class="d-small">a long loop freezes the page</text>
+    <text x="640" y="184" class="d-small">and the spinner stops spinning.</text>
+    <path d="M548,140 L616,140" class="d-arrow" marker-end="url(#a17b)"/>
+  </svg>
+  <figcaption>One turn: run the stack to empty, drain every microtask, take one macrotask, let the browser paint. Repeat.</figcaption>
+</figure>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional &mdash; and this is chapter 07 again</div>
+  <p>
+    <code>await</code> in JavaScript does exactly what <code>await</code> in C# does: it returns
+    control to the scheduler and registers the rest of the method as a continuation. It does not
+    create a thread. In C# that continuation goes to the thread pool; in JavaScript it goes to the
+    microtask queue, and there is only ever one thread to come back to.
+  </p>
+  <p>
+    So the C# rule and the JavaScript rule are the same rule: <strong>never block</strong>. In C#
+    blocking starves the pool (chapter 07); in JavaScript there is no pool to starve, so a
+    synchronous loop over 100,000 items freezes the entire page &mdash; no clicks, no animation, no
+    rendering &mdash; until it finishes.
+  </p>
+</div>
+
+<h2 id="this">
+  <code>this</code>, and why arrow functions exist
+</h2>
+
+<p>
+  In C#, <code>this</code> is the instance. It is decided at compile time and it is never a
+  surprise. In JavaScript <code>this</code> is decided by <strong>how the function is called</strong>,
+  not where it was written &mdash; and that is the source of most "undefined is not a function"
+  bugs.
+</p>
+
+<div class="code-head">the same function, four values of this</div>
+<pre><code><span class="kw">const</span> order = {
+  number: <span class="st">'ORD-1'</span>,
+  show() { <span class="ty">console</span>.log(<span class="kw">this</span>.number); }
+};
+
+order.show();                       <span class="cm">// 'ORD-1'  — called as a method</span>
+
+<span class="kw">const</span> f = order.show;
+f();                                <span class="cm">// undefined — the function was detached from the object</span>
+
+setTimeout(order.show, <span class="nu">0</span>);          <span class="cm">// undefined — same detachment, and this is
+                                    //             how it actually happens in real code</span>
+
+setTimeout(() =&gt; order.show(), <span class="nu">0</span>);   <span class="cm">// 'ORD-1'  — the call site is preserved</span>
+setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">// 'ORD-1'  — bound explicitly</span></code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>An arrow function has no <code>this</code> of its own.</strong> It captures the
+    <code>this</code> of the scope it was written in, permanently, and <code>bind</code> cannot
+    change it. That single fact gives you both rules:
+  </p>
+  <ul>
+    <li><strong>Use an arrow for a callback.</strong> It keeps the surrounding <code>this</code>,
+        which is what you almost always meant.</li>
+    <li><strong>Never use an arrow as an object method.</strong> There is no surrounding instance to
+        capture, so <code>this</code> will be the module or <code>undefined</code> &mdash; not the
+        object you wrote it inside.</li>
+  </ul>
+  <pre><code><span class="kw">const</span> bad = {
+  number: <span class="st">'ORD-1'</span>,
+  show: () =&gt; <span class="ty">console</span>.log(<span class="kw">this</span>.number)   <span class="cm">// ✗ undefined, always</span>
+};</code></pre>
+</div>
+
+<h2 id="closures">Closures, and the loop bug you have already met</h2>
+
+<p>
+  You learned this in chapter 04, in C#. Here it is again, in JavaScript, with a different fix
+  &mdash; and interviewers on both sides of the stack ask it.
+</p>
+
+<div class="code-head">✗ prints 3, 3, 3</div>
+<pre><code><span class="kw">for</span> (<span class="kw">var</span> i = <span class="nu">0</span>; i &lt; <span class="nu">3</span>; i++) {
+  setTimeout(() =&gt; <span class="ty">console</span>.log(i), <span class="nu">0</span>);
+}
+<span class="cm">// var is function-scoped: there is ONE i. By the time the callbacks run —
+// after the loop, because setTimeout is a macrotask — that one i is 3.</span></code></pre>
+
+<div class="code-head">✓ prints 0, 1, 2</div>
+<pre><code><span class="kw">for</span> (<span class="kw">let</span> i = <span class="nu">0</span>; i &lt; <span class="nu">3</span>; i++) {
+  setTimeout(() =&gt; <span class="ty">console</span>.log(i), <span class="nu">0</span>);
+}
+<span class="cm">// let is block-scoped, and a for loop creates a NEW binding each iteration.
+// Each closure captures its own.</span></code></pre>
+
+<div class="box note">
+  <div class="box-title">The same law, twice</div>
+  <p>
+    <strong>A closure captures the variable, not the value.</strong> That sentence is true in C# and
+    true in JavaScript, and every version of this bug in either language follows from it. The
+    languages differ only in the escape hatch: C# gave <code>foreach</code> a per-iteration variable
+    in C# 5 (a plain <code>for</code> still shares one), and JavaScript gave you <code>let</code>.
+  </p>
+  <p class="subtle">
+    Which is also the real reason never to write <code>var</code>: it is function-scoped and hoisted,
+    so it does not mean what a C# developer's eyes think it means.
+  </p>
+</div>
+
+<h2 id="arrays">Array methods are LINQ &mdash; with one important difference</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>JavaScript</th><th>LINQ</th><th>Note</th></tr></thead>
+  <tbody>
+    <tr><td><code>map</code></td><td><code>Select</code></td><td></td></tr>
+    <tr><td><code>filter</code></td><td><code>Where</code></td><td></td></tr>
+    <tr><td><code>reduce</code></td><td><code>Aggregate</code></td><td>Same readability warning applies</td></tr>
+    <tr><td><code>find</code></td><td><code>FirstOrDefault</code></td><td>Returns <code>undefined</code>, not <code>null</code></td></tr>
+    <tr><td><code>some</code> / <code>every</code></td><td><code>Any</code> / <code>All</code></td><td></td></tr>
+    <tr><td><code>flatMap</code></td><td><code>SelectMany</code></td><td></td></tr>
+    <tr><td><code>includes</code></td><td><code>Contains</code></td><td></td></tr>
+    <tr><td><code>slice</code></td><td><code>Skip</code> / <code>Take</code></td><td><code>splice</code> is the mutating one &mdash; different method</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Three differences that catch C# developers</div>
+  <ol>
+    <li>
+      <strong>They are eager, not deferred.</strong> <code>arr.filter(…).map(…)</code> builds a
+      complete intermediate array and then a second one. LINQ would stream it in one pass
+      (chapter 06). On ten items nobody cares; the habit matters when it is ten thousand.
+    </li>
+    <li>
+      <strong><code>sort()</code> mutates the array and sorts as text by default.</strong>
+      <pre><code>[<span class="nu">10</span>, <span class="nu">9</span>, <span class="nu">1</span>].sort()                  <span class="cm">// [1, 10, 9]  — string comparison!</span>
+[<span class="nu">10</span>, <span class="nu">9</span>, <span class="nu">1</span>].sort((a, b) =&gt; a - b)    <span class="cm">// [1, 9, 10]  — what you meant</span></code></pre>
+      <code>OrderBy</code> returns a new sequence; <code>sort</code> reorders the one you passed it,
+      which surprises people who kept a reference to it.
+    </li>
+    <li>
+      <strong><code>forEach</code> ignores <code>async</code>.</strong> It does not await the
+      callback, so the loop finishes instantly and everything runs unordered and unwaited. Use
+      <code>for…of</code> when you need sequence, or <code>Promise.all(items.map(…))</code> when you
+      want them concurrent.
+    </li>
+  </ol>
+</div>
+
+<h2 id="syntax">The syntax you cannot read a modern file without</h2>
+
+<div class="code-head">destructuring, spread, template literals, default parameters</div>
+<pre><code><span class="cm">// Destructuring — pull fields out by name. Like C# deconstruction, but by name
+// rather than by position, and it works on anything.</span>
+<span class="kw">const</span> { id, total, customer: { name } } = order;
+<span class="kw">const</span> [first, second] = list;
+
+<span class="cm">// …including in a parameter list, which is how React components are written</span>
+<span class="kw">function</span> render({ id, total = <span class="nu">0</span> }) { … }
+
+<span class="cm">// Spread — copy and extend. The idiom for "change one field immutably",
+// exactly like a C# record's `with` expression.</span>
+<span class="kw">const</span> shipped = { ...order, status: <span class="st">'Shipped'</span> };
+<span class="kw">const</span> all     = [...a, ...b];
+
+<span class="cm">// Rest — the params keyword</span>
+<span class="kw">function</span> log(level, ...args) { … }
+
+<span class="cm">// Template literals — string interpolation. Backticks, ${} instead of $"{}"</span>
+<span class="kw">const</span> msg = <span class="st">`Order ${order.number} totals ${total.toFixed(2)} EUR`</span>;
+
+<span class="cm">// Optional chaining and nullish coalescing — identical to C#,
+// including the trap: ?? and || are NOT the same.</span>
+<span class="kw">const</span> city  = order?.customer?.address?.city;
+<span class="kw">const</span> count = order.count ?? <span class="nu">10</span>;   <span class="cm">// 0 stays 0</span>
+<span class="kw">const</span> wrong = order.count || <span class="nu">10</span>;   <span class="cm">// 0 becomes 10 — a real bug</span></code></pre>
+
+<h2 id="async">Promises and async/await</h2>
+
+<p>
+  A <code>Promise</code> is a <code>Task</code>, with two differences worth knowing before you rely
+  on the analogy.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>C#</th><th>JavaScript</th></tr></thead>
+  <tbody>
+    <tr><td>Starts when</td><td>Usually when the method is called</td><td>Immediately, at construction &mdash; there is no cold promise</td></tr>
+    <tr><td>Run all, need every result</td><td><code>Task.WhenAll</code></td><td><code>Promise.all</code></td></tr>
+    <tr><td>On first failure</td><td>Waits for all, then throws</td><td><strong>Rejects immediately</strong>; the others keep running, unobserved</td></tr>
+    <tr><td>Want every outcome</td><td>Inspect each task</td><td><code>Promise.allSettled</code></td></tr>
+    <tr><td>Cancellation</td><td><code>CancellationToken</code></td><td><code>AbortController</code> &mdash; and only where supported</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">the three shapes, and the bug in the middle one</div>
+<pre><code><span class="cm">// Sequential — three round trips, one after another. Usually not what you want.</span>
+<span class="kw">const</span> a = <span class="kw">await</span> getOrder(<span class="nu">1</span>);
+<span class="kw">const</span> b = <span class="kw">await</span> getOrder(<span class="nu">2</span>);
+
+<span class="cm">// Concurrent, fail fast. If getOrder(2) rejects, this throws at once —
+// and getOrder(1) is still running with nobody listening.</span>
+<span class="kw">const</span> [x, y] = <span class="kw">await</span> <span class="ty">Promise</span>.all([getOrder(<span class="nu">1</span>), getOrder(<span class="nu">2</span>)]);
+
+<span class="cm">// Concurrent, collect everything. The right choice when a partial result
+// is still useful — a dashboard with one broken tile.</span>
+<span class="kw">const</span> results = <span class="kw">await</span> <span class="ty">Promise</span>.allSettled([getOrder(<span class="nu">1</span>), getOrder(<span class="nu">2</span>)]);
+<span class="cm">// [{ status: 'fulfilled', value }, { status: 'rejected', reason }]</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The unhandled rejection</div>
+  <pre><code><span class="cm">// No await, no .catch(). The error has nowhere to go.</span>
+saveOrder(order);            <span class="cm">// ✗ fire and forget</span>
+
+<span class="cm">// In a browser this fires window.onunhandledrejection and is otherwise
+// silent — the user sees nothing happen and you get no stack trace.
+// In Node it terminates the process.</span>
+
+<span class="kw">await</span> saveOrder(order);      <span class="cm">// ✓</span>
+saveOrder(order).catch(reportError);   <span class="cm">// ✓ deliberate fire-and-forget</span></code></pre>
+  <p>
+    This is the JavaScript twin of an unawaited <code>Task</code> in C#: the compiler warns you
+    there, and nothing warns you here. It is the most common cause of "the save button does nothing
+    and there is no error".
+  </p>
+</div>
+
+<h2 id="events">DOM events: bubbling, and the one pattern to know</h2>
+
+<p>
+  A click on a button does not only fire on the button. It travels <em>down</em> from the document
+  to the target (capture), fires on the target, then travels back <em>up</em> through every ancestor
+  (bubble). Almost all handlers listen on the way up.
+</p>
+
+<div class="code-head">✗ the version that breaks the moment a row is added</div>
+<pre><code><span class="ty">document</span>.querySelectorAll(<span class="st">'.delete-btn'</span>).forEach(b =&gt;
+  b.addEventListener(<span class="st">'click'</span>, onDelete));
+<span class="cm">// 500 listeners. And any row rendered AFTER this line has none —
+// which is why "it works until you use the search filter".</span></code></pre>
+
+<div class="code-head">✓ event delegation — one listener, works for rows that do not exist yet</div>
+<pre><code><span class="ty">document</span>.querySelector(<span class="st">'#orders'</span>).addEventListener(<span class="st">'click'</span>, (e) =&gt; {
+  <span class="kw">const</span> btn = e.target.closest(<span class="st">'.delete-btn'</span>);   <span class="cm">// the click may land on an
+                                                 // icon INSIDE the button</span>
+  <span class="kw">if</span> (!btn) <span class="kw">return</span>;
+  onDelete(btn.dataset.orderId);
+});</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 <code>preventDefault</code> is not <code>stopPropagation</code></div>
+  <ul>
+    <li><code>e.preventDefault()</code> &mdash; do not do the browser's default thing (submit the
+        form, follow the link). The event still bubbles.</li>
+    <li><code>e.stopPropagation()</code> &mdash; do not let ancestors see this event. The default
+        action still happens.</li>
+  </ul>
+  <p>
+    Reaching for <code>stopPropagation</code> to fix a bug usually breaks somebody else's delegated
+    handler three months later. Prefer to fix the condition.
+  </p>
+</div>
+
+<h2 id="modules">Modules: the two systems</h2>
+
+<div class="code-head">ESM — the modern one, and what the browser understands</div>
+<pre><code><span class="cm">// orders.js</span>
+<span class="kw">export function</span> total(order) { … }
+<span class="kw">export default</span> <span class="kw">class</span> <span class="ty">OrderClient</span> { … }
+
+<span class="cm">// app.js</span>
+<span class="kw">import</span> <span class="ty">OrderClient</span>, { total } <span class="kw">from</span> <span class="st">'./orders.js'</span>;</code></pre>
+
+<div class="code-head">CommonJS — older Node code, and much of what is on disk</div>
+<pre><code><span class="kw">const</span> { total } = require(<span class="st">'./orders'</span>);
+module.exports = { total };</code></pre>
+
+<p>
+  <code>import</code> is static &mdash; declarations are resolved before any code runs, which is what
+  lets a bundler remove unused exports. <code>require</code> is a function call that happens at run
+  time. In Node, <code>"type": "module"</code> in <code>package.json</code> decides which one a
+  <code>.js</code> file is; in a browser you need
+  <code>&lt;script type="module"&gt;</code>, which is also deferred and always strict mode. Mixing
+  the two systems in one project is the source of most "cannot use import statement outside a
+  module" errors.
+</p>
+
+<h2 id="jquery">jQuery, because the legacy app is full of it</h2>
+
+<p>
+  If chapter 16b was right about there being a .NET Framework application in the building, its front
+  end is jQuery. You do not need to learn it as a habit &mdash; you need to read it without looking
+  anything up.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>jQuery</th><th>What it means today</th></tr></thead>
+  <tbody>
+    <tr><td><code>$(document).ready(fn)</code></td><td>Run after the DOM is parsed. Modern: <code>defer</code> on the script tag.</td></tr>
+    <tr><td><code>$('#total')</code></td><td><code>document.querySelector('#total')</code></td></tr>
+    <tr><td><code>$('.row')</code></td><td><code>document.querySelectorAll('.row')</code></td></tr>
+    <tr><td><code>.on('click', fn)</code></td><td><code>.addEventListener('click', fn)</code></td></tr>
+    <tr><td><code>.on('click', '.btn', fn)</code></td><td>Delegation &mdash; the pattern above, built in</td></tr>
+    <tr><td><code>$.ajax</code> / <code>$.get</code></td><td><code>fetch</code></td></tr>
+    <tr><td><code>.val()</code>, <code>.text()</code>, <code>.html()</code></td><td><code>.value</code>, <code>.textContent</code>, <code>.innerHTML</code></td></tr>
+    <tr><td><code>$.each</code></td><td><code>forEach</code> / <code>for…of</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">The judgement, not just the translation</div>
+  <p>
+    Do not "modernise" a working jQuery page because it offends you. Removing jQuery from a page
+    that works is a rewrite with no business value and a real regression risk. Write new pages
+    without it; touch the old ones only where the ticket takes you. That answer &mdash; in an
+    interview or a code review &mdash; reads as experience.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Open any browser's console. No project, no build step.</p>
+  <ol>
+    <li>Predict the output of the four-line ordering puzzle above, then paste it in. If you got it
+        right, add an <code>await</code> in the middle and predict again.</li>
+    <li>Write the <code>var</code> loop, watch it print 3&nbsp;3&nbsp;3, change one keyword, watch it
+        print 0&nbsp;1&nbsp;2. Then explain it in the vocabulary of chapter 04.</li>
+    <li>Run <code>[10, 9, 1].sort()</code> and be annoyed. Fix it.</li>
+    <li>Write an object with a method as an arrow function and call it. Explain the
+        <code>undefined</code>.</li>
+    <li>Build a table with a delete button per row, wire it with delegation, then add a row
+        dynamically and confirm the new button works with no extra code.</li>
+    <li>Call an async function without awaiting it and make it throw. Find the error in the console
+        &mdash; note how little it tells you.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>One thread, one stack.</strong> Microtasks drain completely; then exactly one macrotask; then the browser may paint.</li>
+    <li><strong><code>setTimeout(fn, 0)</code> does not mean now.</strong> It means after everything currently queued, promises included.</li>
+    <li><strong>A long synchronous loop freezes the page.</strong> There is no other thread to keep it alive.</li>
+    <li><strong><code>await</code> yields; it does not create a thread.</strong> Same as C#, with a smaller machine underneath.</li>
+    <li><strong><code>this</code> is decided by the call, not the definition.</strong> Detach a method and you lose it.</li>
+    <li><strong>Arrow functions capture <code>this</code> lexically and cannot be rebound.</strong> Perfect as callbacks, wrong as object methods.</li>
+    <li><strong>A closure captures the variable, not the value</strong> &mdash; the same law as C#. Use <code>let</code>, never <code>var</code>.</li>
+    <li><strong>Array methods are eager.</strong> Each link in the chain builds a whole new array.</li>
+    <li><strong><code>sort()</code> mutates, and compares as strings unless you pass a comparator.</strong></li>
+    <li><strong><code>forEach</code> does not await.</strong> Use <code>for…of</code> for order, <code>Promise.all</code> for concurrency.</li>
+    <li><strong><code>Promise.all</code> rejects on the first failure; <code>allSettled</code> waits for every outcome.</strong> Not the same as <code>Task.WhenAll</code>.</li>
+    <li><strong>An unhandled rejection is silent in the browser and fatal in Node.</strong> Always <code>await</code> or <code>.catch()</code>.</li>
+    <li><strong>Delegate events to a container</strong> &mdash; one listener, and it works for elements that do not exist yet.</li>
+    <li><strong><code>??</code> is not <code>||</code>.</strong> <code>0</code> and <code>''</code> are falsy but not nullish, and that difference is a real bug.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Explain the event loop."</p>
+  <p class="a">
+    JavaScript has one thread and one call stack. When the stack empties, the engine drains the
+    entire microtask queue &mdash; promise callbacks and <code>await</code> continuations &mdash;
+    then takes exactly one macrotask such as a timer, an I/O completion or a UI event, then lets the
+    browser render. That is why a promise callback beats a <code>setTimeout(…, 0)</code> queued
+    before it, and why a long synchronous loop freezes the page: rendering only happens between
+    turns. If you know C#, add that <code>await</code> is the same cooperative yielding, minus the
+    thread pool.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does this print, and why?"</p>
+  <p class="a">
+    <code>console.log(1); setTimeout(()=&gt;console.log(2),0); Promise.resolve().then(()=&gt;console.log(3)); console.log(4);</code>
+    &rarr; <strong>1, 4, 3, 2</strong>. Synchronous code first, then the microtask, then the
+    macrotask. Saying the two queue names is what separates a memorised answer from an understood
+    one.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between <code>var</code> and <code>let</code>?"</p>
+  <p class="a">
+    <code>var</code> is function-scoped and hoisted; <code>let</code> is block-scoped and in the
+    temporal dead zone until declared. The consequence worth demonstrating is the loop: with
+    <code>var</code> every callback closes over the same single variable and prints the final value,
+    while a <code>for</code> loop with <code>let</code> creates a fresh binding per iteration.
+    Mention that a closure captures the variable and not the value &mdash; the identical rule to C#.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is <code>this</code> undefined in my callback?"</p>
+  <p class="a">
+    Because <code>this</code> comes from the call site. Passing <code>obj.method</code> somewhere
+    detaches it from <code>obj</code>, so it is called with no receiver. Fix with an arrow wrapper
+    that preserves the call, or <code>bind</code>. Then the second half: an arrow function has no
+    <code>this</code> of its own, which makes it right for a callback and wrong for an object
+    method.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>Promise.all</code> or <code>Promise.allSettled</code>?"</p>
+  <p class="a">
+    <code>all</code> when you need every result and any failure makes the whole operation
+    meaningless &mdash; it rejects on the first failure, and the others keep running unobserved.
+    <code>allSettled</code> when a partial answer is still useful, like a dashboard where one tile
+    is broken. Worth flagging that this differs from <code>Task.WhenAll</code>, which waits for
+    everything before it throws.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"There are 500 rows and each has a delete button. How do you wire them up?"</p>
+  <p class="a">
+    One listener on the container, using bubbling, with
+    <code>e.target.closest('.delete-btn')</code> to identify the button &mdash; because the click
+    may land on an icon inside it. That is one listener instead of 500, and it keeps working for
+    rows added after page load, which is the bug the per-element version always eventually has.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You inherit a page written in jQuery. What do you do?"</p>
+  <p class="a">
+    Read it, work in it, and leave it alone unless the ticket says otherwise. I know the modern
+    equivalents &mdash; <code>querySelector</code>, <code>addEventListener</code>,
+    <code>fetch</code> &mdash; and I would write new pages without it, but ripping jQuery out of a
+    page that works is a rewrite with regression risk and no business value. Same argument as
+    migrating a legacy application incrementally rather than in one go.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

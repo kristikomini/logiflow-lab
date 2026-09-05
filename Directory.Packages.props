@@ -1,0 +1,257 @@
+<Project>
+  <!--
+    CENTRAL PACKAGE MANAGEMENT (CPM)
+    ================================
+    Every NuGet version in this solution is declared exactly once, here.
+    Individual .csproj files then reference packages WITHOUT a Version attribute:
+
+        <PackageReference Include="FluentValidation" />
+
+    Why enterprises do this:
+      * One place to bump a version -> no "project A is on 8.0.1, project B on 8.0.4" drift.
+      * Security patching becomes a one-line diff instead of a 30-file sweep.
+      * A rogue transitive version can be pinned globally.
+
+    Covered in: course/module-00-setup/03-build-system.md
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <!-- ── Persistence ─────────────────────────────────────────────────────── -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <!--
+      SQLite is here for ONE project: LogiFlow.Academy.Api, the accounts service
+      behind site/. That service has to run for someone who has just cloned the
+      repository and has no SQL Server and no Docker, so its default provider is
+      a file on disk. It can be pointed at SQL Server with one configuration key
+      (Academy:Provider), which is the whole argument for provider abstraction
+      made concrete. Nothing else in the solution uses it.
+    -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.4" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+    <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
+  </ItemGroup>
+  <!-- ── Application / cross-cutting ─────────────────────────────────────── -->
+  <ItemGroup>
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
+    <!--
+      The SignalR Redis BACKPLANE. Note it is a different package from the cache above, and
+      solves a different problem with the same server: the cache shares DATA between instances,
+      the backplane shares MESSAGES. An application can want either, both, or neither.
+    -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.10" />
+
+    <!--
+      gRPC. Grpc.AspNetCore is a metapackage: it brings the server, Google.Protobuf, and
+      Grpc.Tools, which is the one that matters most and is the least obvious. Grpc.Tools is a
+      BUILD-TIME package - it runs protoc during compilation and generates C# from every
+      <Protobuf> item in the csproj. That is why nothing in Grpc/ has a corresponding
+      OrderReply.cs to read: it does not exist until you build.
+    -->
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.76.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.76.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+    <!--
+      ValidateDataAnnotations() lives here and NOT in Microsoft.Extensions.Options, which
+      surprises everyone the first time: the [Required] and [Range] attributes on an options
+      class do nothing at all until this package is referenced, and the call that would have
+      applied them does not compile. ASP.NET Core apps get it transitively from the shared
+      framework, so the gap only appears in a class library - exactly where the options class
+      usually lives.
+    -->
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0" />
+  </ItemGroup>
+  <!-- ── Mail ────────────────────────────────────────────────────────────── -->
+  <!--
+    MailKit, and NOT System.Net.Mail.SmtpClient.
+
+    The framework's SmtpClient still compiles, and its own documentation has told
+    you not to use it for years: it predates async properly, cannot do modern
+    STARTTLS negotiation cleanly, and leaks connections if you dispose it wrong.
+    Microsoft's remarks section names MailKit as the recommended replacement -
+    which is a rare thing for a framework to do, and worth knowing when someone
+    asks you in an interview why you took a dependency instead of using the BCL.
+
+    MimeKit arrives with it and is the half that actually matters: it builds the
+    RFC 5322 message, does the header encoding, and is what makes the .eml files
+    the development transport writes openable in a real mail client.
+
+    Covered in: course/module-10-cross-cutting/05-mailing.md
+  -->
+  <ItemGroup>
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="MimeKit" Version="4.17.0" />
+  </ItemGroup>
+  <!-- ── Web / API ───────────────────────────────────────────────────────── -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.18" />
+    <PackageVersion Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
+  </ItemGroup>
+  <!-- ── Security overrides for TRANSITIVE dependencies ──────────────────── -->
+  <!--
+    A REAL EXAMPLE, NOT A HYPOTHETICAL.
+
+    Microsoft.AspNetCore.OpenApi 10.0.10 declares a dependency on
+    Microsoft.OpenApi >= 2.0.0. Version 2.0.0 carries a known HIGH severity
+    advisory: GHSA-v5pm-xwqc-g5wc, which is the same advisory as CVE-2026-49451.
+    Both ids are given deliberately. NuGet and the GitHub advisory database use
+    the GHSA one, most other tooling uses the CVE, and quoting only one of them
+    leaves the next reader believing there are two separate problems.
+
+    We never reference that package directly - it arrives transitively - so
+    there is no .csproj line to edit.
+
+    Two things make the fix possible:
+      1. NuGetAudit (on by default since .NET 8) reported it as NU1903, and
+         because src/Directory.Build.props sets TreatWarningsAsErrors, the
+         RESTORE FAILED instead of quietly shipping a vulnerable dependency.
+      2. CentralPackageTransitivePinningEnabled (top of this file) lets a
+         PackageVersion entry override a version nobody asked for directly.
+
+    CHOOSING THE RIGHT PATCHED VERSION - the part that takes judgement.
+
+    The advisory lists TWO patched lines: 2.7.5+ and 3.5.4+. Jumping to the
+    newest (3.9.0) looks obviously best and breaks the build: Microsoft.OpenApi
+    3.x made IOpenApiMediaType.Example read-only, and the OpenAPI XML-comment
+    source generator shipped inside Microsoft.AspNetCore.OpenApi 10.0.10 still
+    assigns to it. The result is CS0200 in generated code you cannot edit.
+
+    So we take the patched version on the SAME major line the framework was
+    built against. Newest is not the goal; patched and compatible is.
+
+    Read the advisory before picking a version. This one is availability-only
+    (stack overflow on parsing a crafted document), which is worth knowing when
+    you have to justify a same-day patch versus a scheduled one.
+    Covered in: course/module-13-deployment/03-supply-chain.md — case one
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.6" />
+  </ItemGroup>
+  <!--
+    A SECOND REAL ONE, found the same way.
+
+    Adding Microsoft.EntityFrameworkCore.Sqlite 10.0.10 failed the RESTORE:
+
+        error NU1903: Package 'SQLitePCLRaw.lib.e_sqlite3' 2.1.11 has a known
+        high severity vulnerability, GHSA-2m69-gcr7-jv3q
+
+    That is CVE-2025-6965 - a memory-corruption flaw in SQLite itself, fixed
+    upstream in SQLite 3.50.2. The advisory listed no patched NuGet version at
+    the time it was published, which is the situation that tempts people to add
+    <NoWarn>NU1903</NoWarn> and move on. Don't: that silences the check for
+    every future advisory too, not just this one.
+
+    The package family has since shipped 2.1.12 and 2.1.13 carrying a newer
+    embedded SQLite, so the fix is to pin the whole family forward. It has to be
+    the WHOLE family - bundle, core, provider and lib are versioned in lockstep,
+    and pinning only the flagged one produces a bundle loading a native library
+    it was not built against.
+
+    None of these is referenced directly by any project here; they all arrive
+    transitively under EF Core's SQLite provider, which is why
+    CentralPackageTransitivePinningEnabled (top of this file) is what makes the
+    override possible at all.
+
+    Covered in: course/module-13-deployment/03-supply-chain.md — case two
+  -->
+  <ItemGroup>
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
+    <PackageVersion Include="SQLitePCLRaw.core" Version="2.1.13" />
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13" />
+    <PackageVersion Include="SQLitePCLRaw.provider.e_sqlite3" Version="2.1.13" />
+  </ItemGroup>
+  <!-- ── Observability ───────────────────────────────────────────────────── -->
+  <ItemGroup>
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.13.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+  </ItemGroup>
+  <!-- ── Testing ─────────────────────────────────────────────────────────── -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
+    <PackageVersion Include="NSubstitute" Version="6.1.0" />
+    <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
+    <!-- The SignalR CLIENT, used by the tests to connect to the hub the way a browser would.
+         A hub tested through a mocked IHubContext proves the mapping and nothing else; the
+         interesting failures (auth on the handshake, group routing, serialization) all live
+         in the part a mock replaces. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
+    <!--
+      Testcontainers.MsSql WAS here, and its removal is worth a note rather than a silent
+      deletion.
+
+      The integration tests used it to start a throwaway SQL Server container per run. When the
+      repository moved off Docker they were retargeted at a locally installed SQL Server with a
+      per-run database instead (see tests/LogiFlow.Api.IntegrationTests/LogiFlowApiFactory.cs),
+      and the package became dead weight.
+
+      Dead weight with a CVE attached, as it happens. It pulled in SSH.NET 2025.1.0
+      transitively - Testcontainers uses it for SSH port forwarding - and that version carries
+      GHSA-q939-rpr3-3284, a high severity advisory. So `dotnet build` on this solution emitted
+      NU1903 on every single run.
+
+      The lesson is the one this file keeps making: the cheapest way to fix a vulnerable
+      dependency is to stop depending on it. A pin would have worked too, but pinning a package
+      nothing uses is maintenance you have volunteered for permanently.
+
+      Covered in: course/module-13-deployment/03-supply-chain.md - case three
+    -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+
+    <!--
+      NBomber: load testing, in C#. The counterpart to BenchmarkDotNet above and the answer to
+      a different question - BDN measures a method in isolation, NBomber measures the system
+      under concurrent load, where connection pools, lock contention and optimistic-concurrency
+      retries live. Neither substitutes for the other.
+    -->
+    <PackageVersion Include="NBomber" Version="6.1.2" />
+    <PackageVersion Include="NBomber.Http" Version="6.0.0" />
+
+    <!--
+      A TRANSITIVE CVE, and the fix, left visible on purpose.
+
+      NBomber 6.1.2 resolves MessagePack 2.5.192, which carries GHSA-vh6j-jc39-fggf (high) plus
+      two moderates. NuGetAudit reported all three on the first restore. The package we asked
+      for is fine; the package IT asked for is not, which is the case central package management
+      exists to give you a lever over.
+
+      The lever: a PackageVersion plus a direct PackageReference pins the transitive resolution,
+      so one line moves MessagePack for every project that ends up with it.
+
+      Module 13 golden rule 5 says "newest is not the goal, patched and compatible is", and the
+      first attempt here followed it exactly - move to 2.5.198, the newest patch on the line
+      NBomber was built against, and stay off a major version. It did not work: 2.5.198 still
+      carries GHSA-vh6j-jc39-fggf, and so does 3.1.4. The advisory is only cleared in 3.1.8.
+
+      So the rule met the case it does not cover: sometimes there IS no patched version on your
+      line, and the choice is a major-version jump or a known-vulnerable dependency. The jump
+      wins - but it is a jump, it is why this comment exists, and it is why the load tests are
+      excluded from LogiFlow.slnf. If NBomber ever breaks against MessagePack 3.x, the failure
+      will be here, and this paragraph is the note explaining what was traded for what.
+    -->
+    <PackageVersion Include="MessagePack" Version="3.1.8" />
+  </ItemGroup>
+</Project>

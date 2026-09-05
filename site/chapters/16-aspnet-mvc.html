@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16 · ASP.NET Core MVC — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="16-aspnet-mvc">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 16</p>
+<h1>ASP.NET Core MVC</h1>
+<p class="lede">
+  The same framework as <a href="14-web-api.html">chapter 14</a>, with one difference: the response
+  is HTML rendered on the server instead of JSON. In the <em>gestionale</em> and ERP world this
+  advert comes from, this is how most internal screens are still built &mdash; and it is
+  genuinely the right tool for them.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Conoscenza di ASP.NET Core MVC."</em> Its presence alongside Web API tells you the
+  system has both: an API for integrations and a mobile or SPA client, and server-rendered admin
+  screens for internal users.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-pattern">The pattern</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A restaurant again, but look at who does what.
+  </p>
+  <ul>
+    <li>The <strong>Model</strong> is the food and the recipes &mdash; the real substance.</li>
+    <li>The <strong>View</strong> is the plate: how it is arranged so it looks good. The plate
+        never decides what goes on it.</li>
+    <li>The <strong>Controller</strong> is the waiter: takes the order, tells the kitchen, brings
+        back the plate. The waiter does not cook, and does not decide the garnish.</li>
+  </ul>
+  <p>
+    When the waiter starts cooking, everything goes wrong. That is the mistake called a
+    <em>fat controller</em>.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    MVC separates responsibilities so each can change independently: the model holds data and
+    business rules, the view is a template with no logic beyond presentation, and the controller
+    coordinates &mdash; it binds input, invokes the application layer, and selects a result.
+  </p>
+  <p>
+    The practical consequence is that a controller action should be readable in about ten lines. If
+    it contains business rules, they belong in a service; if it contains queries, they belong in a
+    repository; if it contains formatting, it belongs in the view.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mvc-title">
+    <title id="mvc-title">A request through the MVC pattern</title>
+    <defs>
+      <marker id="a12" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="110" width="140" height="70" rx="9" class="d-panel"/>
+    <rect x="20" y="110" width="140" height="70" rx="9" class="d-stroke"/>
+    <text x="90" y="140" class="d-text" text-anchor="middle">Browser</text>
+    <text x="90" y="162" class="d-small" text-anchor="middle">GET /orders/42</text>
+
+    <path d="M162 132 L246 132" class="d-arrow" stroke-width="1.8" marker-end="url(#a12)"/>
+    <text x="204" y="124" class="d-small" text-anchor="middle">1</text>
+
+    <rect x="248" y="96" width="170" height="98" rx="9" class="d-brand" opacity=".92"/>
+    <text x="333" y="126" class="d-white" text-anchor="middle">Controller</text>
+    <text x="333" y="148" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">binds the input,</text>
+    <text x="333" y="164" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">asks, chooses a result</text>
+    <text x="333" y="182" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11px;opacity:.85">thin — always</text>
+
+    <path d="M333 96 L333 56" class="d-arrow" stroke-width="1.8" marker-end="url(#a12)"/>
+    <text x="343" y="78" class="d-small">2</text>
+    <rect x="248" y="18" width="170" height="38" rx="9" class="d-panel"/>
+    <rect x="248" y="18" width="170" height="38" rx="9" class="d-stroke"/>
+    <text x="333" y="42" class="d-text" text-anchor="middle">Model / services</text>
+
+    <path d="M420 132 L504 132" class="d-arrow" stroke-width="1.8" marker-end="url(#a12)"/>
+    <text x="462" y="124" class="d-small" text-anchor="middle">3</text>
+    <text x="462" y="150" class="d-small" text-anchor="middle">ViewModel</text>
+
+    <rect x="506" y="96" width="170" height="98" rx="9" class="d-panel"/>
+    <rect x="506" y="96" width="170" height="98" rx="9" class="d-stroke"/>
+    <text x="591" y="126" class="d-text" text-anchor="middle">View (.cshtml)</text>
+    <text x="591" y="148" class="d-small" text-anchor="middle">Razor template</text>
+    <text x="591" y="166" class="d-small" text-anchor="middle">no decisions, only</text>
+    <text x="591" y="182" class="d-small" text-anchor="middle">presentation</text>
+
+    <path d="M678 132 L762 132" class="d-arrow" stroke-width="1.8" marker-end="url(#a12)"/>
+    <text x="720" y="124" class="d-small" text-anchor="middle">4</text>
+    <rect x="764" y="110" width="56" height="70" rx="9" class="d-panel"/>
+    <rect x="764" y="110" width="56" height="70" rx="9" class="d-stroke"/>
+    <text x="792" y="150" class="d-mono" text-anchor="middle">HTML</text>
+
+    <text x="20" y="240" class="d-small">Compare with chapter 14: a Web API stops at step 3 and serialises the DTO to JSON instead of</text>
+    <text x="20" y="260" class="d-small">rendering a view. Same routing, same binding, same DI, same middleware — different final step.</text>
+  </svg>
+  <figcaption>MVC and Web API differ only in what happens at the end.</figcaption>
+</figure>
+
+<h2 id="controller">The controller</h2>
+
+<div class="code-head">OrdersController.cs — the MVC version</div>
+<pre><code><span class="kw">public class</span> <span class="ty">OrdersController</span>(<span class="ty">IOrderService</span> service) : <span class="ty">Controller</span>   <span class="cm">// Controller, not ControllerBase</span>
+{
+    <span class="cm">// GET /Orders  → Views/Orders/Index.cshtml</span>
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IActionResult</span>&gt; Index(<span class="ty">OrderFilter</span> filter, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> vm = <span class="kw">await</span> service.SearchAsync(filter, ct);
+        <span class="kw">return</span> View(vm);
+    }
+
+    <span class="cm">// GET /Orders/Edit/42</span>
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IActionResult</span>&gt; Edit(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">var</span> vm = <span class="kw">await</span> service.GetForEditAsync(id, ct);
+        <span class="kw">return</span> vm <span class="kw">is null</span> ? NotFound() : View(vm);
+    }
+
+    <span class="cm">// POST /Orders/Edit/42</span>
+    [<span class="ty">HttpPost</span>, <span class="ty">ValidateAntiForgeryToken</span>]
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IActionResult</span>&gt; Edit(<span class="ty">int</span> id, <span class="ty">EditOrderViewModel</span> vm, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">if</span> (!ModelState.IsValid)
+            <span class="kw">return</span> View(vm);          <span class="cm">// redisplay the form WITH the errors and the input</span>
+
+        <span class="kw">await</span> service.UpdateAsync(id, vm, ct);
+
+        TempData[<span class="st">"Success"</span>] = <span class="st">"Ordine aggiornato."</span>;
+        <span class="kw">return</span> RedirectToAction(<span class="kw">nameof</span>(Index));   <span class="cm">// ← Post/Redirect/Get</span>
+    }
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Post/Redirect/Get, and why it exists</div>
+  <p>
+    After a successful <code>POST</code>, always <code>RedirectToAction</code> rather than
+    returning a view. If you return the view directly, the browser&rsquo;s address bar still shows
+    the POST &mdash; so pressing F5 re-submits the form and creates a second order, and the browser
+    shows a "confirm resubmission" dialog that no user understands. The redirect turns the final
+    state into a clean <code>GET</code>.
+  </p>
+</div>
+
+<h2 id="razor">Razor</h2>
+
+<p>
+  Razor is HTML with <code>@</code> to escape into C#. The rule is: <strong>the view displays; it
+  does not decide.</strong>
+</p>
+
+<div class="code-head">Views/Orders/Index.cshtml</div>
+<pre><code>@model OrderListViewModel
+@{
+    ViewData[<span class="st">"Title"</span>] = <span class="st">"Ordini"</span>;
+}
+
+&lt;h1&gt;@ViewData[<span class="st">"Title"</span>]&lt;/h1&gt;
+
+@if (TempData[<span class="st">"Success"</span>] <span class="kw">is string</span> msg)
+{
+    &lt;div <span class="ty">class</span>=<span class="st">"alert alert-success"</span>&gt;@msg&lt;/div&gt;
+}
+
+&lt;table <span class="ty">class</span>=<span class="st">"table"</span>&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;&lt;th&gt;Numero&lt;/th&gt;&lt;th&gt;Cliente&lt;/th&gt;&lt;th&gt;Totale&lt;/th&gt;&lt;th&gt;&lt;/th&gt;&lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+  @foreach (<span class="kw">var</span> o <span class="kw">in</span> Model.Orders)
+  {
+    &lt;tr&gt;
+      &lt;td&gt;@o.OrderNumber&lt;/td&gt;
+      &lt;td&gt;@o.CustomerName&lt;/td&gt;
+      <span class="cm">@* :C uses the request culture — it.IT gives 1.234,50 € *@</span>
+      &lt;td&gt;@o.Total.ToString(<span class="st">"C"</span>)&lt;/td&gt;
+      &lt;td&gt;&lt;a asp-action=<span class="st">"Edit"</span> asp-route-id=<span class="st">"@o.Id"</span>&gt;Modifica&lt;/a&gt;&lt;/td&gt;
+    &lt;/tr&gt;
+  }
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+@* partial view: reusable fragment *@
+&lt;partial name=<span class="st">"_Pager"</span> model=<span class="st">"Model.Paging"</span> /&gt;</code></pre>
+
+<div class="box note">
+  <div class="box-title">Razor escapes HTML for you</div>
+  <p>
+    <code>@someString</code> is HTML-encoded automatically, which means Razor is safe against
+    cross-site scripting <em>by default</em>. The escape hatch is <code>@Html.Raw(...)</code>
+    &mdash; and every use of it is a potential XSS hole, so it needs a reason and a review.
+  </p>
+</div>
+
+<h3>Layouts and partials</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Piece</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><code>_Layout.cshtml</code></td><td>The page shell &mdash; header, nav, footer. Views render into its <code>@RenderBody()</code>.</td></tr>
+    <tr><td><code>_ViewStart.cshtml</code></td><td>Runs before every view; this is where the layout is chosen.</td></tr>
+    <tr><td><code>_ViewImports.cshtml</code></td><td>Shared <code>@using</code> and <code>@addTagHelper</code> directives.</td></tr>
+    <tr><td>Partial view</td><td>A reusable fragment, given a model. No logic of its own.</td></tr>
+    <tr><td>View component</td><td>A partial <em>with</em> its own logic and dependencies &mdash; a shopping-cart badge, a menu built from the database.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="tag-helpers">Tag helpers and forms</h2>
+
+<p>
+  Tag helpers look like HTML attributes but are generated server-side. They produce correct names,
+  ids, validation attributes and the antiforgery token &mdash; which is why hand-writing form HTML
+  in MVC is a mistake.
+</p>
+
+<div class="code-head">Views/Orders/Edit.cshtml</div>
+<pre><code>@model EditOrderViewModel
+
+&lt;form asp-action=<span class="st">"Edit"</span> asp-route-id=<span class="st">"@Model.Id"</span> method=<span class="st">"post"</span>&gt;
+    <span class="cm">@* &lt;form&gt; injects the antiforgery hidden field automatically *@</span>
+
+    &lt;div asp-validation-summary=<span class="st">"ModelOnly"</span> <span class="ty">class</span>=<span class="st">"text-danger"</span>&gt;&lt;/div&gt;
+
+    &lt;div <span class="ty">class</span>=<span class="st">"mb-3"</span>&gt;
+        &lt;label asp-for=<span class="st">"Notes"</span> <span class="ty">class</span>=<span class="st">"form-label"</span>&gt;&lt;/label&gt;
+        &lt;input asp-for=<span class="st">"Notes"</span> <span class="ty">class</span>=<span class="st">"form-control"</span> /&gt;
+        &lt;span asp-validation-for=<span class="st">"Notes"</span> <span class="ty">class</span>=<span class="st">"text-danger"</span>&gt;&lt;/span&gt;
+    &lt;/div&gt;
+
+    &lt;div <span class="ty">class</span>=<span class="st">"mb-3"</span>&gt;
+        &lt;label asp-for=<span class="st">"Status"</span>&gt;&lt;/label&gt;
+        &lt;select asp-for=<span class="st">"Status"</span> asp-items=<span class="st">"Model.StatusOptions"</span> <span class="ty">class</span>=<span class="st">"form-select"</span>&gt;&lt;/select&gt;
+    &lt;/div&gt;
+
+    &lt;button type=<span class="st">"submit"</span> <span class="ty">class</span>=<span class="st">"btn btn-primary"</span>&gt;Salva&lt;/button&gt;
+    &lt;a asp-action=<span class="st">"Index"</span> <span class="ty">class</span>=<span class="st">"btn btn-link"</span>&gt;Annulla&lt;/a&gt;
+&lt;/form&gt;</code></pre>
+
+<p>
+  <code>asp-for</code> reads the property, so the label text, the input <code>name</code>, the
+  <code>id</code>, the value and the client-side validation attributes all come from one source.
+  Rename the property and everything follows.
+</p>
+
+<h2 id="viewmodels">View models &mdash; the same rule as DTOs</h2>
+
+<div class="code-head">shaped for the screen, not for the database</div>
+<pre><code><span class="kw">public class</span> <span class="ty">EditOrderViewModel</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">init</span>; }
+
+    [<span class="ty">Display</span>(Name = <span class="st">"Note"</span>)]
+    [<span class="ty">StringLength</span>(500, ErrorMessage = <span class="st">"Massimo 500 caratteri."</span>)]
+    <span class="kw">public string</span>? Notes { <span class="kw">get</span>; <span class="kw">set</span>; }
+
+    [<span class="ty">Display</span>(Name = <span class="st">"Stato"</span>)]
+    [<span class="ty">Required</span>(ErrorMessage = <span class="st">"Lo stato è obbligatorio."</span>)]
+    <span class="kw">public</span> <span class="ty">OrderStatus</span> Status { <span class="kw">get</span>; <span class="kw">set</span>; }
+
+    <span class="cm">// data the VIEW needs that the entity has no reason to carry</span>
+    <span class="kw">public</span> <span class="ty">IEnumerable</span>&lt;<span class="ty">SelectListItem</span>&gt; StatusOptions { <span class="kw">get</span>; <span class="kw">init</span>; } = [];
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Over-posting / mass assignment</div>
+  <p>
+    Binding directly to an entity lets an attacker POST fields you never put on the form. Add
+    <code>&amp;IsAdmin=true</code> or <code>&amp;Total=0</code> to the request body and the binder
+    will happily set them. A view model containing only the editable fields makes the attack
+    impossible rather than merely unlikely &mdash; which is the same argument as DTOs in
+    <a href="14-web-api.html#dtos">chapter 14</a>, with a sharper security edge.
+  </p>
+</div>
+
+<h3>Passing data to a view</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Mechanism</th><th>Typed</th><th>Lives for</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td><strong>The model</strong> (<code>@model</code>)</td><td>Yes</td><td>This request</td><td><strong>Use this.</strong></td></tr>
+    <tr><td><code>ViewData</code> / <code>ViewBag</code></td><td>No</td><td>This request</td><td>Page titles and little else.</td></tr>
+    <tr><td><code>TempData</code></td><td>No</td><td>Until read &mdash; survives one redirect</td><td>Flash messages after PRG.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="security">Antiforgery and the CSRF attack</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You are logged into your bank in one browser tab. In another tab you open a page a stranger
+    sent you. That page quietly tells your browser: <em>"send a transfer request to the bank."</em>
+    Your browser obediently attaches your bank cookie, because it always does &mdash; and the bank
+    sees a perfectly valid request from you.
+  </p>
+  <p>
+    The defence is a secret word printed on the real form. The stranger&rsquo;s page cannot know it,
+    so their forged request has no word, and the bank refuses it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Cross-Site Request Forgery exploits ambient cookie authentication. ASP.NET Core defends with a
+    synchroniser token: the <code>&lt;form&gt;</code> tag helper emits a hidden field, a matching
+    cookie is set, and <code>[ValidateAntiForgeryToken]</code> requires both to agree.
+  </p>
+  <p>
+    Note the scope: this matters for <strong>cookie-authenticated MVC forms</strong>. A Web API
+    using bearer tokens is not vulnerable in the same way, because the token is not sent
+    automatically by the browser. Knowing <em>why</em> the two differ is the interesting half of
+    the answer.
+  </p>
+</div>
+
+<h2 id="which-one">MVC, Razor Pages, or Blazor?</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Choose</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><strong>MVC</strong></td><td>Server-rendered screens, an existing MVC codebase, or a controller shared with an API. The default in enterprise .NET.</td></tr>
+    <tr><td><strong>Razor Pages</strong></td><td>Page-centric CRUD. Each page owns its handlers &mdash; less ceremony than MVC for forms.</td></tr>
+    <tr><td><strong>Blazor</strong></td><td>Rich interactivity in C# without JavaScript. Increasingly how WinForms and WPF shops move to the web.</td></tr>
+    <tr><td><strong>Web API + SPA</strong></td><td>A separate front-end team, or several clients (web, mobile, partners) over one API.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  This repository contains <a href="../../src/LogiFlow.Web/">src/LogiFlow.Web</a>, a Blazor Web App
+  consuming the API over HTTP, and the course covers it in
+  <a href="../../course/module-18-blazor/README.md">module 18</a> &mdash; specifically because
+  Blazor is the migration path this region&rsquo;s WinForms estate is taking.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>dotnet new mvc -o DemoMvc
+<span class="kw">cd</span> DemoMvc &amp;&amp; dotnet run</code></pre>
+  <ol>
+    <li>Add an <code>Orders</code> controller with <code>Index</code> and <code>Edit</code>
+        actions and a view model.</li>
+    <li>Build the edit form with tag helpers. View the page source and find the hidden
+        <code>__RequestVerificationToken</code>.</li>
+    <li>Remove <code>[ValidateAntiForgeryToken]</code>, submit, and then put it back &mdash; notice
+        the framework did the work either way.</li>
+    <li>Return <code>View(vm)</code> instead of redirecting after a successful POST, then press
+        F5. The resubmission dialog is why PRG exists.</li>
+    <li>Add <code>[StringLength(5)]</code> to a property and submit a longer value with JavaScript
+        disabled. Server-side validation still catches it &mdash; which is the point: client-side
+        validation is a convenience, never a control.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Controllers stay thin: bind, delegate, choose a result. Business logic lives below them.</li>
+    <li>Views display; they never decide. No queries and no rules in a <code>.cshtml</code>.</li>
+    <li>Always a view model. Never bind a form directly to an EF entity &mdash; that is
+        mass assignment.</li>
+    <li>Post/Redirect/Get after every successful POST.</li>
+    <li>Redisplay the view with <code>ModelState</code> when validation fails, so the user does not
+        lose their input.</li>
+    <li>Validate on the server. Client-side validation is a courtesy to the user, not a security
+        control.</li>
+    <li><code>[ValidateAntiForgeryToken]</code> on every state-changing POST in a cookie-authenticated
+        app.</li>
+    <li>Razor encodes output by default. <code>@Html.Raw</code> needs a reason and a reviewer.</li>
+    <li>Tag helpers over hand-written HTML: names, ids and validation attributes stay in sync with
+        the model.</li>
+    <li><code>TempData</code> for a message across one redirect; the model for everything else.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Explain MVC."</p>
+  <p class="a">
+    Model holds data and rules, view renders, controller coordinates. Then make it concrete: the
+    controller should be about ten lines, and anything longer is logic that belongs in a service.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between MVC and Web API in ASP.NET Core?"</p>
+  <p class="a">
+    They are the same framework &mdash; same routing, binding, DI and middleware. MVC returns a
+    rendered view; a Web API controller derives from <code>ControllerBase</code> and returns
+    serialised data. <code>[ApiController]</code> adds automatic 400s and binding inference.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"ViewBag, ViewData or TempData?"</p>
+  <p class="a">
+    <code>ViewData</code> is a dictionary and <code>ViewBag</code> is its dynamic wrapper &mdash;
+    both last one request. <code>TempData</code> survives a redirect and is consumed on read, which
+    makes it right for a flash message after PRG. For everything real, use a typed model.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is CSRF and how does ASP.NET Core prevent it?"</p>
+  <p class="a">
+    A forged state-changing request from another site, riding on the browser&rsquo;s automatically
+    sent auth cookie. Prevented by an antiforgery token that the attacker cannot read. Add the
+    nuance: it is a cookie-auth problem, so a bearer-token API is not exposed the same way.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why not bind the form straight to your entity?"</p>
+  <p class="a">
+    Over-posting. The model binder sets any property present in the request, so an attacker can
+    submit fields that were never on the form. A view model with only the editable fields removes
+    the attack surface entirely.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

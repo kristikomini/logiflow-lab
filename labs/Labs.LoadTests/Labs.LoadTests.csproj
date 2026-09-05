@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    LOAD TESTS. The other half of the performance story.
+
+    Labs.Benchmarks measures a method: nanoseconds, allocations, one thread, no
+    network, no database. It answers "is this code fast?".
+
+    This project answers a different question that the first one cannot: "does the
+    SYSTEM hold up?" — with fifty callers at once, a connection pool of finite
+    size, a database taking locks, and a rowversion column arbitrating between
+    writers. Those effects do not exist in a microbenchmark and they are what
+    actually takes a service down.
+
+        dotnet run  (from inside labs/Labs.LoadTests)
+
+    It needs the API running. It is not in LogiFlow.slnf for that reason: a test
+    that requires a server is not a unit test and must never be part of a CI run
+    that expects one.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Labs.LoadTests</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NBomber" />
+    <PackageReference Include="NBomber.Http" />
+    <!-- Not used directly. Referenced ONLY to force the transitive MessagePack up off a known
+         CVE - see the note in Directory.Packages.props. A direct reference is what makes the
+         central version apply. -->
+    <PackageReference Include="MessagePack" />
+  </ItemGroup>
+
+</Project>

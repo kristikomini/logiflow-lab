@@ -1,0 +1,160 @@
+# EditorConfig — https://editorconfig.org
+# This file is not decoration. With <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+# in Directory.Build.props, the IDExxxx rules below are checked by the compiler.
+# Covered in: course/module-00-setup/03-build-system.md
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{json,yml,yaml,csproj,props,targets,xml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_size = 4
+max_line_length = 120
+
+#### .NET code style ####
+
+# Namespaces: file-scoped (`namespace Foo;`) — one less level of indentation everywhere.
+csharp_style_namespace_declarations = file_scoped:error
+
+# `var` only when the type is obvious from the right-hand side.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# Modern expression styles
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_accessors = true:suggestion
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_prefer_switch_expression = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_prefer_not_pattern = true:suggestion
+csharp_style_prefer_range_operator = true:suggestion
+csharp_style_prefer_index_operator = true:suggestion
+csharp_style_throw_expression = true:suggestion
+csharp_style_conditional_delegate_call = true:suggestion
+csharp_prefer_simple_using_statement = true:suggestion
+csharp_prefer_braces = true:warning
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_readonly_struct = true:suggestion
+csharp_style_prefer_utf8_string_literals = true:suggestion
+
+# Null handling
+dotnet_style_coalesce_expression = true:warning
+dotnet_style_null_propagation = true:warning
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+
+# `this.` is noise in C#
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+# Immutability nudges — these catch real bugs
+dotnet_style_readonly_field = true:warning
+dotnet_style_prefer_auto_properties = true:suggestion
+dotnet_style_object_initializer = true:suggestion
+dotnet_style_collection_initializer = true:suggestion
+dotnet_style_prefer_collection_expression = when_types_loosely_match:suggestion
+
+# using directives
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+
+#### Naming rules ####
+
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_pascal
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_style.prefix_i_pascal.required_prefix = I
+dotnet_naming_style.prefix_i_pascal.capitalization = pascal_case
+
+dotnet_naming_rule.types_are_pascal.severity = warning
+dotnet_naming_rule.types_are_pascal.symbols = type_symbols
+dotnet_naming_rule.types_are_pascal.style = pascal
+dotnet_naming_symbols.type_symbols.applicable_kinds = class,struct,enum,delegate
+dotnet_naming_style.pascal.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_are_underscore_camel.severity = warning
+dotnet_naming_rule.private_fields_are_underscore_camel.symbols = private_field_symbols
+dotnet_naming_rule.private_fields_are_underscore_camel.style = underscore_camel
+dotnet_naming_symbols.private_field_symbols.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbols.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+dotnet_naming_rule.constants_are_pascal.severity = warning
+dotnet_naming_rule.constants_are_pascal.symbols = constant_symbols
+dotnet_naming_rule.constants_are_pascal.style = pascal
+dotnet_naming_symbols.constant_symbols.applicable_kinds = field
+dotnet_naming_symbols.constant_symbols.required_modifiers = const
+
+#### Analyzer severities that matter ####
+
+# ConfigureAwait — see course/module-04-async/04-configureawait.md
+dotnet_diagnostic.CA2007.severity = none
+
+# Async method lacking await
+dotnet_diagnostic.CS1998.severity = warning
+# Unobserved async void
+dotnet_diagnostic.CA2012.severity = warning
+# Do not use blocking .Result/.Wait() on async code
+dotnet_diagnostic.CA1849.severity = warning
+# Pass CancellationToken through
+dotnet_diagnostic.CA2016.severity = warning
+# Use string.Contains(char) etc — micro but free
+dotnet_diagnostic.CA1847.severity = suggestion
+# Prefer static lambdas / avoid closure allocation in hot paths
+dotnet_diagnostic.CA1822.severity = suggestion
+# Seal internal types the JIT can devirtualize
+dotnet_diagnostic.CA1852.severity = suggestion
+# LoggerMessage source generator over interpolated log strings
+dotnet_diagnostic.CA1848.severity = none
+# Specify IFormatProvider — we set InvariantGlobalization
+dotnet_diagnostic.CA1305.severity = suggestion
+dotnet_diagnostic.CA1310.severity = suggestion
+# Unused parameter
+dotnet_diagnostic.IDE0060.severity = suggestion
+# Remove unnecessary using directives
+dotnet_diagnostic.IDE0005.severity = warning
+
+# EF Core writes these files, and it writes them in its own style: block-scoped namespaces,
+# a fixed set of usings whether or not each is needed. Holding generated code to hand-written
+# standards means `dotnet ef migrations add` produces a repo that does not compile — with
+# TreatWarningsAsErrors on, IDE0005 and IDE0161 become build failures on a file you did not write.
+#
+# `generated_code = true` is the documented switch that tells every Roslyn analyzer to back off.
+# The specific severities below are belt-and-braces for analyzers that ignore it.
+#
+# Do NOT solve this by turning the rules off globally. The rules are valuable on code you own;
+# they are noise on code a tool emits.
+[**/Migrations/*.cs]
+generated_code = true
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CS1591.severity = none
+
+[tests/**/*.cs]
+# Tests are allowed to be verbose and unconventional
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.IDE0060.severity = none
+
+[labs/**/*.cs]
+dotnet_diagnostic.IDE0005.severity = suggestion
+dotnet_diagnostic.CS1998.severity = none

@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>27 · Visual Studio and VS Code — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="27-visual-studio-vscode">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 27</p>
+<h1>Visual Studio and VS Code</h1>
+<p class="lede">
+  "Utilizzo fluido" does not mean knowing where the menus are. It means you can find a bug in code
+  you have never seen, in an application you did not start, without adding a single
+  <code>Console.WriteLine</code>. That skill is visible within ten minutes of pair programming.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Utilizzo fluido di Visual Studio e/o VS Code."</em> The <em>e/o</em> means either is
+  fine. What is not fine is being unable to debug.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="which">Which one, and when</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th>Visual Studio</th><th>VS Code</th></tr></thead>
+  <tbody>
+    <tr><td>Is</td><td>A full IDE. Windows (and a discontinued Mac version).</td><td>An editor plus extensions. Everywhere.</td></tr>
+    <tr><td>Best at</td><td>Large solutions, deep debugging, profiling, designers, EF tooling</td><td>Speed, mixed-language work, remote and container development</td></tr>
+    <tr><td>C# support</td><td>Native</td><td>C# Dev Kit extension</td></tr>
+    <tr><td>Cost</td><td>Community is free for individuals and small companies; Professional otherwise</td><td>Free</td></tr>
+    <tr><td>You will find</td><td>The standard in Italian enterprise .NET shops</td><td>Increasingly used alongside it</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  In practice most .NET developers use both: Visual Studio for the solution and the debugger, VS
+  Code for a quick file, a YAML pipeline, some TypeScript, or anything over SSH. JetBrains Rider is
+  a common third answer and perfectly acceptable to name.
+</p>
+
+<h2 id="debugging">Debugging &mdash; the part that matters</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine watching a film and being able to pause it at any moment, walk into the scene, and open
+    every character&rsquo;s pockets to see what they are carrying. Then press play for one single
+    frame and look again.
+  </p>
+  <p>
+    That is a debugger. People who have not learned to use one are stuck shouting questions at the
+    screen and hoping the film answers &mdash; which is what <code>Console.WriteLine</code> really
+    is.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="dbg-title">
+    <title id="dbg-title">A paused program: the call stack, and where each stepping command takes you</title>
+    <defs>
+      <marker id="a17" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">Call stack — how you got here, newest at the top</text>
+
+    <rect x="20" y="36" width="330" height="34" rx="7" class="d-brand" opacity=".92"/>
+    <text x="36" y="58" class="d-white" style="font-size:12px">OrderService.Recalculate()   ← paused here</text>
+
+    <rect x="20" y="78" width="330" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="78" width="330" height="34" rx="7" class="d-stroke"/>
+    <text x="36" y="100" class="d-mono">OrderService.Submit()</text>
+
+    <rect x="20" y="120" width="330" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="120" width="330" height="34" rx="7" class="d-stroke"/>
+    <text x="36" y="142" class="d-mono">OrdersController.Post()</text>
+
+    <rect x="20" y="162" width="330" height="34" rx="7" class="d-panel"/>
+    <rect x="20" y="162" width="330" height="34" rx="7" class="d-stroke"/>
+    <text x="36" y="184" class="d-small">[ASP.NET Core middleware…]</text>
+
+    <text x="20" y="222" class="d-small">Double-click any frame to inspect the variables</text>
+    <text x="20" y="240" class="d-small">as they were <tspan style="font-style:italic">at that point</tspan>. The answer is</text>
+    <text x="20" y="258" class="d-small">very often two frames up.</text>
+
+    <text x="420" y="24" class="d-text" style="font-weight:700">Where each key takes you from the pause</text>
+
+    <rect x="420" y="36" width="400" height="76" rx="8" class="d-fill"/>
+    <rect x="420" y="36" width="400" height="76" rx="8" class="d-stroke"/>
+    <text x="436" y="58" class="d-mono" style="font-size:11.5px">var total = Sum(lines);   ← the current line</text>
+    <path d="M700 52 L780 52" class="d-arrow" stroke-width="1.6" marker-end="url(#a17)"/>
+    <text x="436" y="82" class="d-small"><tspan style="font-weight:700">F10</tspan> step over — runs Sum() whole, stops on the next line</text>
+    <text x="436" y="102" class="d-small"><tspan style="font-weight:700">F11</tspan> step into — stops on the first line <tspan style="font-style:italic">inside</tspan> Sum()</text>
+
+    <rect x="420" y="124" width="400" height="56" rx="8" class="d-fill"/>
+    <rect x="420" y="124" width="400" height="56" rx="8" class="d-stroke"/>
+    <text x="436" y="146" class="d-small"><tspan style="font-weight:700">Shift+F11</tspan> step out — finish Recalculate(), stop in Submit()</text>
+    <text x="436" y="168" class="d-small"><tspan style="font-weight:700">Ctrl+Shift+F10</tspan> set next statement — move the pointer, re-run a block</text>
+
+    <rect x="420" y="192" width="400" height="82" rx="8" class="d-panel"/>
+    <rect x="420" y="192" width="400" height="82" rx="8" class="d-stroke"/>
+    <text x="436" y="214" class="d-text" style="font-size:13px">While paused, you can also:</text>
+    <text x="436" y="236" class="d-small">· evaluate any expression in <tspan class="d-mono">Watch</tspan>, LINQ included</text>
+    <text x="436" y="256" class="d-small">· call methods and assign values in <tspan class="d-mono">Immediate</tspan></text>
+    <text x="436" y="268" class="d-small"> </text>
+
+    <text x="20" y="298" class="d-small">A breakpoint is not &ldquo;stop the program&rdquo;. It is &ldquo;freeze the program and let me walk around inside it&rdquo;.</text>
+  </svg>
+  <figcaption>The stack tells you how you arrived; the stepping keys decide where you go next.</figcaption>
+</figure>
+
+<h3>Stepping</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Action</th><th>Key</th><th>Does</th></tr></thead>
+  <tbody>
+    <tr><td>Start debugging</td><td><kbd>F5</kbd></td><td>Run until a breakpoint</td></tr>
+    <tr><td>Step <strong>over</strong></td><td><kbd>F10</kbd></td><td>Run the current line, do not enter the method called on it</td></tr>
+    <tr><td>Step <strong>into</strong></td><td><kbd>F11</kbd></td><td>Enter the method being called</td></tr>
+    <tr><td>Step <strong>out</strong></td><td><kbd>Shift+F11</kbd></td><td>Finish this method and stop at the caller</td></tr>
+    <tr><td>Run to cursor</td><td><kbd>Ctrl+F10</kbd></td><td>Continue until the line the caret is on</td></tr>
+    <tr><td>Set next statement</td><td><kbd>Ctrl+Shift+F10</kbd></td><td>Move the execution pointer &mdash; re-run a block without restarting</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Breakpoints that do more than stop</h3>
+
+<p>
+  This is where "fluent" starts. A plain breakpoint in a loop over ten thousand orders is useless;
+  these are not.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Kind</th><th>How</th><th>Use it to</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Conditional</strong></td><td>Right-click the breakpoint &rarr; Conditions &rarr; <code>order.Id == 4471</code></td>
+        <td>Stop only on the one row that is wrong.</td></tr>
+    <tr><td><strong>Hit count</strong></td><td>Conditions &rarr; Hit Count &rarr; <code>= 500</code></td>
+        <td>Stop on the 500th iteration.</td></tr>
+    <tr><td><strong>Tracepoint</strong></td><td>Actions &rarr; "Log a message", <code>{order.Id} = {order.Total}</code></td>
+        <td>Print without stopping &mdash; <code>Console.WriteLine</code> with no recompile and no code change.</td></tr>
+    <tr><td><strong>Exception</strong></td><td>Debug &rarr; Windows &rarr; Exception Settings</td>
+        <td>Break the moment an exception is <em>thrown</em>, before anything catches and hides it.</td></tr>
+    <tr><td><strong>Data breakpoint</strong></td><td>Right-click a field in Locals (C++, and .NET via the Watch window in recent versions)</td>
+        <td>Break when a value changes, when you do not know who is changing it.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 The exception settings window is the underused one</div>
+  <p>
+    A swallowed exception &mdash; <code>catch (Exception) { }</code> somewhere in a library, or a
+    <code>try</code> that logs at Debug level &mdash; is invisible in normal running. Ticking
+    "Common Language Runtime Exceptions" in Exception Settings makes the debugger break at the
+    <code>throw</code>, before any handler runs, so you see the original stack and the original
+    values. It is the single fastest way to diagnose "it just returns null and I do not know why".
+  </p>
+</div>
+
+<h3>The windows</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Window</th><th>What it is for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Locals / Autos</strong></td><td>Every variable in scope right now.</td></tr>
+    <tr><td><strong>Watch</strong></td><td>Expressions you pin &mdash; including LINQ:
+        <code>orders.Count(o =&gt; o.Total &gt; 100)</code> evaluated live.</td></tr>
+    <tr><td><strong>Immediate</strong></td><td>A REPL against the paused process. Call methods, assign values, test a fix before writing it.</td></tr>
+    <tr><td><strong>Call Stack</strong></td><td>How you got here. Double-click a frame to inspect its locals.</td></tr>
+    <tr><td><strong>Parallel Stacks</strong></td><td>All threads at once &mdash; how you diagnose the deadlock from <a href="07-async-and-errors.html#deadlock">chapter 07</a>.</td></tr>
+    <tr><td><strong>Diagnostic Tools</strong></td><td>Live CPU and memory while debugging. Take two heap snapshots and diff them to find a leak.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="method">A method for finding bugs</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Debugging is not poking at code until it works. It is a loop, and saying it out loud in an
+    interview is worth more than any shortcut:
+  </p>
+  <ol>
+    <li><strong>Reproduce it reliably.</strong> A bug you cannot reproduce is a bug you cannot
+        confirm you have fixed. Ideally, reproduce it in a failing <em>test</em>.</li>
+    <li><strong>Form a hypothesis.</strong> "The total is wrong because the discount is applied
+        twice." Specific, and falsifiable.</li>
+    <li><strong>Find the smallest observation that would disprove it.</strong> One conditional
+        breakpoint, one watch expression.</li>
+    <li><strong>Bisect.</strong> Halve the search space each time &mdash; in the call stack, or
+        across history with <code>git bisect</code>.</li>
+    <li><strong>Fix the cause, not the symptom.</strong> Then keep the test.</li>
+  </ol>
+  <p>
+    Candidates who describe this look experienced. Candidates who say "I add logging and look"
+    describe step 3 only.
+  </p>
+</div>
+
+<h2 id="shortcuts">Shortcuts worth muscle memory</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Do</th><th>Visual Studio</th><th>VS Code</th></tr></thead>
+  <tbody>
+    <tr><td>Go to anything</td><td><kbd>Ctrl+T</kbd></td><td><kbd>Ctrl+P</kbd></td></tr>
+    <tr><td>Go to definition</td><td><kbd>F12</kbd></td><td><kbd>F12</kbd></td></tr>
+    <tr><td>Peek definition</td><td><kbd>Alt+F12</kbd></td><td><kbd>Alt+F12</kbd></td></tr>
+    <tr><td>Find all references</td><td><kbd>Shift+F12</kbd></td><td><kbd>Shift+F12</kbd></td></tr>
+    <tr><td>Rename symbol</td><td><kbd>Ctrl+R, R</kbd></td><td><kbd>F2</kbd></td></tr>
+    <tr><td>Quick actions / fix</td><td><kbd>Ctrl+.</kbd></td><td><kbd>Ctrl+.</kbd></td></tr>
+    <tr><td>Command palette</td><td><kbd>Ctrl+Q</kbd></td><td><kbd>Ctrl+Shift+P</kbd></td></tr>
+    <tr><td>Comment selection</td><td><kbd>Ctrl+K, C</kbd></td><td><kbd>Ctrl+/</kbd></td></tr>
+    <tr><td>Format document</td><td><kbd>Ctrl+K, D</kbd></td><td><kbd>Shift+Alt+F</kbd></td></tr>
+    <tr><td>Navigate back</td><td><kbd>Ctrl+&minus;</kbd></td><td><kbd>Ctrl+Alt+&minus;</kbd></td></tr>
+    <tr><td>Multi-cursor</td><td><kbd>Alt+click</kbd></td><td><kbd>Alt+click</kbd> / <kbd>Ctrl+D</kbd></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  The two with the highest return are <strong>Go to anything</strong> and
+  <strong>Find all references</strong>. They are how you read a codebase you did not write, which
+  is the actual first task of a new job.
+</p>
+
+<h2 id="vscode">VS Code for .NET</h2>
+
+<div class="code-head">.vscode/launch.json</div>
+<pre><code>{
+  <span class="st">"version"</span>: <span class="st">"0.2.0"</span>,
+  <span class="st">"configurations"</span>: [
+    {
+      <span class="st">"name"</span>: <span class="st">"Debug API"</span>,
+      <span class="st">"type"</span>: <span class="st">"coreclr"</span>,
+      <span class="st">"request"</span>: <span class="st">"launch"</span>,
+      <span class="st">"preLaunchTask"</span>: <span class="st">"build"</span>,
+      <span class="st">"program"</span>: <span class="st">"${workspaceFolder}/src/LogiFlow.Api/bin/Debug/net10.0/LogiFlow.Api.dll"</span>,
+      <span class="st">"cwd"</span>: <span class="st">"${workspaceFolder}/src/LogiFlow.Api"</span>,
+      <span class="st">"env"</span>: { <span class="st">"ASPNETCORE_ENVIRONMENT"</span>: <span class="st">"Development"</span> },
+      <span class="st">"serverReadyAction"</span>: {
+        <span class="st">"action"</span>: <span class="st">"openExternally"</span>,
+        <span class="st">"pattern"</span>: <span class="st">"\\bNow listening on:\\s+(https?://\\S+)"</span>
+      }
+    },
+    {
+      <span class="st">"name"</span>: <span class="st">"Attach to process"</span>,
+      <span class="st">"type"</span>: <span class="st">"coreclr"</span>,
+      <span class="st">"request"</span>: <span class="st">"attach"</span>
+    }
+  ]
+}</code></pre>
+
+<p>
+  Extensions worth having: <strong>C# Dev Kit</strong>, <strong>REST Client</strong> (send HTTP
+  requests from a <code>.http</code> file &mdash; better than Postman for things you want in source
+  control), <strong>Docker</strong>, <strong>GitLens</strong>, and
+  <strong>SQL Server (mssql)</strong>.
+</p>
+
+<div class="code-head">requests.http — testable, reviewable, committed</div>
+<pre><code>@host = https://localhost:7001
+
+### fetch an order
+GET {{host}}/api/v1/orders/42
+Accept: application/json
+
+### create one
+POST {{host}}/api/v1/orders
+Content-Type: application/json
+
+{ <span class="st">"customerId"</span>: 42, <span class="st">"notes"</span>: <span class="st">"consegna urgente"</span> }</code></pre>
+
+<h2 id="cli">The CLI is part of the tooling</h2>
+
+<div class="code-head">what you run without an IDE at all</div>
+<pre><code>dotnet watch                        <span class="cm"># rebuild and restart on save</span>
+dotnet test --filter <span class="st">"Category=Unit"</span>
+dotnet format                       <span class="cm"># apply .editorconfig across the solution</span>
+dotnet list package --vulnerable    <span class="cm"># known CVEs in your dependencies</span>
+dotnet ef migrations list           <span class="cm"># (ch. 09)</span>
+
+<span class="cm"># diagnosing a running process — the tools that impress</span>
+dotnet-counters monitor -p &lt;pid&gt;    <span class="cm"># live GC, thread pool, request rate</span>
+dotnet-dump collect  -p &lt;pid&gt;       <span class="cm"># a memory dump to analyse offline</span>
+dotnet-trace collect -p &lt;pid&gt;       <span class="cm"># CPU profile of a live process</span></code></pre>
+
+<div class="box note">
+  <div class="box-title">.editorconfig</div>
+  <p>
+    This repository has one, and it is not decoration: it makes formatting and analyser severity a
+    property of the <em>repository</em> rather than of each developer&rsquo;s settings. That ends
+    the "whole file reformatted" diff, and lets a team promote a warning to an error once and have
+    it apply everywhere &mdash; including in CI.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Practise on the API from chapter 14. Each of these is a skill, not a fact:</p>
+  <ol>
+    <li>Put a breakpoint in a loop and add the condition <code>i == 500</code>. Never again step
+        through five hundred iterations.</li>
+    <li>Convert it to a <strong>tracepoint</strong> that logs a value and does not stop.</li>
+    <li>In Exception Settings, tick CLR exceptions. Run something that swallows one and watch the
+        debugger break at the <code>throw</code>.</li>
+    <li>Pause on a breakpoint and, in the <strong>Immediate</strong> window, call a service method
+        and inspect what comes back.</li>
+    <li>Use <strong>Set Next Statement</strong> to jump back three lines and re-run a block with a
+        value you changed by hand.</li>
+    <li>Start the app without debugging, then <strong>attach</strong> to it (Debug &rarr; Attach to
+        Process). This is how you debug something already running.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Learn the debugger properly. It repays the hour within a week.</li>
+    <li>Conditional breakpoints and hit counts instead of stepping through loops.</li>
+    <li>Tracepoints instead of adding <code>Console.WriteLine</code> and recompiling.</li>
+    <li>Break on <em>thrown</em> exceptions to find the ones something is swallowing.</li>
+    <li>The Immediate window is a REPL against a live process &mdash; test the fix before writing
+        it.</li>
+    <li>Read the call stack. The answer is often two frames up.</li>
+    <li>Reproduce &rarr; hypothesise &rarr; observe &rarr; bisect &rarr; fix the cause. Keep the
+        test.</li>
+    <li>Go to anything and Find all references are how you read unfamiliar code.</li>
+    <li>Debug builds are for debugging. Never measure performance in one.</li>
+    <li>Commit <code>.editorconfig</code> and <code>launch.json</code>; the toolchain belongs to
+        the repository.</li>
+    <li>Know the CLI as well as the IDE. Build agents have no IDE.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"How do you debug a problem you cannot reproduce locally?"</p>
+  <p class="a">
+    Start from evidence rather than the debugger: structured logs with a correlation id, metrics
+    and traces (<a href="30-azure-devops-cicd.html">chapter 30</a>), and a memory or CPU dump from
+    the running process with <code>dotnet-dump</code> or <code>dotnet-trace</code>. Then work
+    towards a local reproduction with the real data shape &mdash; because until it reproduces, you
+    cannot prove a fix.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between step over and step into?"</p>
+  <p class="a">
+    Step over executes the whole line including any call; step into enters the called method. Step
+    out finishes the current method and returns to the caller. Simple, and asked as a sanity check.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you find a memory leak in a .NET service?"</p>
+  <p class="a">
+    Watch it first with <code>dotnet-counters</code> to confirm the heap is actually growing, then
+    take two dumps some minutes apart and diff them &mdash; the type whose instance count grows
+    without bound names the culprit. Common causes: a static collection that only ever grows, an
+    event handler never unsubscribed, and a captive scoped dependency inside a singleton
+    (<a href="14-web-api.html#di">chapter 14</a>).
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Visual Studio or VS Code?"</p>
+  <p class="a">
+    Both, for different jobs: VS for large solutions, deep debugging and profiling; VS Code for
+    speed, YAML, front-end and remote work. Having a reasoned preference is the answer; insisting
+    one is objectively better is not.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

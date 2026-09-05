@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My notes — LogiFlow Academy</title>
+<meta name="description" content="Every sticky note you have left on a chapter, in one place, searchable.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="notes">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> My notes</p>
+    <h1>My notes</h1>
+    <p class="lede">
+      Everything you have written on a chapter, collected. Notes are made on the chapter
+      pages themselves &mdash; select a sentence and press <strong>📌 Note this</strong>,
+      or use the pin button in the top bar for a blank one.
+    </p>
+
+    <div class="box pro">
+      <div class="box-title">🎓 Why write anything down at all</div>
+      <p>
+        Copying a sentence out of a chapter does almost nothing. <strong>Rewriting it in your
+        own words does a great deal</strong> &mdash; the effect is called elaboration, and it
+        works because paraphrasing forces you to have actually understood the thing rather
+        than recognised it. The quote at the top of a note is there so you can check yourself
+        against the original afterwards; the part you type is the part that teaches you.
+      </p>
+      <p>
+        The most useful note you can write is not a definition. It is
+        <em>&ldquo;this is like X, except&hellip;&rdquo;</em>, or
+        <em>&ldquo;I got this wrong because I assumed&hellip;&rdquo;</em>.
+      </p>
+    </div>
+
+    <div class="note-filters">
+      <input type="search" class="gloss-search" id="note-search"
+             placeholder="Search your notes, their quotes and chapter titles&hellip;"
+             autocomplete="off" spellcheck="false">
+
+      <div class="note-filter-row">
+        <label class="note-filter">
+          <span>Part</span>
+          <select id="note-part"><option value="">All parts</option></select>
+        </label>
+
+        <label class="note-filter">
+          <span>Chapter</span>
+          <select id="note-chapter"><option value="">All chapters</option></select>
+        </label>
+
+        <label class="note-filter">
+          <span>Kind</span>
+          <select id="note-kind">
+            <option value="">Everything</option>
+            <option value="quote">With a quote</option>
+            <option value="written">Written in my words</option>
+            <option value="empty">Still empty</option>
+          </select>
+        </label>
+
+        <label class="note-filter">
+          <span>Sort</span>
+          <select id="note-sort">
+            <option value="course">Course order</option>
+            <option value="new">Newest first</option>
+            <option value="old">Oldest first</option>
+          </select>
+        </label>
+
+        <div class="note-filter">
+          <span>Colour</span>
+          <div class="note-swatches" id="note-colors"></div>
+        </div>
+
+        <button type="button" class="btn" id="note-clear">Clear filters</button>
+      </div>
+
+      <p class="note-count" id="note-count"></p>
+    </div>
+
+    <div id="board"></div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var LF = window.LF, esc = window.LFLearn.esc;
+
+  var board    = document.getElementById("board");
+  var search   = document.getElementById("note-search");
+  var partSel  = document.getElementById("note-part");
+  var chSel    = document.getElementById("note-chapter");
+  var kindSel  = document.getElementById("note-kind");
+  var sortSel  = document.getElementById("note-sort");
+  var swatches = document.getElementById("note-colors");
+  var countEl  = document.getElementById("note-count");
+  var clearBtn = document.getElementById("note-clear");
+  var filterBox = document.querySelector(".note-filters");
+
+  var chapters = window.CHAPTERS || [];
+  var byId = {}, order = {};
+  chapters.forEach(function (c, i) { byId[c.id] = c; order[c.id] = i; });
+
+  /** Colours currently ticked. Empty means "every colour", not "none". */
+  var colors = [];
+
+  function titleFor(ch) {
+    var c = byId[ch];
+    return c ? c.n + " \u00b7 " + c.title : (ch || "Unfiled");
+  }
+  function partFor(ch) {
+    var c = byId[ch];
+    return c ? c.part : "Unfiled";
+  }
+
+  /* ---------------------------------------------------------- the filters */
+
+  function buildSwatches() {
+    swatches.innerHTML = LF.NOTE_COLORS.map(function (c) {
+      return '<button type="button" class="note-sw note-sw-' + c + '" data-color="' + c +
+             '" aria-pressed="false" title="Only ' + c + ' notes"></button>';
+    }).join("");
+  }
+
+  /*
+    The two selects only ever offer chapters you have actually written on — a
+    dropdown of forty chapters, thirty-seven of them empty, is not a filter.
+    Rebuilt after a delete, because that can empty a chapter out.
+  */
+  function fillSelects() {
+    var counts = {};
+    LF.profile.notes.forEach(function (n) {
+      var k = n.ch || "";
+      counts[k] = (counts[k] || 0) + 1;
+    });
+
+    var used = Object.keys(counts).sort(function (a, b) {
+      return (order[a] === undefined ? 999 : order[a]) - (order[b] === undefined ? 999 : order[b]);
+    });
+
+    var parts = [], seen = {};
+    used.forEach(function (ch) {
+      var p = partFor(ch);
+      if (!seen[p]) { seen[p] = true; parts.push(p); }
+    });
+
+    var keepPart = partSel.value;
+    partSel.innerHTML = '<option value="">All parts</option>' + parts.map(function (p) {
+      return '<option value="' + esc(p) + '">' + esc(p) + "</option>";
+    }).join("");
+    partSel.value = seen[keepPart] ? keepPart : "";
+
+    var keepCh = chSel.value;
+    var offer = used.filter(function (ch) {
+      return !partSel.value || partFor(ch) === partSel.value;
+    });
+    chSel.innerHTML = '<option value="">All chapters</option>' + offer.map(function (ch) {
+      return '<option value="' + esc(ch) + '">' + esc(titleFor(ch)) +
+             " (" + counts[ch] + ")</option>";
+    }).join("");
+    chSel.value = offer.indexOf(keepCh) === -1 ? "" : keepCh;
+    chSel.disabled = !offer.length;
+  }
+
+  function filtersOn() {
+    return !!(search.value.trim() || partSel.value || chSel.value || kindSel.value || colors.length);
+  }
+
+  /* ----------------------------------------------------------- the board */
+
+  function matches(n, q) {
+    if (partSel.value && partFor(n.ch) !== partSel.value) return false;
+    if (chSel.value && (n.ch || "") !== chSel.value) return false;
+    if (colors.length && colors.indexOf(n.color || "yellow") === -1) return false;
+
+    var written = (n.text || "").trim().length > 0;
+    if (kindSel.value === "quote" && !(n.quote || "").trim()) return false;
+    if (kindSel.value === "written" && !written) return false;
+    if (kindSel.value === "empty" && written) return false;
+
+    if (q) {
+      var hay = ((n.text || "") + " " + (n.quote || "") + " " + titleFor(n.ch)).toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  }
+
+  function card(n) {
+    var ch = n.ch || "";
+    var label = titleFor(ch);
+    return '<div class="note-item sticky-' + esc(n.color || "yellow") + '">' +
+             '<div class="note-head">' +
+               (ch
+                 ? '<a class="note-ch" href="chapters/' + esc(ch) + '.html" title="Open ' +
+                   esc(label) + '">' + esc(label) + "</a>"
+                 : '<span class="note-ch">Unfiled</span>') +
+               '<span class="note-date">' + esc((n.updatedAt || "").slice(0, 10)) + "</span>" +
+               '<button type="button" class="note-del" data-id="' + esc(n.id) +
+               '" title="Delete">\u00d7</button>' +
+             "</div>" +
+             (n.quote ? "<blockquote>" + esc(n.quote) + "</blockquote>" : "") +
+             '<div class="note-body">' + esc(n.text || "") + "</div>" +
+           "</div>";
+  }
+
+  function chapterSpread(list) {
+    var m = {};
+    list.forEach(function (n) { m[n.ch || ""] = 1; });
+    return Object.keys(m).length;
+  }
+
+  function render() {
+    var q = (search.value || "").trim().toLowerCase();
+    var all = LF.profile.notes;
+    var notes = all.filter(function (n) { return matches(n, q); });
+
+    // Nothing to filter yet: a row of dead dropdowns is not an invitation.
+    filterBox.hidden = !all.length;
+
+    countEl.innerHTML = !all.length ? ""
+      : filtersOn()
+        ? "Showing <strong>" + notes.length + "</strong> of " + all.length + " notes."
+        : "<strong>" + all.length + "</strong> note" + (all.length === 1 ? "" : "s") +
+          " across " + chapterSpread(all) + " chapter" + (chapterSpread(all) === 1 ? "" : "s") + ".";
+
+    if (!notes.length) {
+      board.innerHTML = '<div class="box"><div class="box-title">' +
+        (all.length ? "No note matches those filters" : "No notes yet") + "</div><p>" +
+        (all.length
+          ? "Widen the search, or press <strong>Clear filters</strong> to see all " +
+            all.length + " again."
+          : "Open any chapter, select a sentence that surprised you, and press " +
+            "<strong>\ud83d\udccc Note this</strong>. The note stays pinned beside that paragraph, " +
+            "and shows up here as well.") +
+        "</p></div>";
+      return;
+    }
+
+    var sort = sortSel.value;
+    if (sort === "new" || sort === "old") {
+      // A flat, date-ordered wall. Every card carries its own chapter tag, so
+      // nothing is lost by dropping the headings.
+      notes.sort(function (a, b) {
+        var av = a.updatedAt || a.createdAt || "", bv = b.updatedAt || b.createdAt || "";
+        if (av === bv) return 0;
+        return (sort === "new" ? (av < bv) : (av > bv)) ? 1 : -1;
+      });
+      board.innerHTML = '<div class="note-board">' + notes.map(card).join("") + "</div>";
+      return;
+    }
+
+    // Course order: group by chapter, so the board reads like the course.
+    notes.sort(function (a, b) {
+      var oa = order[a.ch] === undefined ? 999 : order[a.ch];
+      var ob = order[b.ch] === undefined ? 999 : order[b.ch];
+      if (oa !== ob) return oa - ob;
+      return (a.createdAt || "") < (b.createdAt || "") ? -1 : 1;
+    });
+
+    var html = "", lastCh = null, lastPart = null;
+    notes.forEach(function (n) {
+      if (n.ch !== lastCh) {
+        if (lastCh !== null) html += "</div>";
+        var part = partFor(n.ch);
+        if (part !== lastPart) {
+          html += '<p class="note-part-head" style="margin:1.9em 0 -.6em">' + esc(part) + "</p>";
+          lastPart = part;
+        }
+        html += "<h2>" + esc(titleFor(n.ch)) + "</h2>";
+        if (n.ch) {
+          html += '<p class="subtle" style="margin-top:-.5em"><a href="chapters/' + esc(n.ch) +
+                  '.html">Open the chapter</a></p>';
+        }
+        html += '<div class="note-board">';
+        lastCh = n.ch;
+      }
+      html += card(n);
+    });
+    if (lastCh !== null) html += "</div>";
+
+    board.innerHTML = html;
+  }
+
+  /* --------------------------------------------------------------- wiring */
+
+  board.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(".note-del");
+    if (!b) return;
+    if (!window.confirm("Delete this note?")) return;
+    LF.removeNote(b.getAttribute("data-id"));
+    fillSelects();
+    render();
+  });
+
+  swatches.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest(".note-sw");
+    if (!b) return;
+    var c = b.getAttribute("data-color");
+    var i = colors.indexOf(c);
+    if (i === -1) colors.push(c); else colors.splice(i, 1);
+    b.setAttribute("aria-pressed", i === -1 ? "true" : "false");
+    render();
+  });
+
+  // Note: `/` is already taken by the sidebar chapter search in site.js, so
+  // this box is focused by clicking it. Two handlers fighting over one key is
+  // worse than one extra click.
+  search.addEventListener("input", render);
+  kindSel.addEventListener("change", render);
+  sortSel.addEventListener("change", render);
+  chSel.addEventListener("change", render);
+  partSel.addEventListener("change", function () { fillSelects(); render(); });
+
+  clearBtn.addEventListener("click", function () {
+    search.value = "";
+    partSel.value = ""; chSel.value = ""; kindSel.value = ""; sortSel.value = "course";
+    colors = [];
+    var sw = swatches.querySelectorAll(".note-sw");
+    for (var i = 0; i < sw.length; i++) sw[i].setAttribute("aria-pressed", "false");
+    fillSelects();
+    render();
+  });
+
+  buildSwatches();
+  fillSelects();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/Schemas/stryker-config.json",
+  "stryker-config": {
+    "project": "LogiFlow.Domain.csproj",
+    "test-projects": [
+      "tests/LogiFlow.Domain.Tests/LogiFlow.Domain.Tests.csproj"
+    ],
+    "solution": "LogiFlow.slnx",
+
+    "reporters": [
+      "html",
+      "progress",
+      "cleartext"
+    ],
+
+    "thresholds": {
+      "high": 70,
+      "low": 50,
+      "break": 30
+    },
+
+    "mutation-level": "Standard",
+
+    "mutate": [
+      "!**/Migrations/**",
+      "!**/obj/**"
+    ],
+
+    "ignore-mutations": [
+      "String"
+    ],
+
+    "concurrency": 4
+  }
+}

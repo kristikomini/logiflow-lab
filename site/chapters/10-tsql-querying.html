@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 · T-SQL: querying — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="10-tsql-querying">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 2 &mdash; Data <span>&rsaquo;</span> Chapter 10</p>
+<h1>T-SQL: querying</h1>
+<p class="lede">
+  SQL is not read in the order it is written. Understanding the order it <em>runs</em> in explains
+  half the errors beginners hit, and it is the foundation for joins, grouping and window functions
+  &mdash; the three things a T-SQL screening question is almost always about.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Buona conoscenza di T-SQL."</em> T-SQL is Microsoft&rsquo;s dialect of SQL: standard SQL
+  plus Microsoft extensions (<code>TOP</code>, <code>ISNULL</code>, <code>OFFSET/FETCH</code>,
+  variables, procedural code).</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="execution-order">The order SQL actually runs in</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You write your shopping list as <em>"buy apples, from the market, only the red ones"</em>. But
+    you cannot do it in that order &mdash; you have to <strong>go to the market first</strong>,
+    then look at what is there, then pick the red ones, and only then put them in your bag.
+  </p>
+  <p>
+    SQL is written in the wrong order on purpose, because that order reads nicely in English. The
+    computer quietly reorders it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The <em>logical</em> processing order is fixed, and it explains a specific family of errors:
+    why you cannot use a <code>SELECT</code> alias in a <code>WHERE</code> clause (the alias does
+    not exist yet), why <code>WHERE</code> cannot contain an aggregate (the groups have not been
+    formed), and why <code>ORDER BY</code> <em>can</em> use an alias (it runs last).
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 360" role="img" aria-labelledby="order-title">
+    <title id="order-title">Written order versus logical execution order of a SELECT</title>
+    <defs>
+      <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">You write it like this</text>
+    <text x="470" y="24" class="d-text" style="font-weight:700">It runs like this</text>
+
+    <rect x="20" y="36" width="330" height="296" rx="9" class="d-panel"/>
+    <rect x="20" y="36" width="330" height="296" rx="9" class="d-stroke"/>
+    <text x="40" y="66"  class="d-mono">SELECT   CustomerId, SUM(Total) AS Rev</text>
+    <text x="40" y="102" class="d-mono">FROM     Orders o</text>
+    <text x="40" y="138" class="d-mono">JOIN     Customers c ON ...</text>
+    <text x="40" y="174" class="d-mono">WHERE    o.CreatedAtUtc &gt;= @from</text>
+    <text x="40" y="210" class="d-mono">GROUP BY CustomerId</text>
+    <text x="40" y="246" class="d-mono">HAVING   SUM(Total) &gt; 1000</text>
+    <text x="40" y="282" class="d-mono">ORDER BY Rev DESC</text>
+    <text x="40" y="316" class="d-mono">OFFSET 0 ROWS FETCH NEXT 20 ...</text>
+
+    <rect x="470" y="36" width="350" height="296" rx="9" class="d-panel"/>
+    <rect x="470" y="36" width="350" height="296" rx="9" class="d-stroke"/>
+
+    <rect x="486" y="48" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="65" class="d-white" text-anchor="middle" style="font-size:12px">1</text>
+    <text x="524" y="65" class="d-mono">FROM + JOIN</text>
+    <text x="640" y="65" class="d-small">get the rows</text>
+
+    <rect x="486" y="84" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="101" class="d-white" text-anchor="middle" style="font-size:12px">2</text>
+    <text x="524" y="101" class="d-mono">WHERE</text>
+    <text x="640" y="101" class="d-small">filter rows</text>
+
+    <rect x="486" y="120" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="137" class="d-white" text-anchor="middle" style="font-size:12px">3</text>
+    <text x="524" y="137" class="d-mono">GROUP BY</text>
+    <text x="640" y="137" class="d-small">form the groups</text>
+
+    <rect x="486" y="156" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="173" class="d-white" text-anchor="middle" style="font-size:12px">4</text>
+    <text x="524" y="173" class="d-mono">HAVING</text>
+    <text x="640" y="173" class="d-small">filter groups</text>
+
+    <rect x="486" y="192" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="209" class="d-white" text-anchor="middle" style="font-size:12px">5</text>
+    <text x="524" y="209" class="d-mono">SELECT</text>
+    <text x="640" y="209" class="d-small">aliases born here</text>
+
+    <rect x="486" y="228" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="245" class="d-white" text-anchor="middle" style="font-size:12px">6</text>
+    <text x="524" y="245" class="d-mono">ORDER BY</text>
+    <text x="640" y="245" class="d-small">can use them</text>
+
+    <rect x="486" y="264" width="28" height="24" rx="5" class="d-brand" opacity=".92"/>
+    <text x="500" y="281" class="d-white" text-anchor="middle" style="font-size:12px">7</text>
+    <text x="524" y="281" class="d-mono">OFFSET / FETCH</text>
+    <text x="640" y="281" class="d-small">page</text>
+
+    <text x="486" y="316" class="d-small">WHERE runs before SELECT — so an alias in WHERE is an error.</text>
+
+    <path d="M352 66 L466 209" class="d-arrow" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a7)"/>
+    <path d="M352 102 L466 60" class="d-arrow" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a7)"/>
+    <path d="M352 174 L466 96" class="d-arrow" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#a7)"/>
+  </svg>
+  <figcaption>Written for humans, executed for machines. The two arrows crossing are the ones that cause errors.</figcaption>
+</figure>
+
+<div class="code-head">the three errors this explains</div>
+<pre><code><span class="cm">-- ✗ "Invalid column name 'Rev'" — WHERE runs before SELECT</span>
+<span class="kw">SELECT</span> <span class="kw">SUM</span>(Total) <span class="kw">AS</span> Rev <span class="kw">FROM</span> dbo.Orders <span class="kw">WHERE</span> Rev &gt; 1000;
+
+<span class="cm">-- ✗ "An aggregate may not appear in the WHERE clause" — groups do not exist yet</span>
+<span class="kw">SELECT</span> CustomerId <span class="kw">FROM</span> dbo.Orders <span class="kw">WHERE SUM</span>(Total) &gt; 1000 <span class="kw">GROUP BY</span> CustomerId;
+
+<span class="cm">-- ✓ filter the groups with HAVING; ORDER BY may use the alias</span>
+<span class="kw">SELECT</span>   CustomerId, <span class="kw">SUM</span>(Total) <span class="kw">AS</span> Rev
+<span class="kw">FROM</span>     dbo.Orders
+<span class="kw">GROUP BY</span> CustomerId
+<span class="kw">HAVING</span>   <span class="kw">SUM</span>(Total) &gt; 1000
+<span class="kw">ORDER BY</span> Rev <span class="kw">DESC</span>;</code></pre>
+
+<p class="subtle">
+  Say it in one sentence at interview: <strong>WHERE filters rows before grouping, HAVING filters
+  groups after.</strong>
+</p>
+
+<h2 id="joins">Joins</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Two lists: children, and lunchboxes. Each lunchbox has a child&rsquo;s name on it.
+  </p>
+  <ul>
+    <li><strong>INNER JOIN</strong> &mdash; only children who brought a lunchbox.</li>
+    <li><strong>LEFT JOIN</strong> &mdash; <em>every</em> child; those without a lunchbox get an
+        empty space next to their name.</li>
+    <li><strong>RIGHT JOIN</strong> &mdash; every lunchbox, even the mysterious one belonging to
+        nobody.</li>
+    <li><strong>FULL JOIN</strong> &mdash; everybody and everything, gaps included.</li>
+    <li><strong>CROSS JOIN</strong> &mdash; every child paired with every lunchbox. Thirty children
+        and thirty boxes gives you nine hundred rows of nonsense.</li>
+  </ul>
+</div>
+
+<div class="code-head">all five, on one schema</div>
+<pre><code><span class="cm">-- customers who have placed at least one order</span>
+<span class="kw">SELECT</span> c.Name, o.Total
+<span class="kw">FROM</span>   dbo.Customers c
+<span class="kw">INNER JOIN</span> dbo.Orders o <span class="kw">ON</span> o.CustomerId = c.Id;
+
+<span class="cm">-- ALL customers; Total is NULL for those with no orders</span>
+<span class="kw">SELECT</span> c.Name, o.Total
+<span class="kw">FROM</span>   dbo.Customers c
+<span class="kw">LEFT JOIN</span> dbo.Orders o <span class="kw">ON</span> o.CustomerId = c.Id;
+
+<span class="cm">-- the classic anti-join: customers who have NEVER ordered</span>
+<span class="kw">SELECT</span> c.Name
+<span class="kw">FROM</span>   dbo.Customers c
+<span class="kw">LEFT JOIN</span> dbo.Orders o <span class="kw">ON</span> o.CustomerId = c.Id
+<span class="kw">WHERE</span>  o.Id <span class="kw">IS NULL</span>;                <span class="cm">-- ← the "no match" marker</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The LEFT JOIN that silently becomes an INNER JOIN</div>
+  <pre style="margin:.8em 0"><code><span class="cm">-- ✗ the WHERE runs AFTER the join and discards the NULL rows,</span>
+<span class="cm">--    turning this into an INNER JOIN without telling you</span>
+<span class="kw">FROM</span> Customers c <span class="kw">LEFT JOIN</span> Orders o <span class="kw">ON</span> o.CustomerId = c.Id
+<span class="kw">WHERE</span> o.Status = 3;
+
+<span class="cm">-- ✓ put the condition in the ON clause instead</span>
+<span class="kw">FROM</span> Customers c <span class="kw">LEFT JOIN</span> Orders o <span class="kw">ON</span> o.CustomerId = c.Id <span class="kw">AND</span> o.Status = 3;</code></pre>
+  <p>
+    <strong>ON filters the join; WHERE filters the result.</strong> For an outer join they are
+    completely different questions, and this is a favourite interview trap.
+  </p>
+</div>
+
+<h2 id="aggregation">Aggregation and grouping</h2>
+
+<div class="code-head">a realistic reporting query</div>
+<pre><code><span class="kw">SELECT</span>
+    c.Id,
+    c.Name,
+    <span class="kw">COUNT</span>(o.Id)                       <span class="kw">AS</span> OrderCount,
+    <span class="kw">ISNULL</span>(<span class="kw">SUM</span>(o.Total), 0)          <span class="kw">AS</span> Revenue,
+    <span class="kw">MAX</span>(o.CreatedAtUtc)              <span class="kw">AS</span> LastOrderUtc
+<span class="kw">FROM</span>       dbo.Customers c
+<span class="kw">LEFT JOIN</span>  dbo.Orders    o <span class="kw">ON</span> o.CustomerId = c.Id
+                            <span class="kw">AND</span> o.CreatedAtUtc &gt;= @from
+<span class="kw">GROUP BY</span>   c.Id, c.Name        <span class="cm">-- every non-aggregated column must be here</span>
+<span class="kw">HAVING</span>     <span class="kw">COUNT</span>(o.Id) &gt; 0
+<span class="kw">ORDER BY</span>   Revenue <span class="kw">DESC</span>;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>COUNT(*)</code> vs <code>COUNT(column)</code></div>
+  <p>
+    <code>COUNT(*)</code> counts rows. <code>COUNT(o.Id)</code> counts rows where
+    <code>o.Id</code> is not <code>NULL</code>. After a <code>LEFT JOIN</code> that difference is
+    exactly "customers with no orders": <code>COUNT(*)</code> gives them 1,
+    <code>COUNT(o.Id)</code> correctly gives them 0. Using the wrong one is a very common bug in
+    reports.
+  </p>
+</div>
+
+<h2 id="ctes">Subqueries and CTEs</h2>
+
+<p>
+  A <strong>CTE</strong> (Common Table Expression) is a named subquery written before the main
+  statement. It does not make anything faster &mdash; it makes it readable, and it enables
+  recursion.
+</p>
+
+<div class="code-head">the same query, unreadable then readable</div>
+<pre><code><span class="cm">-- ✗ nested subqueries: you must read inside-out</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> CustomerId, <span class="kw">SUM</span>(Total) <span class="kw">AS</span> Rev
+    <span class="kw">FROM</span> dbo.Orders <span class="kw">WHERE</span> CreatedAtUtc &gt;= @from
+    <span class="kw">GROUP BY</span> CustomerId
+) x <span class="kw">WHERE</span> x.Rev &gt; 1000;
+
+<span class="cm">-- ✓ a CTE: reads top to bottom, like a sentence</span>
+<span class="kw">WITH</span> Revenue <span class="kw">AS</span>
+(
+    <span class="kw">SELECT</span>   CustomerId, <span class="kw">SUM</span>(Total) <span class="kw">AS</span> Rev
+    <span class="kw">FROM</span>     dbo.Orders
+    <span class="kw">WHERE</span>    CreatedAtUtc &gt;= @from
+    <span class="kw">GROUP BY</span> CustomerId
+)
+<span class="kw">SELECT</span> c.Name, r.Rev
+<span class="kw">FROM</span>   Revenue r
+<span class="kw">JOIN</span>   dbo.Customers c <span class="kw">ON</span> c.Id = r.CustomerId
+<span class="kw">WHERE</span>  r.Rev &gt; 1000;</code></pre>
+
+<div class="code-head">a recursive CTE — an organisation chart</div>
+<pre><code><span class="kw">WITH</span> Chain <span class="kw">AS</span>
+(
+    <span class="cm">-- anchor: where the recursion starts</span>
+    <span class="kw">SELECT</span> Id, Name, ManagerId, 0 <span class="kw">AS</span> Depth
+    <span class="kw">FROM</span>   dbo.Employees <span class="kw">WHERE</span> ManagerId <span class="kw">IS NULL</span>
+
+    <span class="kw">UNION ALL</span>
+
+    <span class="cm">-- recursive member: joins back to the CTE itself</span>
+    <span class="kw">SELECT</span> e.Id, e.Name, e.ManagerId, ch.Depth + 1
+    <span class="kw">FROM</span>   dbo.Employees e
+    <span class="kw">JOIN</span>   Chain ch <span class="kw">ON</span> e.ManagerId = ch.Id
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> Chain <span class="kw">ORDER BY</span> Depth
+<span class="kw">OPTION</span> (MAXRECURSION 100);   <span class="cm">-- a cycle in the data would loop for ever</span></code></pre>
+
+<h2 id="window-functions">Window functions</h2>
+
+<p>
+  The most impressive thing you can know at this level, because they solve problems that otherwise
+  need a cursor or a round trip to C#.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    <code>GROUP BY</code> is a blender: ten rows go in, one row comes out and you cannot see the
+    originals any more.
+  </p>
+  <p>
+    A window function is a pair of glasses. Every row stays exactly where it is &mdash; but each
+    one can now <em>see</em> its neighbours, so it can say "I am the 3rd biggest" or "the running
+    total up to me is 450".
+  </p>
+</div>
+
+<div class="code-head">the three you will actually use</div>
+<pre><code><span class="kw">SELECT</span>
+    o.Id,
+    o.CustomerId,
+    o.Total,
+
+    <span class="cm">-- position within each customer, biggest order first</span>
+    <span class="kw">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> o.CustomerId <span class="kw">ORDER BY</span> o.Total <span class="kw">DESC</span>) <span class="kw">AS</span> rn,
+
+    <span class="cm">-- running total, in date order</span>
+    <span class="kw">SUM</span>(o.Total) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> o.CustomerId
+                       <span class="kw">ORDER BY</span> o.CreatedAtUtc
+                       <span class="kw">ROWS UNBOUNDED PRECEDING</span>)                <span class="kw">AS</span> RunningTotal,
+
+    <span class="cm">-- the customer's overall total, repeated on every one of their rows</span>
+    <span class="kw">SUM</span>(o.Total) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> o.CustomerId)                <span class="kw">AS</span> CustomerTotal
+<span class="kw">FROM</span> dbo.Orders o;</code></pre>
+
+<div class="code-head">the classic question: the latest row per group</div>
+<pre><code><span class="cm">-- "the most recent order for each customer" — asked constantly</span>
+<span class="kw">WITH</span> Ranked <span class="kw">AS</span>
+(
+    <span class="kw">SELECT</span> o.*,
+           <span class="kw">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> o.CustomerId
+                              <span class="kw">ORDER BY</span> o.CreatedAtUtc <span class="kw">DESC</span>) <span class="kw">AS</span> rn
+    <span class="kw">FROM</span> dbo.Orders o
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> Ranked <span class="kw">WHERE</span> rn = 1;</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Function</th><th>On a tie (100, 100, 90)</th></tr></thead>
+  <tbody>
+    <tr><td><code>ROW_NUMBER()</code></td><td>1, 2, 3 &mdash; always distinct, tie broken arbitrarily</td></tr>
+    <tr><td><code>RANK()</code></td><td>1, 1, 3 &mdash; ties share, then a gap</td></tr>
+    <tr><td><code>DENSE_RANK()</code></td><td>1, 1, 2 &mdash; ties share, no gap</td></tr>
+    <tr><td><code>LAG()</code> / <code>LEAD()</code></td><td>The previous / next row&rsquo;s value &mdash; ideal for "change since last month"</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="paging">Paging, and writing data</h2>
+
+<div class="code-head">paging — always with a deterministic ORDER BY</div>
+<pre><code><span class="kw">SELECT</span>   o.Id, o.Total
+<span class="kw">FROM</span>     dbo.Orders o
+<span class="kw">ORDER BY</span> o.CreatedAtUtc <span class="kw">DESC</span>, o.Id <span class="kw">DESC</span>   <span class="cm">-- Id breaks ties: without it,</span>
+<span class="kw">OFFSET</span>   @skip <span class="kw">ROWS</span>                       <span class="cm">-- rows can repeat or vanish across pages</span>
+<span class="kw">FETCH NEXT</span> @take <span class="kw">ROWS ONLY</span>;</code></pre>
+
+<div class="code-head">insert, update, delete — and OUTPUT</div>
+<pre><code><span class="kw">INSERT INTO</span> dbo.Orders (OrderNumber, CustomerId, Total)
+<span class="kw">OUTPUT</span> inserted.Id                       <span class="cm">-- returns the new key, no second round trip</span>
+<span class="kw">VALUES</span> (@number, @customerId, @total);
+
+<span class="kw">UPDATE</span> dbo.Orders
+<span class="kw">SET</span>    Status = 3
+<span class="kw">WHERE</span>  Id = @id <span class="kw">AND</span> Status = 2;         <span class="cm">-- guard: only from the expected state</span>
+
+<span class="kw">DELETE FROM</span> dbo.Orders <span class="kw">WHERE</span> Id = @id;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Write the WHERE clause first</div>
+  <p>
+    An <code>UPDATE</code> or <code>DELETE</code> without a <code>WHERE</code> hits every row in the
+    table, and it is committed the instant you press F5. The professional habit: type the
+    <code>WHERE</code> before the <code>SET</code>, run it as a <code>SELECT</code> first to see
+    what you are about to touch, and on production wrap it in an explicit transaction you can
+    <code>ROLLBACK</code>.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>MERGE</code> — the upsert that looks perfect</div>
+  <p>
+    Sooner or later somebody suggests <code>MERGE</code> for "insert it if it is not there,
+    otherwise update it". It reads beautifully and it has a long, well-documented history of
+    correctness problems. The one that still bites on a current version is concurrency:
+  </p>
+  <pre><code><span class="cm">-- Two sessions run this at the same moment. Both check, both find nothing,
+-- both insert. One of them gets a primary key violation — because MERGE does
+-- NOT take a range lock by default.</span>
+<span class="kw">MERGE</span> dbo.Stock <span class="kw">AS</span> t
+<span class="kw">USING</span> (<span class="kw">SELECT</span> @sku <span class="kw">AS</span> Sku) <span class="kw">AS</span> s <span class="kw">ON</span> t.Sku = s.Sku
+<span class="kw">WHEN MATCHED THEN UPDATE SET</span> t.Qty = t.Qty + @qty
+<span class="kw">WHEN NOT MATCHED THEN INSERT</span> (Sku, Qty) <span class="kw">VALUES</span> (@sku, @qty);</code></pre>
+  <p>
+    Making it safe means <code>WITH (HOLDLOCK)</code> on the target &mdash; which people forget,
+    because nothing in the syntax suggests it is needed. The plainer form below is longer, has no
+    surprises, and is what most teams settle on:
+  </p>
+  <pre><code><span class="kw">BEGIN TRANSACTION</span>;
+
+<span class="kw">UPDATE</span> dbo.Stock <span class="kw">WITH</span> (UPDLOCK, HOLDLOCK)
+<span class="kw">SET</span>    Qty = Qty + @qty
+<span class="kw">WHERE</span>  Sku = @sku;
+
+<span class="kw">IF</span> @@ROWCOUNT = <span class="nu">0</span>
+    <span class="kw">INSERT INTO</span> dbo.Stock (Sku, Qty) <span class="kw">VALUES</span> (@sku, @qty);
+
+<span class="kw">COMMIT</span>;</code></pre>
+  <p class="subtle">
+    Worth being able to say in an interview: <em>"I know <code>MERGE</code>, and I avoid it for
+    upserts because it needs <code>HOLDLOCK</code> to be concurrency-safe and that is easy to
+    forget."</em> Knowing a feature and choosing not to use it is a stronger answer than not
+    knowing it.
+  </p>
+</div>
+
+<h2 id="parameters">Parameters and stored procedures</h2>
+
+<div class="code-head">✗ string concatenation — SQL injection</div>
+<pre><code><span class="cm">// Never. If name is:  '; DROP TABLE Orders; --</span>
+<span class="kw">var</span> sql = $<span class="st">"SELECT * FROM Customers WHERE Name = '{name}'"</span>;</code></pre>
+
+<div class="code-head">✓ parameters — data can never become code</div>
+<pre><code><span class="cm">// ADO.NET</span>
+<span class="kw">using var</span> cmd = <span class="kw">new</span> <span class="ty">SqlCommand</span>(
+    <span class="st">"SELECT Id, Total FROM dbo.Orders WHERE CustomerId = @customerId"</span>, conn);
+cmd.Parameters.Add(<span class="st">"@customerId"</span>, <span class="ty">SqlDbType</span>.Int).Value = customerId;
+
+<span class="cm">// EF Core raw SQL — interpolation here IS parameterised, deliberately</span>
+<span class="kw">var</span> rows = <span class="kw">await</span> db.Orders
+    .FromSqlInterpolated($<span class="st">"SELECT * FROM dbo.Orders WHERE CustomerId = {customerId}"</span>)
+    .ToListAsync(ct);</code></pre>
+
+<p class="subtle">
+  Parameters are not only about security. A parameterised query is cached by the engine as a single
+  plan; a thousand concatenated variants produce a thousand plans and evict everything else from
+  the cache.
+</p>
+
+<div class="code-head">a stored procedure — you will meet plenty of these</div>
+<pre><code><span class="kw">CREATE OR ALTER PROCEDURE</span> dbo.usp_GetCustomerOrders
+    @CustomerId <span class="ty">INT</span>,
+    @From       <span class="ty">DATETIME2</span>(3) = <span class="kw">NULL</span>
+<span class="kw">AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">SET NOCOUNT ON</span>;                  <span class="cm">-- suppress "n rows affected" chatter</span>
+
+    <span class="kw">SELECT</span>   o.Id, o.OrderNumber, o.Total, o.CreatedAtUtc
+    <span class="kw">FROM</span>     dbo.Orders o
+    <span class="kw">WHERE</span>    o.CustomerId = @CustomerId
+      <span class="kw">AND</span>    (@From <span class="kw">IS NULL OR</span> o.CreatedAtUtc &gt;= @From)
+    <span class="kw">ORDER BY</span> o.CreatedAtUtc <span class="kw">DESC</span>;
+<span class="kw">END</span>;</code></pre>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Five exercises against the schema from chapter 09, in increasing difficulty:</p>
+  <ol>
+    <li>Every customer with their order count &mdash; <em>including those with zero</em>.</li>
+    <li>The top 5 customers by revenue in the last 90 days.</li>
+    <li>Each customer&rsquo;s most recent order, one row each. (<code>ROW_NUMBER</code>.)</li>
+    <li>Month-by-month revenue with the change versus the previous month. (<code>LAG</code>.)</li>
+    <li>Customers who ordered in 2025 but not in 2026. (<code>NOT EXISTS</code> &mdash; and think
+        about why <code>NOT IN</code> is dangerous here.)</li>
+  </ol>
+  <p class="subtle" style="margin-top:.6em">
+    Number 1 is the one people get wrong: an <code>INNER JOIN</code> silently drops the zeros, and
+    <code>COUNT(*)</code> turns them into ones.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-07-sql-and-transactions/README.md">Module 07</a> continues into
+    execution plans and concurrency &mdash; which is chapter 11 here.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Logical order is <code>FROM</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code>
+        &rarr; <code>HAVING</code> &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>. Almost
+        every beginner error follows from it.</li>
+    <li><code>WHERE</code> filters rows, <code>HAVING</code> filters groups.</li>
+    <li><code>ON</code> filters the join; <code>WHERE</code> filters the result. On an outer join
+        these differ, and putting the condition in <code>WHERE</code> silently makes it an inner
+        join.</li>
+    <li><code>LEFT JOIN … WHERE right.Id IS NULL</code> is the anti-join: "things with no match".</li>
+    <li><code>COUNT(*)</code> counts rows; <code>COUNT(col)</code> ignores <code>NULL</code>. After
+        an outer join, that is the whole answer.</li>
+    <li>CTEs for readability and recursion, not for speed.</li>
+    <li>Window functions keep every row and still let it see its neighbours.
+        <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> then <code>WHERE rn = 1</code> is
+        the "latest per group" idiom &mdash; learn it by heart.</li>
+    <li>Paging needs a deterministic <code>ORDER BY</code>, tie-broken by a unique column.</li>
+    <li>Always parameterise. It prevents injection <em>and</em> keeps the plan cache sane.</li>
+    <li>Write the <code>WHERE</code> before the <code>SET</code>. Run it as a <code>SELECT</code>
+        first.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Difference between <code>WHERE</code> and <code>HAVING</code>?"</p>
+  <p class="a">
+    <code>WHERE</code> filters rows before grouping; <code>HAVING</code> filters groups afterwards,
+    which is why only <code>HAVING</code> may reference an aggregate.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Difference between <code>INNER</code> and <code>LEFT JOIN</code>?"</p>
+  <p class="a">
+    Inner keeps only matched rows; left keeps every row from the left side, filling the right with
+    <code>NULL</code>. Then volunteer the trap &mdash; a condition on the right table in
+    <code>WHERE</code> turns it back into an inner join.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Write me the most recent order per customer."</p>
+  <p class="a">
+    <code>ROW_NUMBER() OVER (PARTITION BY CustomerId ORDER BY CreatedAtUtc DESC)</code> in a CTE,
+    then <code>WHERE rn = 1</code>. Mention the correlated-subquery alternative and say the window
+    function usually plans better &mdash; it shows you know there is more than one answer.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>UNION</code> or <code>UNION ALL</code>?"</p>
+  <p class="a">
+    <code>UNION</code> removes duplicates, which costs a sort or hash. <code>UNION ALL</code> just
+    concatenates. Default to <code>UNION ALL</code> unless you actually need de-duplication.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you prevent SQL injection?"</p>
+  <p class="a">
+    Parameterised queries &mdash; never string concatenation, and note that dynamic SQL inside a
+    stored procedure is just as vulnerable. Add least-privilege database accounts as defence in
+    depth, and mention the plan-cache benefit to show you understand the second reason.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

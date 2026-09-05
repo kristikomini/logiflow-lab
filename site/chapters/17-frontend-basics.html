@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17 · HTML, JavaScript and TypeScript — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="17-frontend-basics">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 17</p>
+<h1>HTML, JavaScript and TypeScript</h1>
+<p class="lede">
+  The advert says <em>conoscenza base</em>, and it means it. Nobody expects a React specialist.
+  What they expect is a back-end developer who can open the browser dev tools, see why their own
+  API call failed, and fix the page that consumes it.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Conoscenza base di tecnologie frontend (HTML, JavaScript, TypeScript)."</em> Optional,
+  and honestly scoped. The goal is to be <em>useful</em> at the boundary, not to be a front-end
+  developer.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="html">HTML &mdash; structure, not appearance</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    HTML is the skeleton of a page: <em>this is a heading, this is a paragraph, this is a button.</em>
+    CSS is the clothes: what colour, how big, where. JavaScript is the muscles: what happens when
+    you press the button.
+  </p>
+  <p>
+    Skeleton, clothes, muscles. Three separate jobs, and mixing them up is what makes a page hard
+    to change.
+  </p>
+</div>
+
+<div class="code-head">a form, written properly</div>
+<pre><code><span class="kw">&lt;!doctype html&gt;</span>
+<span class="kw">&lt;html</span> <span class="ty">lang</span>=<span class="st">"it"</span><span class="kw">&gt;</span>          <span class="cm">&lt;!-- lang matters: screen readers, spell check, hyphenation --&gt;</span>
+<span class="kw">&lt;head&gt;</span>
+  <span class="kw">&lt;meta</span> <span class="ty">charset</span>=<span class="st">"utf-8"</span><span class="kw">&gt;</span>   <span class="cm">&lt;!-- without this, "Modenaàèì" arrives as mojibake --&gt;</span>
+  <span class="kw">&lt;meta</span> <span class="ty">name</span>=<span class="st">"viewport"</span> <span class="ty">content</span>=<span class="st">"width=device-width, initial-scale=1"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;title&gt;</span>Nuovo ordine<span class="kw">&lt;/title&gt;</span>
+<span class="kw">&lt;/head&gt;</span>
+<span class="kw">&lt;body&gt;</span>
+  <span class="kw">&lt;main&gt;</span>
+    <span class="kw">&lt;h1&gt;</span>Nuovo ordine<span class="kw">&lt;/h1&gt;</span>
+
+    <span class="kw">&lt;form</span> <span class="ty">id</span>=<span class="st">"order-form"</span><span class="kw">&gt;</span>
+      <span class="cm">&lt;!-- label + for/id: clicking the label focuses the input --&gt;</span>
+      <span class="kw">&lt;label</span> <span class="ty">for</span>=<span class="st">"customer"</span><span class="kw">&gt;</span>Cliente<span class="kw">&lt;/label&gt;</span>
+      <span class="kw">&lt;input</span> <span class="ty">id</span>=<span class="st">"customer"</span> <span class="ty">name</span>=<span class="st">"customerId"</span> <span class="ty">type</span>=<span class="st">"number"</span> <span class="ty">required</span><span class="kw">&gt;</span>
+
+      <span class="kw">&lt;label</span> <span class="ty">for</span>=<span class="st">"notes"</span><span class="kw">&gt;</span>Note<span class="kw">&lt;/label&gt;</span>
+      <span class="kw">&lt;textarea</span> <span class="ty">id</span>=<span class="st">"notes"</span> <span class="ty">name</span>=<span class="st">"notes"</span> <span class="ty">maxlength</span>=<span class="st">"500"</span><span class="kw">&gt;&lt;/textarea&gt;</span>
+
+      <span class="kw">&lt;button</span> <span class="ty">type</span>=<span class="st">"submit"</span><span class="kw">&gt;</span>Salva<span class="kw">&lt;/button&gt;</span>
+    <span class="kw">&lt;/form&gt;</span>
+
+    <span class="kw">&lt;p</span> <span class="ty">id</span>=<span class="st">"status"</span> <span class="ty">role</span>=<span class="st">"status"</span><span class="kw">&gt;&lt;/p&gt;</span>
+  <span class="kw">&lt;/main&gt;</span>
+  <span class="kw">&lt;script</span> <span class="ty">src</span>=<span class="st">"app.js"</span> <span class="ty">type</span>=<span class="st">"module"</span><span class="kw">&gt;&lt;/script&gt;</span>
+<span class="kw">&lt;/body&gt;</span>
+<span class="kw">&lt;/html&gt;</span></code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Why semantic elements are worth the two seconds</div>
+  <p>
+    <code>&lt;header&gt;</code>, <code>&lt;nav&gt;</code>, <code>&lt;main&gt;</code>,
+    <code>&lt;button&gt;</code> carry meaning that a <code>&lt;div&gt;</code> does not. Screen
+    readers navigate by them, search engines read them, and browsers give you keyboard behaviour
+    for free &mdash; a real <code>&lt;button&gt;</code> is focusable and responds to Enter and
+    Space; a <code>&lt;div onclick&gt;</code> does neither, and you would have to reimplement both
+    badly. In Italy, public-sector and public-facing work is also subject to accessibility
+    obligations under the <em>Legge Stanca</em>, so this is occasionally a contractual matter, not
+    only a good habit.
+  </p>
+</div>
+
+<h2 id="the-dom">The DOM</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    The HTML file is a recipe written on paper. The DOM is the cake once it has been baked
+    &mdash; the real thing, sitting in the browser&rsquo;s memory. JavaScript cannot change the
+    recipe, but it can walk up to the cake and add another candle.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="dom-title">
+    <title id="dom-title">From HTML source to the DOM, and from JavaScript out to your API</title>
+    <defs>
+      <marker id="a13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="40" width="170" height="96" rx="9" class="d-panel"/>
+    <rect x="20" y="40" width="170" height="96" rx="9" class="d-stroke"/>
+    <text x="105" y="64" class="d-text" text-anchor="middle">index.html</text>
+    <text x="105" y="86" class="d-small" text-anchor="middle">the recipe, on disk</text>
+    <text x="105" y="110" class="d-mono" text-anchor="middle">text you wrote</text>
+
+    <path d="M192 88 L242 88" class="d-arrow" stroke-width="1.8" marker-end="url(#a13)"/>
+    <text x="217" y="80" class="d-small" text-anchor="middle">parse</text>
+
+    <rect x="244" y="28" width="230" height="120" rx="9" class="d-brand" opacity=".92"/>
+    <text x="359" y="52" class="d-white" text-anchor="middle">The DOM</text>
+    <text x="359" y="74" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">a live object tree in memory</text>
+    <text x="270" y="98" class="d-white" style="font-size:11px;opacity:.9">document</text>
+    <text x="286" y="116" class="d-white" style="font-size:11px;opacity:.9">└ form#order-form</text>
+    <text x="302" y="134" class="d-white" style="font-size:11px;opacity:.9">└ input#customer</text>
+
+    <path d="M359 150 L359 190" class="d-arrow" stroke-width="1.8" marker-end="url(#a13)"/>
+    <text x="369" y="174" class="d-small">querySelector · addEventListener</text>
+
+    <rect x="244" y="192" width="230" height="64" rx="9" class="d-panel"/>
+    <rect x="244" y="192" width="230" height="64" rx="9" class="d-stroke"/>
+    <text x="359" y="216" class="d-text" text-anchor="middle">Your JavaScript</text>
+    <text x="359" y="238" class="d-small" text-anchor="middle">changes the tree, not the file</text>
+
+    <path d="M476 222 L556 222" class="d-arrow" stroke-width="1.8" marker-end="url(#a13)"/>
+    <text x="516" y="214" class="d-mono" text-anchor="middle" style="font-size:11px">fetch()</text>
+
+    <rect x="558" y="180" width="120" height="88" rx="9" class="d-fill"/>
+    <rect x="558" y="180" width="120" height="88" rx="9" class="d-stroke" stroke-dasharray="5 4"/>
+    <text x="618" y="206" class="d-text" text-anchor="middle">CORS</text>
+    <text x="618" y="226" class="d-small" text-anchor="middle">the browser</text>
+    <text x="618" y="242" class="d-small" text-anchor="middle">checks the</text>
+    <text x="618" y="258" class="d-small" text-anchor="middle">origin here</text>
+
+    <path d="M680 222 L716 222" class="d-arrow" stroke-width="1.8" marker-end="url(#a13)"/>
+    <rect x="718" y="180" width="102" height="88" rx="9" class="d-panel"/>
+    <rect x="718" y="180" width="102" height="88" rx="9" class="d-stroke"/>
+    <text x="769" y="212" class="d-text" text-anchor="middle">Your</text>
+    <text x="769" y="232" class="d-text" text-anchor="middle">Web API</text>
+    <text x="769" y="252" class="d-small" text-anchor="middle">ch. 11</text>
+
+    <text x="500" y="60" class="d-small">The CORS gate is inside the browser, not on</text>
+    <text x="500" y="80" class="d-small">the server — which is why the same request</text>
+    <text x="500" y="100" class="d-small">succeeds from Postman and fails from a page.</text>
+
+    <text x="20" y="298" class="d-small">Editing index.html changes nothing until the page reloads and the tree is rebuilt. JavaScript only ever touches the tree.</text>
+  </svg>
+  <figcaption>The source file is parsed once into the DOM; everything after that happens to the tree.</figcaption>
+</figure>
+
+<div class="code-head">app.js — find, listen, change</div>
+<pre><code><span class="cm">// find</span>
+<span class="kw">const</span> form   = document.querySelector(<span class="st">'#order-form'</span>);
+<span class="kw">const</span> status = document.querySelector(<span class="st">'#status'</span>);
+
+<span class="cm">// listen</span>
+form.addEventListener(<span class="st">'submit'</span>, <span class="kw">async</span> (event) =&gt; {
+  event.preventDefault();          <span class="cm">// stop the browser doing its own full-page POST</span>
+
+  <span class="cm">// change</span>
+  status.textContent = <span class="st">'Salvataggio…'</span>;   <span class="cm">// textContent, not innerHTML — see below</span>
+});</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>innerHTML</code> and XSS</div>
+  <p>
+    <code>element.innerHTML = userInput</code> parses that string as HTML, so
+    <code>&lt;img src=x onerror="…"&gt;</code> executes. Use <code>textContent</code> for text.
+    This is the browser-side twin of the SQL injection rule from
+    <a href="10-tsql-querying.html#parameters">chapter 10</a>: <strong>never let data become
+    code</strong>. It is also why Razor encodes by default
+    (<a href="16-aspnet-mvc.html#razor">chapter 16</a>).
+  </p>
+</div>
+
+<h2 id="fetch">Calling your own API</h2>
+
+<div class="code-head">fetch — the part a back-end developer actually needs</div>
+<pre><code><span class="kw">async function</span> createOrder(payload) {
+  <span class="kw">const</span> response = <span class="kw">await</span> fetch(<span class="st">'/api/v1/orders'</span>, {
+    method:  <span class="st">'POST'</span>,
+    headers: { <span class="st">'Content-Type'</span>: <span class="st">'application/json'</span> },
+    body:    JSON.stringify(payload)
+  });
+
+  <span class="cm">// ⚠ fetch does NOT throw on 404 or 500. It only rejects on network failure.</span>
+  <span class="cm">//   Forgetting this is the single most common fetch bug.</span>
+  <span class="kw">if</span> (!response.ok) {
+    <span class="kw">const</span> problem = <span class="kw">await</span> response.json();   <span class="cm">// the ProblemDetails from ch. 11</span>
+    <span class="kw">throw new</span> Error(problem.title ?? <span class="st">`HTTP </span>${response.status}<span class="st">`</span>);
+  }
+
+  <span class="kw">return</span> response.json();
+}
+
+form.addEventListener(<span class="st">'submit'</span>, <span class="kw">async</span> (e) =&gt; {
+  e.preventDefault();
+  <span class="kw">try</span> {
+    <span class="kw">const</span> data = <span class="kw">new</span> FormData(form);
+    <span class="kw">const</span> order = <span class="kw">await</span> createOrder({
+      customerId: Number(data.get(<span class="st">'customerId'</span>)),
+      notes:      data.get(<span class="st">'notes'</span>)
+    });
+    status.textContent = <span class="st">`Ordine </span>${order.orderNumber}<span class="st"> creato.`</span>;
+  } <span class="kw">catch</span> (err) {
+    status.textContent = err.message;
+  }
+});</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ CORS &mdash; the error you will meet on day one</div>
+  <p>
+    A page served from <code>http://localhost:5173</code> calling an API on
+    <code>https://localhost:7001</code> is a <em>cross-origin</em> request, and the browser blocks
+    the response unless the API opts in. The error appears in the browser console, which is why
+    back-end developers often think their API is broken when it is answering perfectly.
+  </p>
+  <pre style="margin-top:.8em"><code><span class="cm">// Program.cs — allow the specific front-end origin, never AllowAnyOrigin in production</span>
+builder.Services.AddCors(o =&gt; o.AddPolicy(<span class="st">"spa"</span>, p =&gt; p
+    .WithOrigins(<span class="st">"http://localhost:5173"</span>)
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
+
+app.UseCors(<span class="st">"spa"</span>);   <span class="cm">// before MapControllers (ch. 11 — order is behaviour)</span></code></pre>
+</div>
+
+<h3>JavaScript oddities worth knowing</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Thing</th><th>What to know</th></tr></thead>
+  <tbody>
+    <tr><td><code>===</code> vs <code>==</code></td><td><strong>Always <code>===</code>.</strong> <code>==</code> coerces types, so <code>'' == 0</code> is true.</td></tr>
+    <tr><td><code>const</code> / <code>let</code></td><td>Use these. Never <code>var</code> &mdash; it is function-scoped and hoisted.</td></tr>
+    <tr><td><code>null</code> vs <code>undefined</code></td><td>Two kinds of nothing: deliberately empty, and never set.</td></tr>
+    <tr><td>Falsy values</td><td><code>0</code>, <code>''</code>, <code>null</code>, <code>undefined</code>, <code>NaN</code>, <code>false</code>. Note <code>0</code> &mdash; <code>if (count)</code> is a bug when zero is valid.</td></tr>
+    <tr><td><code>?.</code> and <code>??</code></td><td>Exactly the C# operators from <a href="02-csharp-fundamentals.html#nullability">chapter 02</a>.</td></tr>
+    <tr><td>Promises / <code>async</code></td><td>A <code>Promise</code> is JavaScript&rsquo;s <code>Task</code>; <code>async</code>/<code>await</code> works the same way.</td></tr>
+    <tr><td>Numbers</td><td>One numeric type, IEEE-754 double. <code>0.1 + 0.2 !== 0.3</code>, and integers above 2⁵³ lose precision &mdash; so a C# <code>long</code> id should be serialised as a string.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="typescript">TypeScript</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    JavaScript lets you put a shoe in the fridge. It will not complain, and you will find out three
+    days later.
+  </p>
+  <p>
+    TypeScript is a friend who reads over your shoulder and says <em>"that is a shoe"</em> the
+    instant you pick it up &mdash; before the fridge is ever opened.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    TypeScript is JavaScript with a static type system, compiled (technically <em>erased</em>) to
+    plain JavaScript. Nothing survives to run time: the types exist only to let the compiler and
+    the editor catch mistakes and offer completion. That is precisely the same bargain as nullable
+    reference types in C# &mdash; compile-time guarantees, no runtime enforcement &mdash; and it
+    carries the same caveat: <strong>data arriving from an API is not validated by its type
+    annotation</strong>. Declaring <code>response.json() as Order</code> is a promise, not a check.
+  </p>
+</div>
+
+<div class="code-head">api.ts — the same call, typed</div>
+<pre><code><span class="cm">// A contract. Mirror your C# DTO here — camelCase, because System.Text.Json</span>
+<span class="cm">// uses camelCase by default.</span>
+<span class="kw">export interface</span> <span class="ty">OrderDto</span> {
+  id: <span class="ty">number</span>;
+  orderNumber: <span class="ty">string</span>;
+  total: <span class="ty">number</span>;
+  status: <span class="st">'Draft'</span> | <span class="st">'Submitted'</span> | <span class="st">'Shipped'</span>;   <span class="cm">// union type — a closed set</span>
+  notes?: <span class="ty">string</span>;                                <span class="cm">// ? = may be absent</span>
+}
+
+<span class="kw">export interface</span> <span class="ty">CreateOrderRequest</span> {
+  customerId: <span class="ty">number</span>;
+  notes?: <span class="ty">string</span>;
+}
+
+<span class="kw">export async function</span> createOrder(
+  payload: <span class="ty">CreateOrderRequest</span>
+): <span class="ty">Promise</span>&lt;<span class="ty">OrderDto</span>&gt; {
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="st">'/api/v1/orders'</span>, {
+    method: <span class="st">'POST'</span>,
+    headers: { <span class="st">'Content-Type'</span>: <span class="st">'application/json'</span> },
+    body: JSON.stringify(payload)
+  });
+
+  <span class="kw">if</span> (!res.ok) <span class="kw">throw new</span> Error(<span class="st">`HTTP </span>${res.status}<span class="st">`</span>);
+  <span class="kw">return</span> res.json() <span class="kw">as</span> <span class="ty">Promise</span>&lt;<span class="ty">OrderDto</span>&gt;;
+}</code></pre>
+
+<div class="box note">
+  <div class="box-title">Generate the types, do not type them twice</div>
+  <p>
+    Your API already publishes an OpenAPI document
+    (<a href="14-web-api.html#swagger">chapter 14</a>). Tools such as
+    <code>NSwag</code> or <code>openapi-typescript</code> turn it into TypeScript interfaces
+    automatically, so a renamed C# property becomes a compile error in the front end rather than
+    an <code>undefined</code> in production. Suggesting this in an interview is a strong,
+    concrete, back-end-flavoured answer to a front-end question.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>C#</th><th>TypeScript</th></tr></thead>
+  <tbody>
+    <tr><td><code>int</code>, <code>decimal</code>, <code>double</code></td><td><code>number</code> (only one)</td></tr>
+    <tr><td><code>string</code></td><td><code>string</code></td></tr>
+    <tr><td><code>bool</code></td><td><code>boolean</code></td></tr>
+    <tr><td><code>List&lt;T&gt;</code></td><td><code>T[]</code></td></tr>
+    <tr><td><code>string?</code></td><td><code>string | null</code> or <code>notes?: string</code></td></tr>
+    <tr><td><code>enum</code></td><td>A union of string literals is usually better</td></tr>
+    <tr><td><code>interface</code></td><td><code>interface</code> &mdash; structural, not nominal</td></tr>
+    <tr><td><code>Task&lt;T&gt;</code></td><td><code>Promise&lt;T&gt;</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  One real difference: C# interfaces are <em>nominal</em> (a type implements one by declaring it);
+  TypeScript interfaces are <em>structural</em> (any object with the right shape fits). It is why
+  TypeScript feels looser even though it is strict.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Take the Web API from chapter 14 and put a single HTML page in front of it. No framework, no
+    build step &mdash; that is the point.
+  </p>
+  <ol>
+    <li>Add <code>app.UseStaticFiles()</code> and put an <code>index.html</code> in
+        <code>wwwroot</code>.</li>
+    <li>Fetch <code>/api/v1/orders</code> and render the rows into a table.</li>
+    <li>Open dev tools &rarr; <strong>Network</strong>. Look at the request, the response headers
+        and the JSON. This tab is where you will spend your front-end time.</li>
+    <li>Stop the API and reload. Notice <code>fetch</code> throws only on the network failure, and
+        that a 500 would <em>not</em> have thrown.</li>
+    <li>Now serve the page from a different port and watch CORS block it.</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>HTML is structure, CSS is appearance, JavaScript is behaviour. Keep them apart.</li>
+    <li>Semantic elements and real <code>&lt;label&gt;</code>s: accessibility and keyboard support
+        come free.</li>
+    <li><code>textContent</code> for text; <code>innerHTML</code> with user data is XSS.</li>
+    <li><code>fetch</code> does not throw on 4xx or 5xx. Check <code>response.ok</code> yourself.</li>
+    <li>CORS is the browser refusing, not your API failing. Read the console before the logs.</li>
+    <li>Always <code>===</code>; never <code>var</code>.</li>
+    <li>JavaScript has one number type. Large <code>long</code> ids should cross the wire as
+        strings.</li>
+    <li>TypeScript types vanish at run time. An annotation on API data is a promise, not
+        validation.</li>
+    <li>Generate front-end types from your OpenAPI document instead of maintaining them twice.</li>
+    <li>Client-side validation is for the user&rsquo;s convenience. The server is the only control.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"How comfortable are you with front-end work?"</p>
+  <p class="a">
+    Be honest and specific. "I am a back-end developer. I can write the HTML and vanilla JS to
+    consume my own API, debug in dev tools, and read a React or Angular component well enough to
+    see where it calls the server &mdash; but I would not call myself a front-end developer." That
+    answer is credible; "yes, full stack" invites a question you will not enjoy.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is CORS?"</p>
+  <p class="a">
+    A browser security mechanism: script on origin A may not read a response from origin B unless B
+    sends headers permitting it. It is enforced by the browser, not the server &mdash; which is why
+    the same request from Postman works fine.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why TypeScript over JavaScript?"</p>
+  <p class="a">
+    Errors at compile time instead of run time, real editor completion, and types as documentation
+    that cannot go stale. Then the caveat that shows depth: types are erased, so data crossing the
+    network boundary still needs validating.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the DOM?"</p>
+  <p class="a">
+    The browser&rsquo;s in-memory object tree built from the HTML. JavaScript manipulates that
+    tree, not the source file.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you prevent XSS?"</p>
+  <p class="a">
+    Encode on output &mdash; which Razor does by default and <code>textContent</code> does in the
+    DOM. Never build HTML from user input; add a Content-Security-Policy header as defence in depth.
+    Same principle as parameterised SQL: data must never become code.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

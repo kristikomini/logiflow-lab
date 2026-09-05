@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create an account — LogiFlow Academy</title>
+<meta name="description" content="Create a LogiFlow Academy account to carry your progress between machines. Everything you have already done in this browser is uploaded to it, and nothing restarts.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="register">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main auth-main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Create an account</p>
+    <h1>Create an account</h1>
+    <p class="lede">
+      An account is optional and it is not a paywall &mdash; there is nothing behind it that
+      you cannot already do. It exists for two situations: you study on a laptop and revise
+      on a phone, and two people share one machine or one deployment. Your progress so far
+      comes with you.
+    </p>
+
+    <div id="auth-host"></div>
+
+    <div class="box note">
+      <div class="box-title">📌 The last screen matters more than this one</div>
+      <p>
+        When you press the button, you will be shown a <strong>recovery code</strong> once and
+        never again. It is the only way back into the account if you forget your password,
+        because this service has no mail transport and therefore no reset email &mdash; and a
+        reset that verifies nothing would not be a reset, it would be a back door.
+      </p>
+      <p>
+        Put it in your password manager beside the password. Losing both is losing the account;
+        your work would survive, because it is also in this browser and
+        <a href="account.html">Export a backup</a> gives you a file you can import into a new
+        one, but the account itself would be gone.
+      </p>
+    </div>
+
+    <div class="box kid">
+      <div class="box-title">🧒 What the school actually writes down</div>
+      <p>
+        Imagine a school that keeps one folder per pupil. In yours there is the name you chose,
+        every test you have ever taken, and &mdash; instead of your password &mdash; a
+        <em>scrambled</em> version of it that cannot be un-scrambled. When you come back and say
+        the password, they scramble what you said the same way and check that the two scribbles
+        match. There is no address in the folder, because the school never sends anything.
+      </p>
+      <p>
+        So a thief who steals the whole filing cabinet still cannot walk into your house. They
+        have the scribble, not the word. And because the scrambling is deliberately
+        <em>slow</em>, guessing a million words to find the right one takes them a very long
+        afternoon.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 What gets stored, exactly</div>
+      <p>
+        Five columns on the user row: the normalised username, the display name, a PBKDF2 hash
+        with its <strong>per-user salt</strong> and its <strong>iteration count</strong>, and a
+        SHA-256 of the recovery code. <b>No email address</b> &mdash; it could never be
+        verified, never be written to and never be used to recover anything, so collecting one
+        would be personal data held for no purpose, which is what data minimisation exists to
+        stop.
+      </p>
+      <p>
+        The salt is why two people who pick the same password get different hashes, so one
+        cracked hash does not crack the other. The iteration count is stored <em>per row</em>
+        rather than as a global constant, which is what lets the cost be raised later without
+        invalidating everyone: on your next successful sign-in the plaintext is momentarily
+        available again, and the row is re-hashed at the new cost.
+      </p>
+      <p>
+        The recovery code gets a plain SHA-256 where the password gets PBKDF2, and that is not
+        an oversight. Slow hashing buys time only against a <em>low-entropy, human-chosen</em>
+        secret; the code is 100 bits from a cryptographic RNG, so nothing guesses it however
+        fast the hash runs. Being able to say which of those two applies, and why, is most of
+        that interview question.
+      </p>
+      <p>
+        Alongside it sits your progress document &mdash; one JSON blob, stored verbatim. The
+        server parses it only to pull out the leaderboard figures, and only because a number
+        shown next to other people's names should not be one the browser simply asserted.
+      </p>
+      <p>
+        Read the code: <code>src/LogiFlow.Academy.Api/Security/PasswordHasher.cs</code> and
+        <code>Endpoints/AuthEndpoints.cs</code>, then the chapter it comes from &mdash;
+        <a href="chapters/15-api-security.html">15 &middot; Securing an API</a>.
+      </p>
+    </div>
+
+    <div class="box trap">
+      <div class="box-title">⚠ The one place enumeration is not the answer</div>
+      <p>
+        If the name is taken, this form says so plainly &mdash; unlike
+        <a href="signin.html">sign in</a> and <a href="reset.html">recovery</a>, which are
+        careful never to admit whether an account exists. That looks like an inconsistency and
+        is a deliberate line.
+      </p>
+      <p>
+        The enumeration argument only bites when the identifier is <em>private</em>. An email
+        address is: learning that <code>you@work.it</code> has an account here is a disclosure
+        about you. A username on this site is not &mdash; it is printed on the leaderboard for
+        anyone to read. So refusing to say &ldquo;taken&rdquo; would protect nothing while
+        leaving every person who picks a common name guessing why registration failed. Know
+        which of those two you are holding before copying either behaviour.
+      </p>
+    </div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/auth-page.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  if (window.LFAuthPage) window.LFAuthPage.mountRegister(document.getElementById("auth-host"));
+})();
+</script>
+</body>
+</html>

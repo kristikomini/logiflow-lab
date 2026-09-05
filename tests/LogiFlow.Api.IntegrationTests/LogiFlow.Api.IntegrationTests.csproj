@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogiFlow.Api\LogiFlow.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <!-- The gRPC client library only. The generated client TYPES come from LogiFlow.Api,
+         which generates GrpcServices="Both" - see the comment in its csproj for why the
+         contract cannot be generated twice. -->
+    <PackageReference Include="Grpc.Net.Client" />
+    <!-- Referenced directly, not left to arrive transitively under EF Core, because this
+         project uses SqlConnectionStringBuilder and SqlException in its own source.
+         A type you name in your code belongs in your csproj: relying on a transitive
+         reference means an unrelated package upgrade upstream can break your compile. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+</Project>

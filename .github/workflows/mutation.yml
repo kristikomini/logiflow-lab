@@ -1,0 +1,90 @@
+# =============================================================================
+# mutation.yml — mutation testing over the Domain.
+#
+# WHY THIS IS A SEPARATE, SCHEDULED WORKFLOW
+# "224 tests, all green" is a claim about the tests running, not about them
+# testing anything. Line coverage does not fix that either: a test that calls a
+# method and asserts nothing covers every line in it.
+#
+# Mutation testing asks the only question that matters. It changes the code —
+# flips a `>` to a `>=`, removes a `!`, returns null instead of a value — and
+# reruns the suite. A mutant that SURVIVES is a change to the production code
+# that no test noticed, and every survivor is either a missing test or a line
+# that did not need to exist.
+#
+# It is slow (tens of minutes for a few hundred mutants, because the suite runs
+# once per mutant), so it does not belong in the pull-request path. Weekly, plus
+# on demand, is the right cadence: the answer changes when the tests change, and
+# that is not every commit.
+#
+# Locally:
+#   dotnet tool restore
+#   dotnet stryker
+#
+# Covered in: course/module-12-testing/
+# =============================================================================
+
+name: Mutation testing
+
+on:
+  schedule:
+    # 04:00 UTC on Sundays. Slow, and nobody is waiting for it.
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      break_at:
+        description: "Fail the run below this mutation score (%)"
+        required: false
+        default: "65"
+
+permissions:
+  contents: read
+
+jobs:
+  stryker:
+    name: Domain mutants
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # The tool version is pinned in .config/dotnet-tools.json, so this run and
+      # a run on your laptop are the same Stryker. An unpinned global tool would
+      # make the score move for reasons that have nothing to do with the tests.
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Run Stryker
+        run: >-
+          dotnet stryker
+          --break-at ${{ github.event.inputs.break_at || '65' }}
+          --reporter progress
+          --reporter html
+          --reporter cleartext
+
+      # Uploaded whether or not the threshold was met — the report is the point,
+      # and the surviving mutants are most worth reading on the run that failed.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: StrykerOutput/**/reports/
+          retention-days: 30
+          if-no-files-found: warn

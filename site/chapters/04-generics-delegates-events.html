@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 · Generics, delegates and events — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="04-generics-delegates-events">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 04</p>
+<h1>Generics, delegates and events</h1>
+<p class="lede">
+  Three features that look like syntax and are actually the foundations. Every LINQ query, every
+  dependency injection registration, every <code>await</code>, every button click and every piece
+  of ASP.NET Core middleware in this site is built out of them. Learn them once and a dozen later
+  chapters stop being magic.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Che cos'è un delegate?"</em> and <em>"perché i generics?"</em> are asked in almost every
+    junior technical round, because they are cheap to ask and reveal instantly whether you have
+    read C# or only used it. They are also the answer to "how does LINQ actually work", which is
+    the follow-up.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="generics">Generics</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a lunchbox factory. You could make a sandwich box, a fruit box, a biscuit box &mdash;
+    three factories, three sets of drawings, and if you improve the lid you have to improve it
+    three times.
+  </p>
+  <p>
+    Or you make <em>one</em> box with a label on the side saying what goes in it. Same box, and the
+    label stops someone putting biscuits in the fruit one.
+  </p>
+  <p>
+    <code>List&lt;T&gt;</code> is that box. <code>T</code> is the label.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Generics give you <strong>type safety and code reuse at the same time</strong>, which before
+    C# 2.0 you had to choose between. The old way was <code>ArrayList</code>, which stored
+    <code>object</code>:
+  </p>
+  <pre><code><span class="cm">// Before generics — compiles fine, explodes at runtime.</span>
+<span class="ty">ArrayList</span> list = <span class="kw">new</span>();
+list.Add(<span class="nu">42</span>);
+list.Add(<span class="st">"quarantadue"</span>);              <span class="cm">// nobody stopped you</span>
+<span class="kw">int</span> x = (<span class="kw">int</span>)list[<span class="nu">1</span>];             <span class="cm">// InvalidCastException, in production</span>
+
+<span class="cm">// With generics — the mistake does not compile.</span>
+<span class="ty">List</span>&lt;<span class="kw">int</span>&gt; numbers = [<span class="nu">42</span>];
+numbers.Add(<span class="st">"quarantadue"</span>);           <span class="cm">// CS1503, on your machine, today</span></code></pre>
+  <p>
+    Three benefits, and you should be able to name all three:
+    <strong>compile-time safety</strong> (errors move from runtime to build),
+    <strong>no casting</strong> (less noise, fewer mistakes), and
+    <strong>no boxing</strong> for value types &mdash; <code>ArrayList</code> heap-allocates every
+    <code>int</code> you put in it, and <code>List&lt;int&gt;</code> does not. That third one is
+    <a href="08-disposal-and-thread-safety.html#boxing">chapter 08</a>, and it is the answer most
+    candidates miss.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 250" role="img" aria-labelledby="gen-title">
+    <title id="gen-title">One generic definition producing several checked types, versus one object-based container checked only at runtime</title>
+    <defs>
+      <marker id="a04g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">ArrayList &mdash; one bucket, checked at runtime</text>
+    <rect x="20" y="40" width="150" height="56" rx="8" class="d-panel d-stroke"/>
+    <text x="95" y="64" class="d-text" text-anchor="middle" style="font-size:11.5px">ArrayList</text>
+    <text x="95" y="84" class="d-small" text-anchor="middle">holds object</text>
+    <line x1="172" y1="68" x2="226" y2="68" class="d-arrow" marker-end="url(#a04g)"/>
+    <rect x="230" y="40" width="150" height="56" rx="8" class="d-panel d-stroke"/>
+    <text x="305" y="64"  class="d-small" text-anchor="middle">cast on the way out</text>
+    <text x="305" y="82"  class="d-small" text-anchor="middle">boxing on the way in</text>
+    <text x="20" y="120" class="d-small">A wrong type compiles happily and throws in front of a user.</text>
+
+    <line x1="415" y1="20" x2="415" y2="230" class="d-stroke" stroke-dasharray="4 4"/>
+
+    <text x="450" y="26" class="d-small">List&lt;T&gt; &mdash; one definition, many checked types</text>
+    <rect x="450" y="40" width="150" height="56" rx="8" class="d-brand"/>
+    <text x="525" y="64" class="d-white" text-anchor="middle" style="font-size:11.5px">List&lt;T&gt;</text>
+    <text x="525" y="84" class="d-white" text-anchor="middle" style="font-size:10.5px">written once</text>
+
+    <line x1="602" y1="56" x2="654" y2="42" class="d-arrow" marker-end="url(#a04g)"/>
+    <line x1="602" y1="68" x2="654" y2="68" class="d-arrow" marker-end="url(#a04g)"/>
+    <line x1="602" y1="80" x2="654" y2="94" class="d-arrow" marker-end="url(#a04g)"/>
+
+    <rect x="658" y="26" width="150" height="30" rx="6" class="d-panel d-stroke"/>
+    <text x="733" y="46" class="d-small" text-anchor="middle">List&lt;int&gt; — no boxing</text>
+    <rect x="658" y="60" width="150" height="30" rx="6" class="d-panel d-stroke"/>
+    <text x="733" y="80" class="d-small" text-anchor="middle">List&lt;Order&gt;</text>
+    <rect x="658" y="94" width="150" height="30" rx="6" class="d-panel d-stroke"/>
+    <text x="733" y="114" class="d-small" text-anchor="middle">List&lt;string&gt;</text>
+
+    <text x="450" y="150" class="d-small">The JIT produces one shared implementation for all reference types</text>
+    <text x="450" y="168" class="d-small">and a specialised one per value type — which is exactly why</text>
+    <text x="450" y="186" class="d-small">List&lt;int&gt; can store ints without wrapping each one on the heap.</text>
+
+    <text x="20" y="220" class="d-small">"Generics are just casts with nicer syntax" is wrong, and knowing why is the good answer.</text>
+  </svg>
+  <figcaption>
+    Generic type parameters survive into the compiled IL, so the runtime knows them. That is why
+    C# generics behave differently from Java's, where they are erased.
+  </figcaption>
+</figure>
+
+<div class="code-head">constraints: what the method is allowed to assume</div>
+<pre><code><span class="cm">// Without a constraint, T could be anything, so you can do almost nothing with it.</span>
+<span class="kw">public static</span> T Largest&lt;T&gt;(<span class="ty">IEnumerable</span>&lt;T&gt; items) <span class="kw">where</span> T : <span class="ty">IComparable</span>&lt;T&gt;
+{
+    T best = items.First();
+    <span class="kw">foreach</span> (T item <span class="kw">in</span> items)
+        <span class="kw">if</span> (item.CompareTo(best) &gt; <span class="nu">0</span>) best = item;   <span class="cm">// legal because of the where</span>
+    <span class="kw">return</span> best;
+}</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Constraint</th><th>Means</th></tr></thead>
+  <tbody>
+    <tr><td><code>where T : class</code></td><td>a reference type</td></tr>
+    <tr><td><code>where T : struct</code></td><td>a value type</td></tr>
+    <tr><td><code>where T : new()</code></td><td>has a public parameterless constructor</td></tr>
+    <tr><td><code>where T : IComparable&lt;T&gt;</code></td><td>implements that interface</td></tr>
+    <tr><td><code>where T : Entity</code></td><td>derives from that base class</td></tr>
+    <tr><td><code>where T : notnull</code></td><td>never null &mdash; see nullability in <a href="02-csharp-fundamentals.html#nullability">chapter 02</a></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="delegates">Delegates</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You know how you can save a friend's phone number and then ring it without remembering the
+    digits? A delegate is a saved phone number &mdash; but for a <em>method</em>.
+  </p>
+  <p>
+    That means you can hand somebody a method the way you hand them a number: "here, call this when
+    you're done." They do not need to know whose number it is.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A delegate is a <strong>type-safe reference to a method</strong>. It is a real type (deriving
+    from <code>MulticastDelegate</code>), not a syntax trick, which is what makes it different from
+    a C function pointer: it carries the target instance as well as the method, and the signature
+    is checked by the compiler.
+  </p>
+  <p>
+    In practice you almost never declare your own any more, because the framework provides them:
+  </p>
+  <pre><code><span class="ty">Func</span>&lt;<span class="kw">int</span>, <span class="kw">int</span>, <span class="kw">int</span>&gt;   add   = (a, b) =&gt; a + b;   <span class="cm">// takes 2 ints, returns int</span>
+<span class="ty">Action</span>&lt;<span class="kw">string</span>&gt;         log   = m  =&gt; <span class="ty">Console</span>.WriteLine(m); <span class="cm">// returns void</span>
+<span class="ty">Predicate</span>&lt;<span class="ty">Order</span>&gt;      isBig = o  =&gt; o.Total &gt; <span class="nu">1000m</span>;  <span class="cm">// returns bool</span>
+
+<span class="cm">// The last type argument of Func is ALWAYS the return type. That is the</span>
+<span class="cm">// one detail people get wrong under pressure.</span></code></pre>
+  <p>
+    And this is where LINQ comes from. <code>Where</code> does not contain your condition &mdash;
+    you hand it one:
+  </p>
+  <pre><code><span class="cm">// This...</span>
+orders.Where(o =&gt; o.Total &gt; <span class="nu">1000m</span>)
+
+<span class="cm">// ...is this. The lambda IS a Func&lt;Order, bool&gt;.</span>
+<span class="kw">public static</span> <span class="ty">IEnumerable</span>&lt;T&gt; Where&lt;T&gt;(<span class="kw">this</span> <span class="ty">IEnumerable</span>&lt;T&gt; source,
+                                       <span class="ty">Func</span>&lt;T, <span class="kw">bool</span>&gt; predicate)
+{
+    <span class="kw">foreach</span> (T item <span class="kw">in</span> source)
+        <span class="kw">if</span> (predicate(item))      <span class="cm">// ← calling the method you passed in</span>
+            <span class="kw">yield return</span> item;
+}</code></pre>
+  <p>
+    Generics plus delegates, eight lines, and you have written the core of LINQ. That is a
+    genuinely good thing to be able to say out loud &mdash; see
+    <a href="06-collections-and-linq.html">chapter 06</a> for the rest.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Closures capture variables, not values</div>
+  <p>
+    A lambda does not copy the variables it uses &mdash; it <em>captures</em> them, and keeps the
+    live variable alive. Which produces this:
+  </p>
+  <pre><code><span class="kw">var</span> actions = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">Action</span>&gt;();
+<span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i &lt; <span class="nu">3</span>; i++)
+    actions.Add(() =&gt; <span class="ty">Console</span>.Write(i));
+
+<span class="kw">foreach</span> (<span class="kw">var</span> a <span class="kw">in</span> actions) a();     <span class="out">// 333 — not 012</span></code></pre>
+  <p>
+    All three lambdas captured the same <code>i</code>, and by the time they run it is 3. The fix
+    is a fresh variable per iteration &mdash; <code>int copy = i;</code> inside the loop.
+    <code>foreach</code> was changed in C# 5 to do this for you; a <code>for</code> loop was
+    <em>not</em>, and still behaves like this. It is a favourite interview puzzle precisely because
+    it looks wrong.
+  </p>
+</div>
+
+<h2 id="events">Events</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A newsletter. You give the shop your address and they post you something when there is news.
+    You do not phone the shop every morning to ask.
+  </p>
+  <p>
+    And notice the rules: you can subscribe, and you can unsubscribe &mdash; but you cannot send
+    the newsletter to everybody else, and you cannot delete the shop's whole address book. Only the
+    shop can do those. That restriction is the entire reason the <code>event</code> keyword exists.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    An event is a delegate field with <strong>restricted access</strong>. Without
+    <code>event</code>, a public delegate field lets any caller do two things they should not:
+    <strong>invoke</strong> it (raise your event on your behalf) and <strong>assign</strong> to it
+    with <code>=</code>, wiping every other subscriber. With <code>event</code>, outside code may
+    only <code>+=</code> and <code>-=</code>. That is the whole answer to "what is the difference
+    between a delegate and an event", and it is asked often.
+  </p>
+</div>
+
+<div class="code-head">the standard shape, including the two details people forget</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">OrderService</span>
+{
+    <span class="cm">// EventHandler&lt;T&gt; is the convention: (object? sender, TArgs e)</span>
+    <span class="kw">public event</span> <span class="ty">EventHandler</span>&lt;<span class="ty">OrderSubmittedEventArgs</span>&gt;? OrderSubmitted;
+
+    <span class="kw">public void</span> Submit(<span class="ty">Order</span> order)
+    {
+        order.Submit();
+        <span class="cm">// ?.Invoke — an event with no subscribers is null, and calling it throws.</span>
+        OrderSubmitted?.Invoke(<span class="kw">this</span>, <span class="kw">new</span>(order.Id));
+    }
+}
+
+<span class="cm">// Subscribing…</span>
+service.OrderSubmitted += OnOrderSubmitted;
+
+<span class="cm">// …and the line everybody forgets, which is a memory leak in a long-lived app.</span>
+service.OrderSubmitted -= OnOrderSubmitted;</code></pre>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 240" role="img" aria-labelledby="ev-title">
+    <title id="ev-title">One event holding an invocation list of three subscribers, called in order</title>
+    <defs>
+      <marker id="b04g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="80" width="180" height="70" rx="8" class="d-brand"/>
+    <text x="110" y="108" class="d-white" text-anchor="middle" style="font-size:11.5px">OrderService</text>
+    <text x="110" y="128" class="d-white" text-anchor="middle" style="font-size:10.5px">OrderSubmitted?.Invoke</text>
+
+    <rect x="270" y="70" width="180" height="90" rx="8" class="d-panel d-stroke"/>
+    <text x="360" y="94"  class="d-text" text-anchor="middle" style="font-size:11.5px">invocation list</text>
+    <text x="360" y="116" class="d-small" text-anchor="middle">built by every +=</text>
+    <text x="360" y="136" class="d-small" text-anchor="middle">shortened by every -=</text>
+
+    <line x1="202" y1="115" x2="266" y2="115" class="d-arrow" marker-end="url(#b04g)"/>
+
+    <line x1="452" y1="100" x2="516" y2="60"  class="d-arrow" marker-end="url(#b04g)"/>
+    <line x1="452" y1="115" x2="516" y2="115" class="d-arrow" marker-end="url(#b04g)"/>
+    <line x1="452" y1="130" x2="516" y2="170" class="d-arrow" marker-end="url(#b04g)"/>
+
+    <rect x="520" y="38" width="180" height="42" rx="8" class="d-panel d-stroke"/>
+    <text x="610" y="64"  class="d-small" text-anchor="middle">send confirmation e-mail</text>
+    <rect x="520" y="94" width="180" height="42" rx="8" class="d-panel d-stroke"/>
+    <text x="610" y="120" class="d-small" text-anchor="middle">reserve stock</text>
+    <rect x="520" y="150" width="180" height="42" rx="8" class="d-panel d-stroke"/>
+    <text x="610" y="176" class="d-small" text-anchor="middle">refresh the grid</text>
+
+    <text x="20" y="200" class="d-small">Called synchronously, in subscription order, on the caller's thread. A slow subscriber slows the publisher,</text>
+    <text x="20" y="220" class="d-small">and one that throws stops the rest — which is why cross-process notification uses <tspan style="font-style:italic">chapter 22</tspan>'s broker instead.</text>
+  </svg>
+  <figcaption>
+    The publisher holds a reference to every subscriber. That is the mechanism &mdash; and the
+    leak: a subscriber that never unsubscribes can never be garbage collected.
+  </figcaption>
+</figure>
+
+<h2 id="everywhere">Where you have been using these already</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>What you write</th><th>What it actually is</th></tr></thead>
+  <tbody>
+    <tr><td><code>orders.Where(o =&gt; o.Total &gt; 100)</code></td><td>a <code>Func&lt;Order,bool&gt;</code> passed to a generic method</td></tr>
+    <tr><td><code>services.AddScoped&lt;IRepo, SqlRepo&gt;()</code></td><td>generic type arguments read by the container</td></tr>
+    <tr><td><code>services.AddScoped(sp =&gt; new X(...))</code></td><td>a factory delegate the container will call later</td></tr>
+    <tr><td><code>app.Use(async (ctx, next) =&gt; ...)</code></td><td>middleware is a chain of <code>RequestDelegate</code>s</td></tr>
+    <tr><td><code>await SomethingAsync()</code></td><td>the continuation is a callback the machine invokes</td></tr>
+    <tr><td><code>button.Click += Handler</code></td><td>subscribing to an event &mdash; <a href="31-desktop-wpf-winforms.html">chapter 31</a></td></tr>
+    <tr><td><code>ILogger&lt;OrderService&gt;</code></td><td>a generic type parameter used purely as a label</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Write <code>Where</code> yourself. It is genuinely eight lines:</p>
+  <pre><code><span class="kw">public static class</span> <span class="ty">MyLinq</span>
+{
+    <span class="kw">public static</span> <span class="ty">IEnumerable</span>&lt;T&gt; MyWhere&lt;T&gt;(
+        <span class="kw">this</span> <span class="ty">IEnumerable</span>&lt;T&gt; source, <span class="ty">Func</span>&lt;T, <span class="kw">bool</span>&gt; predicate)
+    {
+        <span class="kw">foreach</span> (T item <span class="kw">in</span> source)
+            <span class="kw">if</span> (predicate(item))
+                <span class="kw">yield return</span> item;
+    }
+}</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then call it with <code>.MyWhere(x =&gt; x &gt; 2)</code> and put a breakpoint inside the
+    <code>foreach</code>. Watch the debugger jump <em>out</em> of your method at
+    <code>yield return</code> and come back in on the next iteration &mdash; that is deferred
+    execution, seen rather than described. Then run the <code>for</code>-loop closure snippet above
+    and watch it print <code>333</code>. Two experiments, ten minutes, and both are interview
+    answers.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Generics buy compile-time safety, no casting, and no boxing. Name all three.</li>
+    <li>Constraints are what let a generic method actually do something with <code>T</code>.</li>
+    <li>C# generics are reified, not erased. The runtime knows the type argument.</li>
+    <li>A delegate is a type-safe method reference that carries its target instance.</li>
+    <li><code>Func</code> returns a value, <code>Action</code> returns void, and <code>Func</code>'s last type argument is the return type.</li>
+    <li>A lambda is just a delegate written inline. LINQ is generics plus delegates.</li>
+    <li>Closures capture variables, not values &mdash; and a <code>for</code> loop variable is one variable.</li>
+    <li>An event is a delegate that outsiders may only <code>+=</code> and <code>-=</code>.</li>
+    <li>Raise with <code>?.Invoke</code>. An event with no subscribers is null.</li>
+    <li>Follow the <code>EventHandler&lt;T&gt;</code> convention unless you have a reason not to.</li>
+    <li>Every <code>+=</code> needs a <code>-=</code>. The publisher holds the subscriber alive.</li>
+    <li>Events are synchronous and in-process. Across a boundary, use <a href="22-messaging-and-queues.html">chapter 22</a>.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Che cos'è un delegate?"</p>
+  <p class="a">
+    A type-safe reference to a method, so you can pass behaviour as a value. Give the concrete
+    payoff immediately rather than stopping at the definition: it is what makes LINQ possible —
+    <code>Where</code> takes a <code>Func&lt;T,bool&gt;</code> and calls the method you gave it.
+    Mention that <code>Func</code>, <code>Action</code> and <code>Predicate</code> mean you rarely
+    declare one yourself.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between a delegate and an event?"</p>
+  <p class="a">
+    An event is a delegate with restricted access: outside the declaring type you may only
+    subscribe and unsubscribe. A plain public delegate field would let any caller raise it, and
+    let one careless <code>=</code> wipe every other subscriber. That encapsulation is the entire
+    reason the keyword exists.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why generics instead of <code>object</code>?"</p>
+  <p class="a">
+    Compile-time type safety, no casts, and no boxing for value types. Make it concrete:
+    <code>ArrayList</code> heap-allocates every <code>int</code> you add and lets you mix in a
+    string that throws on the way out; <code>List&lt;int&gt;</code> does neither. If they push
+    further, add that C# generics are reified rather than erased, so the runtime knows the type
+    argument.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does this print?" <em>(the</em> <code>for</code> <em>loop closure)</em></p>
+  <p class="a">
+    <code>333</code>. All three lambdas captured the same variable, and it is 3 by the time they
+    run. Then say the fix — a fresh variable inside the loop — and the nuance that earns the
+    point: <code>foreach</code> was changed in C# 5 to give a fresh variable per iteration, but
+    <code>for</code> was not.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why do event handlers cause memory leaks?"</p>
+  <p class="a">
+    Because subscribing makes the <em>publisher</em> hold a reference to the <em>subscriber</em>.
+    If the publisher outlives the subscriber and nobody unsubscribes, the subscriber can never be
+    collected. Say where it bites hardest — a long-running desktop process or a
+    <code>BackgroundService</code>, not a 40 ms web request — and that the rule is to pair every
+    <code>+=</code> with a <code>-=</code>.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-02-delegates-and-closures/README.md">Module 02 — Delegates and
+    closures</a> goes through capture semantics and the compiler-generated closure class;
+    <a href="../../course/module-01-csharp-advanced/README.md">Module 01</a> covers generic variance
+    and constraints properly, and
+    <a href="../../course/module-03-linq-internals/README.md">Module 03</a> builds LINQ from these
+    parts. Then <a href="06-collections-and-linq.html">chapter 06</a> uses all of it.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

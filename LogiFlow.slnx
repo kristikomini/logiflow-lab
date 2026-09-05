@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/labs/">
+    <Project Path="labs/Labs.Benchmarks/Labs.Benchmarks.csproj" />
+    <Project Path="labs/Labs.Exercises/Labs.Exercises.csproj" />
+    <Project Path="labs/Labs.LoadTests/Labs.LoadTests.csproj" />
+    <Project Path="labs/Labs.Playground/Labs.Playground.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/LogiFlow.Academy.Api/LogiFlow.Academy.Api.csproj" />
+    <Project Path="src/LogiFlow.Api/LogiFlow.Api.csproj" />
+    <Project Path="src/LogiFlow.Application/LogiFlow.Application.csproj" />
+    <Project Path="src/LogiFlow.Domain/LogiFlow.Domain.csproj" />
+    <Project Path="src/LogiFlow.Infrastructure/LogiFlow.Infrastructure.csproj" />
+    <Project Path="src/LogiFlow.Web/LogiFlow.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogiFlow.Academy.Api.Tests/LogiFlow.Academy.Api.Tests.csproj" />
+    <Project Path="tests/LogiFlow.Api.IntegrationTests/LogiFlow.Api.IntegrationTests.csproj" />
+    <Project Path="tests/LogiFlow.Application.Tests/LogiFlow.Application.Tests.csproj" />
+    <Project Path="tests/LogiFlow.ArchitectureTests/LogiFlow.ArchitectureTests.csproj" />
+    <Project Path="tests/LogiFlow.Domain.Tests/LogiFlow.Domain.Tests.csproj" />
+    <Project Path="tests/LogiFlow.Infrastructure.Tests/LogiFlow.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

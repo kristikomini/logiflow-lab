@@ -1,0 +1,26 @@
+{
+  "name": "LogiFlow Academy — .NET, Emilia-Romagna",
+  "short_name": "Academy",
+  "description": "Forty-seven chapters covering every line of a real .NET developer advert from Emilia-Romagna, with tests, spaced repetition and a spoken viva.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Today's review", "url": "review.html", "description": "The spaced-repetition session due now" },
+    { "name": "Viva", "url": "viva.html", "description": "Say a golden rule's justification out loud" },
+    { "name": "Interview simulator", "url": "simulate.html", "description": "A timed mixed round, spoken" }
+  ]
+}

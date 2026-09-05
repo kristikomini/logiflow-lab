@@ -1,0 +1,82 @@
+<Project>
+
+  <!--
+    SOLUTION-WIDE BUILD SETTINGS
+    ============================
+    MSBuild automatically imports the nearest Directory.Build.props walking UP from
+    each .csproj, and stops at the first one it finds. Nested files must therefore
+    explicitly <Import> their parent (see src/Directory.Build.props).
+
+    Covered in: course/module-00-setup/03-build-system.md
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Nullable reference types. Non-negotiable on a modern codebase: it turns a whole
+         class of NullReferenceException into a compile-time error. -->
+    <Nullable>enable</Nullable>
+
+    <!-- Injects `using System; using System.Linq; ...` into every file. -->
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      Write a packages.lock.json beside every .csproj, recording the exact resolved
+      graph including transitive packages. Central package management pins what this
+      repository asks for; the lock file pins what it actually got, which is not the
+      same thing the moment a dependency of a dependency ships a new patch.
+
+      Locally, a restore updates the lock file. In CI, RestoreLockedMode makes a
+      restore that *would* change it fail instead — so a build can never quietly use
+      a version nobody tested. That is module 13's golden rule 6, applied to itself.
+
+      Bumping a package therefore needs a restore with the `force-evaluate` switch,
+      and the diff on the lock file is the review: it shows the transitive fallout
+      that the one-line change in Directory.Packages.props does not.
+
+      (Written without the two dashes an option normally carries, because an XML
+      comment may not contain them — and MSBuild does not report that as an error.
+      It silently swallowed every property in this group, and the build failed
+      three files away with "The TargetFramework value '' was not recognized".)
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <!-- Fail the build on a lock-file/restore mismatch instead of silently upgrading. -->
+    <RestoreLockedMode Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</RestoreLockedMode>
+
+    <!-- Deterministic builds: same source in == same bytes out. Required for
+         reproducible-build attestation and for source-link debugging. -->
+    <Deterministic>true</Deterministic>
+
+    <!-- Roslyn analyzers at the strictest documented level. -->
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Generate XML docs so public API comments show up in IntelliSense... -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- ...but don't fail on every undocumented public member (CS1591). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!--
+      NOT set: <InvariantGlobalization>true</InvariantGlobalization>
+
+      It is a tempting switch - it shrinks container images by dropping ICU and removes a whole
+      class of "works on my machine, breaks in Docker" culture bugs. But Microsoft.Data.SqlClient
+      does not support it, and the failure is a runtime crash with a message that names none of
+      this:
+
+          Globalization Invariant Mode is not supported.
+
+      If you ever see that line, this is why. Determinism is instead enforced the explicit way:
+      every ToString, Parse and comparison in this codebase passes CultureInfo.InvariantCulture
+      or StringComparison.Ordinal, which is better practice regardless.
+    -->
+  </PropertyGroup>
+
+  <!-- Everything in this repo is an app or a test; nothing ships to NuGet. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

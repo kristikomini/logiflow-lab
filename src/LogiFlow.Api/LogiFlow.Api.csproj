@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The composition root. This is the only project that knows about *every* other
+    layer, because it is the thing that wires them together in Program.cs.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>LogiFlow.Api</RootNamespace>
+    <UserSecretsId>logiflow-api-dev-secrets</UserSecretsId>
+    <!-- Required so WebApplicationFactory in the integration tests can find the entry point. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogiFlow.Infrastructure\LogiFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="Scalar.AspNetCore" />
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogiFlow.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <!--
+    THE .proto IS A BUILD INPUT, not content. Grpc.Tools runs protoc over every item here and
+    generates C# into obj/ before the compiler runs, which is why OrderReply and
+    OrderLookup.OrderLookupBase have no source file you can open. Edit the .proto, rebuild, and
+    the generated types change under you - including in ways that break the call site, which is
+    the entire point of a compiled contract.
+
+    GrpcServices="Both" generates the service base class AND a client, in one assembly. The
+    server needs only the base class, so this ships a client nobody here calls - which is the
+    deliberate trade. The alternative is a LogiFlow.Contracts project holding just the .proto,
+    referenced by the service and by every consumer, and that is what you do the moment a second
+    solution needs to call this. Generating both here keeps one project instead of two while the
+    only consumer is the test that proves the contract works from the outside.
+
+    Note what is NOT possible: generating "Client" over the same csharp_namespace in a second
+    project that also references this one. Both would define OrderReply in LogiFlow.Api.Grpc and
+    the compiler would refuse. A contract is a single definition or it is not a contract.
+  -->
+  <ItemGroup>
+    <Protobuf Include="Protos\orders.proto" GrpcServices="Both" />
+  </ItemGroup>
+
+</Project>

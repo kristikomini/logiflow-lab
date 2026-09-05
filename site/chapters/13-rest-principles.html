@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13 · REST principles — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="13-rest-principles">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 13</p>
+<h1>REST principles</h1>
+<p class="lede">
+  REST is not a technology and not a library. It is a set of constraints on how to use HTTP, and
+  the whole point of them is that a caller who has never seen your API can guess how it works.
+  This chapter is the theory; <a href="14-web-api.html">the next one</a> is the C#.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Comprensione dei <strong>principi</strong> REST e sviluppo di Web API."</em> The word
+  <em>principi</em> is doing real work: they will ask <em>why</em> a verb, <em>why</em> a status
+  code &mdash; not just whether you can write a controller.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-idea">The idea</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think of a library where every book has its own address, like
+    <em>shelf 3, row 2, book 7</em>. Once you know the addressing system you can find
+    <em>anything</em>, because it always works the same way. Nobody has to give you a special map
+    for each book.
+  </p>
+  <p>
+    And there are only four things you ever do at an address: <strong>look</strong> at the book,
+    <strong>put</strong> a new one there, <strong>change</strong> the one that is there, or
+    <strong>take it away</strong>. Four verbs, infinite addresses. That is REST.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    REST (Representational State Transfer) was described by Roy Fielding in 2000 as an
+    architectural style defined by constraints, of which these matter in practice:
+  </p>
+  <ul>
+    <li><strong>Resources with identifiers.</strong> Nouns, addressed by URI. The thing at
+        <code>/orders/42</code> is an order; what you receive is a
+        <em>representation</em> of it (JSON, usually), not the thing itself.</li>
+    <li><strong>Uniform interface.</strong> The same small set of verbs everywhere, with the same
+        meanings. This is what makes an API guessable.</li>
+    <li><strong>Statelessness.</strong> Every request carries everything needed to serve it. The
+        server keeps no per-client conversation state between requests.</li>
+    <li><strong>Cacheability.</strong> Responses say whether and for how long they may be cached.</li>
+    <li><strong>Layered system.</strong> The client cannot tell whether it is talking to the
+        server, a load balancer, a gateway or a cache &mdash; which is what allows all three to
+        exist.</li>
+  </ul>
+</div>
+
+<h2 id="anatomy">The anatomy of a request</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="http-title">
+    <title id="http-title">The parts of an HTTP request and response</title>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">Request</text>
+    <rect x="20" y="36" width="796" height="120" rx="9" class="d-panel"/>
+    <rect x="20" y="36" width="796" height="120" rx="9" class="d-stroke"/>
+
+    <rect x="38" y="52" width="60" height="26" rx="5" class="d-brand" opacity=".92"/>
+    <text x="68" y="70" class="d-white" text-anchor="middle" style="font-size:12px">POST</text>
+    <text x="110" y="70" class="d-mono">/api/v1/customers/42/orders</text>
+    <text x="420" y="70" class="d-mono">HTTP/1.1</text>
+    <text x="38" y="94" class="d-small">↑ verb: what to do</text>
+    <text x="180" y="94" class="d-small">↑ resource: what to do it to</text>
+
+    <text x="38" y="122" class="d-mono">Content-Type: application/json</text>
+    <text x="38" y="140" class="d-mono">Authorization: Bearer eyJhbGci…</text>
+    <text x="430" y="122" class="d-small">↑ headers: how to interpret the body,</text>
+    <text x="430" y="140" class="d-small">   and who is asking</text>
+
+    <text x="20" y="188" class="d-text" style="font-weight:700">Response</text>
+    <rect x="20" y="200" width="796" height="104" rx="9" class="d-panel"/>
+    <rect x="20" y="200" width="796" height="104" rx="9" class="d-stroke"/>
+
+    <rect x="38" y="216" width="150" height="26" rx="5" class="d-brand" opacity=".92"/>
+    <text x="113" y="234" class="d-white" text-anchor="middle" style="font-size:12px">201 Created</text>
+    <text x="204" y="234" class="d-small">← the status code is the API talking to the machine</text>
+
+    <text x="38" y="266" class="d-mono">Location: /api/v1/orders/1001</text>
+    <text x="330" y="266" class="d-small">← where the new thing now lives</text>
+    <text x="38" y="288" class="d-mono">{ "id": 1001, "total": 49.90, "status": "Draft" }</text>
+  </svg>
+  <figcaption>Verb, resource, headers, body — and a status code that means something specific.</figcaption>
+</figure>
+
+<h2 id="verbs">The verbs</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Verb</th><th>Meaning</th><th>Safe</th><th>Idempotent</th><th>Typical success</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><code>GET</code></td><td>Read a resource</td><td>✓</td><td>✓</td><td>200, or 404</td></tr>
+    <tr><td><code>POST</code></td><td>Create, or "do something"</td><td>✗</td><td>✗</td><td>201 + <code>Location</code></td></tr>
+    <tr><td><code>PUT</code></td><td>Replace entirely</td><td>✗</td><td>✓</td><td>200 or 204</td></tr>
+    <tr><td><code>PATCH</code></td><td>Modify partially</td><td>✗</td><td>✗ (usually)</td><td>200 or 204</td></tr>
+    <tr><td><code>DELETE</code></td><td>Remove</td><td>✗</td><td>✓</td><td>204</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple — safe and idempotent</div>
+  <p>
+    <strong>Safe</strong> means "looking does not change anything". You can read the same page a
+    hundred times and the book is unchanged.
+  </p>
+  <p>
+    <strong>Idempotent</strong> means "doing it twice is the same as doing it once". Setting a
+    light switch to <em>off</em> is idempotent &mdash; press it five times, the light is still off.
+    <em>Flipping</em> the switch is not: five presses leaves it on.
+  </p>
+  <p>
+    This matters because the internet loses messages. If your phone sends a request and the reply
+    never arrives, it does not know whether the thing happened. If the request was idempotent, it
+    can safely just send it again.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>Safe</strong> = no observable state change, so it can be prefetched, cached and
+    retried freely. <strong>Idempotent</strong> = N identical requests have the same effect as one,
+    so a client, proxy or retry policy may repeat it after a timeout without risk.
+  </p>
+  <p>
+    <code>POST</code> is neither, which is why "did my payment go through?" is a genuinely hard
+    problem. The standard solution is an <strong>idempotency key</strong>: the client sends a
+    unique header, the server records it with the result, and a repeat of the same key returns the
+    original response instead of charging twice. Mentioning this unprompted is a strong signal.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>PUT</code> replaces; <code>PATCH</code> modifies</div>
+  <p>
+    A <code>PUT</code> with only <code>{"status": "Sent"}</code> means "the order is now
+    <em>only</em> this" &mdash; a strict implementation clears every field you omitted. If you want
+    to change one field, use <code>PATCH</code>. Getting this wrong quietly wipes data.
+  </p>
+</div>
+
+<h2 id="urls">Designing the URLs</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>✗ Not REST</th><th>✓ REST</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /getOrders</code></td><td><code>GET /orders</code></td><td>The verb is the HTTP method, not part of the path.</td></tr>
+    <tr><td><code>POST /createOrder</code></td><td><code>POST /orders</code></td><td>Same reason.</td></tr>
+    <tr><td><code>GET /orders/delete/42</code></td><td><code>DELETE /orders/42</code></td><td>Never mutate through <code>GET</code>. A crawler will find it.</td></tr>
+    <tr><td><code>GET /order</code></td><td><code>GET /orders</code></td><td>Collections are plural, consistently.</td></tr>
+    <tr><td><code>GET /orders/42/lines/7/product/name</code></td><td><code>GET /order-lines/7</code></td><td>Nest one level at most; deeper is unusable.</td></tr>
+    <tr><td><code>GET /orders?action=submit</code></td><td><code>POST /orders/42/submit</code></td><td>An action that is not CRUD is a sub-resource, and it is a <code>POST</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">query strings are for filtering, sorting and paging</div>
+<pre><code>GET /api/v1/orders?customerId=42&amp;status=submitted&amp;page=2&amp;pageSize=20&amp;sort=-createdAt
+
+<span class="cm"># the path identifies WHICH resources; the query says how to slice them</span></code></pre>
+
+<h2 id="status-codes">Status codes that matter</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Code</th><th>Name</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>200</strong></td><td>OK</td><td>Success with a body.</td></tr>
+    <tr><td><strong>201</strong></td><td>Created</td><td>You created something. Include a <code>Location</code> header.</td></tr>
+    <tr><td><strong>204</strong></td><td>No Content</td><td>Success, nothing to return &mdash; a delete or an update.</td></tr>
+    <tr><td><strong>400</strong></td><td>Bad Request</td><td>The request is malformed or fails validation. <em>Their</em> fault.</td></tr>
+    <tr><td><strong>401</strong></td><td>Unauthorized</td><td>Actually means <em>unauthenticated</em> &mdash; who are you?</td></tr>
+    <tr><td><strong>403</strong></td><td>Forbidden</td><td>We know who you are, and you may not do this.</td></tr>
+    <tr><td><strong>404</strong></td><td>Not Found</td><td>No such resource. Also used to hide existence from unauthorised callers.</td></tr>
+    <tr><td><strong>409</strong></td><td>Conflict</td><td>Valid request, wrong state &mdash; duplicate key, concurrency conflict, submitting a submitted order.</td></tr>
+    <tr><td><strong>422</strong></td><td>Unprocessable</td><td>Syntactically fine, semantically invalid. Some teams prefer this to 400.</td></tr>
+    <tr><td><strong>429</strong></td><td>Too Many Requests</td><td>Rate limited. Send <code>Retry-After</code>.</td></tr>
+    <tr><td><strong>500</strong></td><td>Server Error</td><td><em>Your</em> fault. Never leak a stack trace with it.</td></tr>
+    <tr><td><strong>503</strong></td><td>Unavailable</td><td>Temporarily down &mdash; a dependency is unreachable.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>200 OK { "success": false }</code></div>
+  <p>
+    The single most common REST mistake. It forces every client to parse the body to discover
+    whether it worked, and it defeats every intermediary &mdash; proxies, monitoring, retry
+    policies, browser caches &mdash; all of which understand status codes and none of which
+    understand your JSON. <strong>The status code is the answer; the body is the detail.</strong>
+  </p>
+</div>
+
+<h3>Errors: use the standard shape</h3>
+<p>
+  RFC 9457 <em>Problem Details</em> is what ASP.NET Core produces by default. Use it rather than
+  inventing your own error object &mdash; clients and tooling already understand it.
+</p>
+
+<div class="code-head">400 Bad Request</div>
+<pre><code>{
+  <span class="st">"type"</span>:     <span class="st">"https://tools.ietf.org/html/rfc9110#section-15.5.1"</span>,
+  <span class="st">"title"</span>:    <span class="st">"One or more validation errors occurred."</span>,
+  <span class="st">"status"</span>:   <span class="nu">400</span>,
+  <span class="st">"traceId"</span>:  <span class="st">"00-8f2b…-01"</span>,
+  <span class="st">"errors"</span>: {
+    <span class="st">"CustomerId"</span>: [<span class="st">"CustomerId must be greater than 0."</span>],
+    <span class="st">"Lines"</span>:      [<span class="st">"An order must have at least one line."</span>]
+  }
+}</code></pre>
+
+<h2 id="statelessness">Statelessness</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a shop where the assistant forgets you completely the moment you turn around. Annoying?
+    No &mdash; brilliant. It means <em>any</em> assistant can serve you, so the shop can hire twenty
+    of them and you never have to queue for "your" one.
+  </p>
+  <p>
+    You just have to bring your loyalty card every time. That card is the token.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    No server-side session between requests. Each request carries its own authentication, usually a
+    bearer token. The payoff is horizontal scale: any instance can serve any request, so you can
+    add instances behind a load balancer without sticky sessions, and a restarting instance loses
+    nothing.
+  </p>
+  <p>
+    Note what statelessness does <em>not</em> mean: the database is still state. The constraint is
+    about <em>conversation</em> state, not application state.
+  </p>
+</div>
+
+<h2 id="maturity">The Richardson maturity model</h2>
+
+<p>Useful for one honest sentence in an interview about how RESTful things really are.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Level</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>0</strong></td><td>One URI, one verb. RPC tunnelled through HTTP (classic SOAP).</td></tr>
+    <tr><td><strong>1</strong></td><td>Resources have their own URIs &mdash; but everything is still <code>POST</code>.</td></tr>
+    <tr><td><strong>2</strong></td><td>Proper verbs and proper status codes. <strong>Almost every real API lives here, including good ones.</strong></td></tr>
+    <tr><td><strong>3</strong></td><td>HATEOAS &mdash; responses include links to the next available actions. Rare in practice.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  Saying "we target level 2, and level 3 is rarely worth the cost outside public hypermedia APIs"
+  is a more credible answer than claiming full REST compliance.
+</p>
+
+<h3>Versioning</h3>
+<p>
+  You will change the API. Decide how before you have callers. The common options are URL
+  (<code>/api/v1/orders</code> &mdash; visible and simple, and what most teams pick), a header
+  (<code>api-version: 1</code> &mdash; cleaner URIs, harder to test by hand), or a media type. Any
+  is defensible; <em>none</em> is not.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Design the endpoints for a small warehouse system. Write the verb, path and success code for:</p>
+  <ol>
+    <li>List all orders for customer 42, page 2</li>
+    <li>Fetch order 1001</li>
+    <li>Create an order</li>
+    <li>Change only the delivery address of order 1001</li>
+    <li>Submit order 1001 (a state transition, not a field edit)</li>
+    <li>Cancel order 1001</li>
+    <li>Submit an order that is already submitted</li>
+  </ol>
+  <p class="subtle" style="margin-top:.6em">
+    Answers: <code>GET /customers/42/orders?page=2</code> 200 &middot;
+    <code>GET /orders/1001</code> 200 &middot; <code>POST /orders</code> 201 + Location &middot;
+    <code>PATCH /orders/1001</code> 200 &middot; <code>POST /orders/1001/submit</code> 200 &middot;
+    <code>POST /orders/1001/cancel</code> 200 (or <code>DELETE</code> if it truly disappears)
+    &middot; and the last one is <strong>409 Conflict</strong> &mdash; the request was fine, the
+    state was not. Number 7 is the one that separates candidates.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-15-aspnetcore-in-depth/README.md">Module 15</a> follows a request
+    through the framework, and
+    <a href="../../src/LogiFlow.Api/">src/LogiFlow.Api</a> is the working implementation of these
+    principles.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>URLs are nouns; HTTP methods are the verbs. <code>/getOrders</code> is a bug in the design.</li>
+    <li>Collections plural, one level of nesting at most.</li>
+    <li><code>GET</code> never changes state. Ever.</li>
+    <li>Idempotent: <code>GET</code>, <code>PUT</code>, <code>DELETE</code>. Not idempotent:
+        <code>POST</code>, usually <code>PATCH</code>.</li>
+    <li>For "create and retry safely", use an idempotency key.</li>
+    <li><code>PUT</code> replaces the whole resource; <code>PATCH</code> changes part of it.</li>
+    <li>The status code carries the outcome. Never <code>200 OK</code> with an error inside.</li>
+    <li>401 is "who are you"; 403 is "not you"; 409 is "not now".</li>
+    <li>Return Problem Details for errors, with a trace id.</li>
+    <li>Stateless: every request stands alone. That is what makes horizontal scale possible.</li>
+    <li>Version from day one, and pick one scheme.</li>
+    <li>Non-CRUD actions become sub-resources: <code>POST /orders/1001/submit</code>.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What makes an API RESTful?"</p>
+  <p class="a">
+    Resources identified by URI, a uniform interface using HTTP verbs with their standard meanings,
+    statelessness, and honest use of status codes. Then be candid: most APIs, including good ones,
+    sit at Richardson level 2 rather than doing full HATEOAS.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does idempotent mean, and which verbs are?"</p>
+  <p class="a">
+    N identical requests have the same effect as one. <code>GET</code>, <code>PUT</code>,
+    <code>DELETE</code> are; <code>POST</code> is not. Then give the reason it matters: a client
+    that times out cannot know whether the request succeeded, and idempotency is what makes a
+    retry safe.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>PUT</code> or <code>PATCH</code>?"</p>
+  <p class="a">
+    <code>PUT</code> replaces the entire resource, so omitted fields should be cleared;
+    <code>PATCH</code> applies a partial change. Sending a partial body with <code>PUT</code> is a
+    common and destructive mistake.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"401 or 403?"</p>
+  <p class="a">
+    401 means unauthenticated &mdash; the credentials are missing or invalid, despite the name
+    "Unauthorized". 403 means authenticated but not permitted. And sometimes 404 is the right
+    answer to a 403 situation, when confirming that a resource exists is itself a leak.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A client submits the same order twice because of a timeout. What do you do?"</p>
+  <p class="a">
+    Accept an idempotency key header, store it against the result of the first request, and return
+    that stored response for a repeat. Alternatively make the operation naturally idempotent with a
+    client-generated id and a unique constraint. This question is asked far more often than people
+    expect, and it is where REST theory becomes practical.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

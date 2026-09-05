@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>00 · The job posting, decoded — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="00-the-job-posting">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00</p>
+<h1>The job posting, decoded</h1>
+<p class="lede">
+  A job advert is not a wish list. It is a compressed description of the code the team already
+  has. Every line implies a system that exists, a problem it caused, and a question they will ask
+  you about it. This chapter unpacks all of them.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p>All of it. This chapter is the map; the remaining twenty-one are the territory.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="how-to-read-an-advert">How to read an advert</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine someone puts up a sign: <em>"Wanted: a helper who can cook pasta, wash up, and carry
+    heavy boxes."</em> You learn a lot from that sign. It tells you they own a kitchen. It tells
+    you the dishwasher is probably broken. And it tells you something heavy arrives every week.
+    The sign is not really about you &mdash; it is a photograph of <em>their</em> problems.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Requirements lists are written by someone who just spent six months maintaining the system.
+    The order is rarely accidental, and the qualifiers carry weight:
+    <strong>ottima</strong> (excellent) marks a daily activity, <strong>buona</strong> (good)
+    marks a weekly one, and <strong>familiarit&agrave;</strong> or
+    <strong>comprensione</strong> marks something you will be taught on the job but must not be
+    frightened of. The "nice to have" list is usually the direction the codebase is
+    <em>moving in</em> &mdash; which is why it is the most useful part to prepare.
+  </p>
+</div>
+
+<h2 id="line-by-line">Line by line</h2>
+
+<h3>Requisiti &mdash; the ones that filter</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th style="width:38%">What it says</th><th>What it means, and what they will ask</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Laurea o Diploma in ambito informatico o equivalente</strong></td>
+      <td>
+        Italian job adverts almost always open with a qualification line; the "<em>o
+        equivalente</em>" is doing real work. A <em>diploma di perito informatico</em> (a five-year
+        technical high-school diploma) genuinely satisfies this, and so does demonstrable
+        experience. It is a filter for HR, not for the technical interviewer.
+        <span class="subtle">Bring a portfolio and it stops mattering.</span>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Da 1 a 3 anni nello sviluppo .NET</strong></td>
+      <td>
+        This is a <em>junior-to-mid</em> role. They expect you to need code review, not
+        supervision. Nobody counts the years precisely; what they are actually testing is whether
+        you have seen a codebase you did not write, and whether you have ever had to fix something
+        in production.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Framework .NET / .NET Core</strong></td>
+      <td>
+        The slash is the interesting part. It means the company has <strong>both</strong>: legacy
+        applications on .NET Framework 4.x and newer work on modern .NET. Expect migration work.
+        &rarr; <a href="01-dotnet-platform.html">Chapter 01</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Ottima conoscenza di C# e OOP</strong></td>
+      <td>
+        <em>Ottima</em> &mdash; the strongest word in the advert. This is the language you write
+        every day. OOP being called out separately means they expect you to design types, not just
+        write methods. &rarr; <a href="02-csharp-fundamentals.html">02</a>&ndash;<a href="07-async-and-errors.html">07</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>T-SQL e RDBMS, in particolare SQL Server</strong></td>
+      <td>
+        <strong>T-SQL is named before any ORM.</strong> That is the single most informative detail
+        in the whole advert: it means people on this team open SQL Server Management Studio and
+        write queries by hand. Expect stored procedures. Expect to be asked about indexes.
+        &rarr; <a href="09-databases-and-sql-server.html">09</a>&ndash;<a href="11-tsql-performance.html">11</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Principi REST e sviluppo di Web API</strong></td>
+      <td>
+        "Principi" means they will ask <em>why</em>, not just how: which verb, which status code,
+        what is idempotent. &rarr; <a href="13-rest-principles.html">13</a>, <a href="14-web-api.html">14</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Visual Studio e/o VS Code</strong></td>
+      <td>
+        Read this as "you can debug". A candidate who has never set a conditional breakpoint is
+        visible within ten minutes of pair programming.
+        &rarr; <a href="27-visual-studio-vscode.html">Chapter 27</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Analisi e autonomia decisionale nel proprio dominio</strong></td>
+      <td>
+        Translated: <em>we will give you a ticket, not a specification.</em> They want someone who
+        asks the two right questions and then decides, rather than waiting.
+        &rarr; <a href="35-analysis-and-teamwork.html">Chapter 35</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Team working e doti comunicative</strong></td>
+      <td>
+        In Italian SME software teams this is usually literal: small teams, shared rooms, and the
+        person who wrote the module sitting two desks away. Also &mdash; you will be speaking
+        Italian with colleagues and reading English documentation.
+      </td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>A completamento del profilo &mdash; the ones that decide</h3>
+
+<p>
+  Counter-intuitively, the optional list is where you win. Everyone applying can write C#. Far
+  fewer can say something intelligent about cache invalidation or an execution plan.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th style="width:38%">What it says</th><th>Why it is on the list</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ASP.NET Core MVC e EF Core</strong></td>
+      <td>MVC alongside Web API means server-rendered admin screens exist next to the API &mdash;
+      a very common shape in <em>gestionale</em> / ERP work.
+      &rarr; <a href="16-aspnet-mvc.html">16</a>, <a href="12-ef-core.html">12</a></td></tr>
+    <tr><td><strong>Azure e Azure DevOps</strong></td>
+      <td>Deployment is not someone else's job. Azure DevOps specifically (rather than GitHub
+      Actions) is the norm in Italian enterprise .NET shops.
+      &rarr; <a href="29-azure.html">29</a>, <a href="30-azure-devops-cicd.html">30</a></td></tr>
+    <tr><td><strong>HTML, JavaScript, TypeScript</strong></td>
+      <td>"Base" is honest &mdash; they do not want a front-end specialist, they want someone who
+      can fix the screen their own API feeds. &rarr; <a href="17-frontend-basics.html">17</a></td></tr>
+    <tr><td><strong>ElasticSearch/OpenSearch, Redis</strong></td>
+      <td>The tell of a system under load. Somebody has already hit the wall where
+      <code>LIKE '%...%'</code> stopped being fast enough, and where the same query was being run
+      a thousand times a minute. &rarr; <a href="20-redis-caching.html">20</a>, <a href="21-search-elastic.html">21</a></td></tr>
+    <tr><td><strong>Git</strong></td>
+      <td>Listed last and marked optional, which in 2026 means "we assume it".
+      Treat it as mandatory. &rarr; <a href="26-git.html">26</a></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="what-the-list-implies">What the list implies about their codebase</h2>
+
+<p>
+  Put every requirement on one picture and a specific system appears &mdash; not a generic one.
+  This is a company running a data-heavy line-of-business application, old enough to have
+  performance problems and new enough to be modernising.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 380" role="img" aria-labelledby="implied-title">
+    <title id="implied-title">The system implied by the requirements list</title>
+    <defs>
+      <marker id="ar0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <!-- legacy -->
+    <rect x="24" y="30" width="220" height="86" rx="9" class="d-panel"/>
+    <rect x="24" y="30" width="220" height="86" rx="9" class="d-stroke" stroke-dasharray="5 4"/>
+    <text x="134" y="56" class="d-text" text-anchor="middle">Legacy .NET Framework</text>
+    <text x="134" y="76" class="d-small" text-anchor="middle">WinForms / WebForms / old MVC</text>
+    <text x="134" y="96" class="d-small" text-anchor="middle">still running, still earning money</text>
+
+    <path d="M134 116 L134 156" class="d-arrow" stroke-width="2" marker-end="url(#ar0)"/>
+    <text x="144" y="142" class="d-small">migration</text>
+
+    <!-- modern -->
+    <rect x="24" y="156" width="220" height="86" rx="9" class="d-brand" opacity=".92"/>
+    <text x="134" y="182" class="d-white" text-anchor="middle">Modern .NET</text>
+    <text x="134" y="202" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.92">ASP.NET Core — Web API + MVC</text>
+    <text x="134" y="222" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.92">the work you would be hired to do</text>
+
+    <!-- data -->
+    <path d="M244 199 L318 199" class="d-arrow" stroke-width="2" marker-end="url(#ar0)"/>
+    <rect x="320" y="156" width="200" height="86" rx="9" class="d-panel"/>
+    <rect x="320" y="156" width="200" height="86" rx="9" class="d-stroke"/>
+    <text x="420" y="182" class="d-text" text-anchor="middle">SQL Server</text>
+    <text x="420" y="202" class="d-small" text-anchor="middle">EF Core for the easy 90%</text>
+    <text x="420" y="222" class="d-small" text-anchor="middle">hand-written T-SQL for the rest</text>
+
+    <!-- pressure valves -->
+    <path d="M520 178 L596 178" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar0)"/>
+    <rect x="598" y="152" width="216" height="52" rx="9" class="d-panel"/>
+    <rect x="598" y="152" width="216" height="52" rx="9" class="d-stroke"/>
+    <text x="706" y="174" class="d-text" text-anchor="middle">Redis</text>
+    <text x="706" y="192" class="d-small" text-anchor="middle">because reads repeat</text>
+
+    <path d="M520 220 L580 220 L580 250 L596 250" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#ar0)"/>
+    <rect x="598" y="224" width="216" height="52" rx="9" class="d-panel"/>
+    <rect x="598" y="224" width="216" height="52" rx="9" class="d-stroke"/>
+    <text x="706" y="246" class="d-text" text-anchor="middle">ElasticSearch / OpenSearch</text>
+    <text x="706" y="264" class="d-small" text-anchor="middle">because LIKE stopped scaling</text>
+
+    <!-- pipeline -->
+    <rect x="24" y="290" width="790" height="62" rx="9" class="d-panel"/>
+    <rect x="24" y="290" width="790" height="62" rx="9" class="d-stroke" stroke-dasharray="5 4"/>
+    <text x="419" y="314" class="d-text" text-anchor="middle">Git &rarr; Azure DevOps pipeline &rarr; Azure App Service</text>
+    <text x="419" y="334" class="d-small" text-anchor="middle">every requirement in the &ldquo;nice to have&rdquo; list is one box on this row</text>
+  </svg>
+  <figcaption>
+    The advert, redrawn as an architecture. Two ages of .NET side by side, one relational database
+    under pressure, and a delivery pipeline around all of it.
+  </figcaption>
+</figure>
+
+<div class="box trap">
+  <div class="box-title">⚠ The mistake candidates make</div>
+  <p>
+    Preparing breadth instead of depth. Twelve technologies each known to one paragraph loses to
+    <em>four</em> known well plus honest curiosity about the rest. When you cannot answer, the
+    winning sentence is not a guess &mdash; it is <em>"I have not used it; here is the closest
+    thing I have used, and here is what I would go and read."</em>
+  </p>
+</div>
+
+<h2 id="the-order">Why the chapters are in this order</h2>
+
+<p>
+  The sidebar is not alphabetical and not a ranking. It follows dependency: nothing appears before
+  the thing it needs.
+</p>
+
+<ul>
+  <li><strong>01&ndash;08, the language.</strong> You cannot reason about EF Core before you can
+      reason about <code>IEnumerable</code>, and you cannot reason about a Web API before you
+      understand <code>async</code>. The last one &mdash; disposal, memory and shared state
+      &mdash; is what everything above it is standing on.</li>
+  <li><strong>09&ndash;12, the data.</strong> SQL comes before EF Core deliberately, in the same
+      order the advert lists them. An ORM you learn before SQL is an ORM you cannot debug.</li>
+  <li><strong>13&ndash;19, the web.</strong> REST as an idea, then the framework that implements
+      it, then how to secure it, then the pages, then the browser &mdash; and finally the two ways
+      the region builds real front ends.</li>
+  <li><strong>20&ndash;22, the pressure valves.</strong> Caching, search and messaging only make
+      sense once you know what they are relieving.</li>
+  <li><strong>23&ndash;25, building it properly.</strong> Layering, testing and observability come
+      after the parts they organise. You cannot usefully argue about where a rule belongs until
+      you have written a few.</li>
+  <li><strong>26&ndash;30, the tools.</strong> Deliberately late: they are how the work ships, not
+      what the work is.</li>
+  <li><strong>31&ndash;33, the region.</strong> The desktop estate, the factory and the
+      <em>gestionale</em> &mdash; three markets that pay well here and that almost nobody applying
+      has read a word about.</li>
+  <li><strong>34&ndash;38, the people.</strong> How the work is organised, how you are judged,
+      and then the three rounds in the order you will meet them: the CV, the screening test, the
+      interview.</li>
+</ul>
+
+<p>
+  Seventeen chapters &mdash; <a href="04-generics-delegates-events.html">04</a>,
+  <a href="05-solid-and-patterns.html">05</a>, <a href="08-disposal-and-thread-safety.html">08</a>,
+  <a href="15-api-security.html">15</a>, <a href="18-spa-and-typescript.html">18</a>,
+  <a href="19-blazor.html">19</a>, <a href="22-messaging-and-queues.html">22</a>,
+  <a href="23-architecture-and-cqrs.html">23</a>, <a href="24-testing.html">24</a>,
+  <a href="25-observability.html">25</a>, <a href="28-containers-and-docker.html">28</a>,
+  <a href="31-desktop-wpf-winforms.html">31</a>, <a href="32-industrial-and-mes.html">32</a>,
+  <a href="33-business-central.html">33</a>, <a href="34-agile-and-scrum.html">34</a>,
+  <a href="36-cv-and-linkedin.html">36</a> and
+  <a href="37-the-screening-test.html">37</a> &mdash; are <em>not</em> in this advert. They are here
+  because the same skills recur across .NET adverts in Modena, Bologna, Reggio Emilia and Milano,
+  and because interviewers ask about them whether the posting mentioned them or not. The home page
+  lists them separately, under <em>Beyond the advert</em>, so the coverage claim above stays
+  honest.
+</p>
+
+<p>
+  Three of them &mdash; <a href="31-desktop-wpf-winforms.html">WinForms and WPF</a>,
+  <a href="32-industrial-and-mes.html">industrial software</a> and
+  <a href="33-business-central.html">Business Central</a> &mdash; are worth a special mention. They
+  are not on this advert and may never be on one you answer, but they are where a large share of
+  the region's .NET money is, and they have a fraction of the competition. Read them even if you
+  intend to ignore them; deciding not to take a road is different from not knowing it is there.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Before you read another chapter, write the advert out by hand and put a mark next to each line:
+    <strong>✓</strong> I could be asked this today, <strong>~</strong> I would survive with a
+    hint, <strong>✗</strong> I would have nothing to say. Keep the sheet. Redo it after
+    chapter 38; the difference between the two sheets is the only progress measure that matters
+    here.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>An advert describes the employer&rsquo;s existing problems, not an ideal candidate.</li>
+    <li><em>Ottima</em> = daily. <em>Buona</em> = weekly. <em>Familiarit&agrave;</em> = do not be
+        frightened of it.</li>
+    <li>"T-SQL" listed before any ORM means real SQL is written by hand on this team.</li>
+    <li>".NET / .NET Core" with a slash means legacy and modern coexist, so migration work exists.</li>
+    <li>Redis and ElasticSearch on the list are symptoms: reads repeat, and text search outgrew
+        the database.</li>
+    <li>The optional list is where candidates separate, because everyone prepares the mandatory one.</li>
+    <li>"Autonomia decisionale" means tickets arrive underspecified. That is a skill, and
+        chapter 35 treats it as one.</li>
+    <li>Never bluff an unknown technology. Name the nearest thing you do know and say what you
+        would read.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Tell us about yourself."</p>
+  <p class="a">
+    Ninety seconds, three beats: what you build, one thing you built that matches
+    <em>their</em> stack, and why this role. Not a CV read aloud. Rehearse it in Italian if the
+    interview will be in Italian &mdash; the first answer sets the language confidence for the
+    whole conversation.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What do you know about our system?"</p>
+  <p class="a">
+    Answer with the diagram above. "From the advert I would guess a .NET Core API in front of SQL
+    Server, some Framework applications still in production, and enough traffic that you needed
+    Redis and a search index. Is that roughly right?" This question is a gift and most candidates
+    waste it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Which of these technologies do you not know?"</p>
+  <p class="a">
+    Answer it honestly and immediately. The purpose of the question is calibration &mdash; they are
+    working out whether your "yes" can be trusted. A candidate who claims all twelve is now
+    unverifiable on all twelve.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>32 · Industrial software and MES — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="32-industrial-and-mes">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 7 &mdash; What the region actually runs <span>&rsaquo;</span> Chapter 32</p>
+<h1>Industrial software and MES</h1>
+<p class="lede">
+  Everything so far assumed your software serves people. This chapter is about software that
+  serves <em>machines</em> — and it is where a very large share of the .NET work in Emilia-Romagna
+  actually is. The technology is familiar (C#, SQL Server, WPF). The assumptions are not.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Search the job boards for the towns rather than the technologies. Sassuolo, Fiorano Modenese,
+    Castel Bolognese, Ravenna, Bologna: <em>"sviluppatore .NET/SQL per l'automazione
+    industriale"</em>, <em>"software gestionali e supervisioni"</em>, <em>"esperienza in ambienti
+    produttivi"</em>. This is the ceramics district, the packaging valley and the motor valley
+    buying software. Almost nobody applying for these roles has read anything about the domain,
+    which makes one chapter's worth of vocabulary disproportionately valuable.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="isa95">The pyramid everyone in the room already knows</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think of a big kitchen in a restaurant.
+  </p>
+  <p>
+    At the bottom there is the <strong>oven</strong>, which just gets hot. Above it, a
+    <strong>little dial</strong> that keeps the oven at exactly 200°. Above that, the
+    <strong>head chef</strong> who says which dish is being cooked now, writes down how many came
+    out burnt, and notices the oven was off for twenty minutes. And at the top, the
+    <strong>manager</strong> who takes the orders from customers and decides what the kitchen will
+    cook this week.
+  </p>
+  <p>
+    Everyone has a level. The manager never touches the dial, and the dial has no idea what a
+    customer is. MES is the head chef.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The industry organises this as <strong>ISA-95</strong>, and it is the shared vocabulary in any
+    meeting about factory software. Five levels:
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 340" role="img" aria-labelledby="isa-title">
+    <title id="isa-title">The ISA-95 automation pyramid from physical process up to ERP, with the protocol used between each level</title>
+    <defs>
+      <marker id="a29" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="300" y="26"  width="240" height="46" rx="8" class="d-panel d-stroke"/>
+    <text x="420" y="46"  class="d-text" text-anchor="middle" style="font-size:12px">Level 4 &mdash; ERP</text>
+    <text x="420" y="63"  class="d-small" text-anchor="middle">orders, planning, costing, invoicing</text>
+
+    <rect x="250" y="98"  width="340" height="52" rx="8" class="d-brand"/>
+    <text x="420" y="120" class="d-white" text-anchor="middle" style="font-size:12.5px">Level 3 &mdash; MES</text>
+    <text x="420" y="139" class="d-white" text-anchor="middle" style="font-size:10.5px">dispatch orders, capture production &amp; quality, OEE, traceability</text>
+
+    <rect x="200" y="176" width="440" height="50" rx="8" class="d-panel d-stroke"/>
+    <text x="420" y="197" class="d-text" text-anchor="middle" style="font-size:12px">Level 2 &mdash; SCADA / HMI</text>
+    <text x="420" y="215" class="d-small" text-anchor="middle">supervision, operator screens, alarms</text>
+
+    <rect x="150" y="252" width="540" height="42" rx="8" class="d-panel d-stroke"/>
+    <text x="420" y="278" class="d-text" text-anchor="middle" style="font-size:12px">Level 1 &mdash; PLC (sensors, actuators)</text>
+
+    <rect x="100" y="298" width="640" height="34" rx="8" class="d-panel d-stroke"/>
+    <text x="420" y="320" class="d-text" text-anchor="middle" style="font-size:12px">Level 0 &mdash; the physical process: the press, the kiln, the filling line</text>
+
+    <line x1="596" y1="124" x2="596" y2="60"  class="d-arrow" marker-end="url(#a29)"/>
+    <text x="606" y="98"  class="d-small">B2MML / XML / REST</text>
+    <line x1="646" y1="200" x2="646" y2="136" class="d-arrow" marker-end="url(#a29)"/>
+    <text x="656" y="172" class="d-small">OPC UA, MQTT</text>
+
+    <text x="20" y="122" class="d-small">You are</text>
+    <text x="20" y="140" class="d-small">usually hired</text>
+    <text x="20" y="158" class="d-small">for this row</text>
+
+    <text x="20" y="290" class="d-small">OT — operations</text>
+    <text x="20" y="308" class="d-small">technology, often on</text>
+    <text x="20" y="326" class="d-small">an isolated network</text>
+  </svg>
+  <figcaption>
+    ISA-95 defines two handshakes: <strong>OPC UA</strong> upward from Level 2 to 3, and
+    <strong>B2MML</strong> between 3 and 4. Say "Level 3" in an interview and everyone knows
+    exactly what you mean.
+  </figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>SCADA (Level 2)</th><th>MES (Level 3)</th><th>ERP (Level 4)</th></tr></thead>
+  <tbody>
+    <tr><td>Question</td><td>What is happening right now?</td><td>How is this order being made?</td><td>What should we make, and what did it cost?</td></tr>
+    <tr><td>Horizon</td><td>milliseconds to minutes</td><td>the shift, the order</td><td>weeks and months</td></tr>
+    <tr><td>Owns</td><td>tags, alarms, operator screens</td><td>work orders, batches, OEE, traceability</td><td>customers, stock, invoices</td></tr>
+    <tr><td>If it stops</td><td>the line is blind</td><td>you lose the record, not the product</td><td>nobody on the floor notices today</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="what-mes">What an MES is actually asked to do</h2>
+
+<ul>
+  <li><strong>Dispatch.</strong> Take the ERP's production order and tell <em>this machine</em> to
+      make <em>this quantity</em> of <em>this product</em>, now.</li>
+  <li><strong>Capture.</strong> Count good pieces and scrap, record the cause of each stoppage,
+      log process values that a certification requires.</li>
+  <li><strong>OEE.</strong> Overall Equipment Effectiveness =
+      <em>Availability × Performance × Quality</em>. One number the plant manager looks at every
+      morning; getting it right is most of the reporting work.</li>
+  <li><strong>Traceability.</strong> Given a customer complaint about a box, say which batch it
+      came from, which raw material lot went into it, which machine ran it, at what temperature,
+      and who was on shift. In food, pharma and automotive this is a legal obligation, not a
+      feature.</li>
+  <li><strong>Instructions and quality.</strong> Show the operator the right recipe and the right
+      checks, and refuse to proceed when a check fails.</li>
+</ul>
+
+<h2 id="data-in">How the data gets in</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <ul>
+    <li><strong>OPC UA</strong> — the standard, and the one to name. Platform-independent,
+        secure by design (certificates, encrypted sessions), and it carries an
+        <em>information model</em>, not just numbers: a tag knows it is a temperature in °C
+        belonging to a machine. You subscribe to tags and receive changes. The
+        <code>OPCFoundation.NetStandard.Opc.Ua</code> packages are the usual .NET client.</li>
+    <li><strong>MQTT</strong> — lightweight publish/subscribe, common with newer IIoT sensors and
+        for pushing data out to the cloud. Often paired with Sparkplug B for structure.</li>
+    <li><strong>Direct PLC drivers</strong> — Siemens S7, Modbus TCP, EtherNet/IP. Older, cheaper
+        installations still work this way and you will meet raw register maps where the
+        documentation is a spreadsheet.</li>
+    <li><strong>Humans and barcodes.</strong> Never forget this one. A scanner is a keyboard, an
+        operator terminal is a <a href="31-desktop-wpf-winforms.html">WinForms or WPF screen</a> with big buttons for gloved hands, and the
+        stoppage reason is chosen from a list by a person.</li>
+    <li><strong>Files.</strong> A CSV dropped on a share every ten minutes by a machine from 2004.
+        It is not elegant and it will outlive you.</li>
+  </ul>
+</div>
+
+<h2 id="different">Why this software is written differently</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A website going down is annoying: people come back later. A factory line going down costs
+    thousands of euro an hour and a hundred people stand still.
+  </p>
+  <p>
+    So the rule is different. On a website you ask "is this the nicest way to build it?" In a
+    factory you ask "what happens if this breaks at three in the morning and nobody is here?"
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>Five assumptions from web work that are simply false here:</p>
+  <ol>
+    <li><strong>"The database is always reachable."</strong> It is not, and the line cannot stop
+        because your server is patching. Acquisition buffers locally and forwards when the link
+        returns — <em>store and forward</em>. This is the single most important design idea in the
+        chapter.</li>
+    <li><strong>"A day starts at midnight."</strong> It starts when the shift starts. A shift runs
+        22:00&ndash;06:00 and belongs to one production day; the night of the clock change has 23
+        or 25 hours; the plant may run a calendar with Ferragosto shutdown in it. Time is a
+        business concept, not a timestamp.</li>
+    <li><strong>"A few thousand rows a day."</strong> One machine sampling ten tags at 5 Hz is
+        four million rows a day. Multiply by forty machines. You will be doing partitioning,
+        aggregation into shift-level roll-ups, and a retention policy from day one — the material
+        in <a href="11-tsql-performance.html">chapter 11</a>, but with the volume knob turned up.</li>
+    <li><strong>"We can deploy at any time."</strong> You deploy during the shutdown, and the
+        shutdown may be in August. Changes are validated; in pharma and food they are
+        <em>qualified</em>, with documentation.</li>
+    <li><strong>"Everything is on the internet."</strong> The OT network is deliberately isolated
+        from IT, often through a DMZ. There may be no outbound internet on the shop floor at all,
+        which decides your deployment story, your NuGet story and your telemetry story.</li>
+  </ol>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 250" role="img" aria-labelledby="sf-title">
+    <title id="sf-title">An edge collector buffers machine data locally so a database outage never stops the line</title>
+    <defs>
+      <marker id="b29" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20"  y="80" width="120" height="70" rx="8" class="d-panel d-stroke"/>
+    <text x="80"  y="108" class="d-text" text-anchor="middle" style="font-size:11.5px">PLC</text>
+    <text x="80"  y="128" class="d-small" text-anchor="middle">never stops</text>
+
+    <line x1="142" y1="115" x2="206" y2="115" class="d-arrow" marker-end="url(#b29)"/>
+    <text x="174" y="106" class="d-small" text-anchor="middle">OPC UA</text>
+
+    <rect x="210" y="70" width="180" height="90" rx="8" class="d-brand"/>
+    <text x="300" y="96"  class="d-white" text-anchor="middle" style="font-size:11.5px">Edge collector</text>
+    <text x="300" y="116" class="d-white" text-anchor="middle" style="font-size:10.5px">Windows service, C#</text>
+    <text x="300" y="136" class="d-white" text-anchor="middle" style="font-size:10.5px">local SQLite buffer</text>
+
+    <line x1="392" y1="115" x2="516" y2="115" class="d-arrow" marker-end="url(#b29)"/>
+    <text x="454" y="106" class="d-small" text-anchor="middle">forward when up</text>
+    <text x="454" y="140" class="d-small" text-anchor="middle">at-least-once + dedup key</text>
+
+    <rect x="520" y="70" width="180" height="90" rx="8" class="d-panel d-stroke"/>
+    <text x="610" y="102" class="d-text" text-anchor="middle" style="font-size:11.5px">MES / SQL Server</text>
+    <text x="610" y="124" class="d-small" text-anchor="middle">may be down for an hour</text>
+    <text x="610" y="142" class="d-small" text-anchor="middle">and nobody on the floor cares</text>
+
+    <text x="20" y="200" class="d-small">The buffer is the whole design. Without it, a network blip becomes a hole in the production record —</text>
+    <text x="20" y="220" class="d-small">and in a traceability audit, a hole in the record is the same as not having built the product correctly.</text>
+  </svg>
+  <figcaption>
+    Notice this is the <a href="22-messaging-and-queues.html">previous part's</a> outbox idea,
+    physically relocated: buffer locally, forward at-least-once, deduplicate on arrival.
+  </figcaption>
+</figure>
+
+<h2 id="model">A data model you can sketch in an interview</h2>
+
+<pre><code>Machine(Id, Code, LineId, ...)
+Shift(Id, PlantId, StartsAtLocal, EndsAtLocal, ProductionDate)   <span class="cm">-- NOT derived from the clock</span>
+WorkOrder(Id, ErpOrderNo, ProductId, QuantityPlanned, MachineId, StartedAtUtc, EndedAtUtc)
+ProductionEvent(Id, MachineId, WorkOrderId, OccurredAtUtc, Good, Scrap)
+Downtime(Id, MachineId, FromUtc, ToUtc, ReasonId, OperatorId)    <span class="cm">-- reason: planned? failure? changeover?</span>
+Reading(MachineId, TagId, OccurredAtUtc, Value)                  <span class="cm">-- the big one; partition by date</span>
+Lot(Id, WorkOrderId, MaterialLotId)                              <span class="cm">-- what went into what</span></code></pre>
+
+<p class="subtle">
+  Two decisions in there are the whole conversation. <strong><code>ProductionDate</code> is stored,
+  not computed</strong> — the moment you calculate it from a timestamp you have signed up for
+  every shift, midnight and DST bug there is. And <strong>every downtime has a reason chosen by a
+  human</strong>, because "the machine stopped" is data and "the machine stopped because the film
+  reel ran out" is information, and only the second one improves OEE.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ The three that will actually bite you</div>
+  <ul>
+    <li><strong>Machine clocks lie.</strong> A PLC's clock drifts, or was set by hand in 2019, or
+        has no time zone. Timestamp on arrival <em>and</em> keep the machine's own value, and
+        reconcile. Never assume they agree.</li>
+    <li><strong>Local time in the database.</strong> Store UTC, plus the plant's time zone, plus
+        the production date. Storing local time means an hour of your data is ambiguous every
+        October and missing every March.</li>
+    <li><strong>Blocking the acquisition loop.</strong> The OPC UA subscription callback is not the
+        place to write to SQL Server. One slow query and you drop samples that no longer exist
+        anywhere. Enqueue and hand off — the acquisition thread does nothing but acquire.</li>
+  </ul>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    You do not need a factory. Microsoft publishes an OPC UA server that simulates a PLC with
+    moving tags:
+  </p>
+  <pre><code>docker run -d --rm -p 50000:50000 --name opcplc \
+  mcr.microsoft.com/iotedge/opc-plc:latest \
+  --pn=50000 --autoaccept --sph --sn=5 --sr=10 --st=uint
+
+<span class="cm"># then, in a console app:</span>
+dotnet add package OPCFoundation.NetStandard.Opc.Ua.Client</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Connect, browse the address space, and subscribe to a simulated tag. Then do the exercise that
+    is really the point: write the samples through a bounded in-memory queue into SQLite, and pull
+    the network cable (stop the SQL container). The collector must keep buffering and the tag must
+    keep arriving. Reconnect, and everything catches up with no gap and no duplicates. Build that
+    once and you can talk about industrial software honestly.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Learn the ISA-95 levels. It is the vocabulary of every meeting you will be in.</li>
+    <li>OPC UA between Level 2 and 3; B2MML or a REST/ERP integration between 3 and 4.</li>
+    <li>The line never stops for your software. Buffer locally, forward later.</li>
+    <li>Store the production date; never derive it from a timestamp.</li>
+    <li>UTC in the database, plus the plant's time zone. Local time is a future outage.</li>
+    <li>The machine clock and your clock disagree. Record both.</li>
+    <li>Never do I/O inside the acquisition callback. Enqueue and hand off.</li>
+    <li>A stoppage without a reason code is not worth recording.</li>
+    <li>OEE = Availability × Performance × Quality. Know what each factor excludes.</li>
+    <li>Plan retention and aggregation before the first row. Raw tag data grows faster than you think.</li>
+    <li>Assume no internet on the OT network, and design deployment for that.</li>
+    <li>Traceability is a legal obligation in food, pharma and automotive. A gap is a finding.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Ha mai lavorato in ambito produttivo?"</p>
+  <p class="a">
+    If the honest answer is no, the good version is: "Not in production, but I understand the
+    shape — Level 3 between SCADA and ERP, data in over OPC UA, and the constraint that the line
+    cannot wait for my software. I have built a collector against a simulated OPC UA server that
+    buffers locally and forwards." That is a far better answer than pretending, and it is true
+    after one evening.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between SCADA, MES and ERP?"</p>
+  <p class="a">
+    Time horizon and question. SCADA is now — tags, alarms, operator screens. MES is the shift and
+    the order — dispatch, production and quality capture, OEE, traceability. ERP is weeks —
+    orders, stock, cost. Then add the failure consequence for each, because that is what shows you
+    understand rather than memorised.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A shift runs 22:00 to 06:00. Which day does it belong to?"</p>
+  <p class="a">
+    Whichever day the plant's calendar says, which is why the production date is a stored column
+    and not a computed one. Then raise the follow-ups yourself: the clock-change night has 23 or 25
+    hours, and a shift can be extended by an hour of overtime. Someone who has been near a factory
+    will smile at this answer.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"The database is unavailable for an hour. What happens to the production data?"</p>
+  <p class="a">
+    Nothing is lost, because acquisition writes to a local buffer and forwards when the link
+    returns, at-least-once, deduplicated on arrival. Say why it matters in this domain
+    specifically: a gap in the record is a traceability finding, and the line will not be paused
+    for your outage.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you calculate OEE?"</p>
+  <p class="a">
+    Availability (run time ÷ planned production time) × Performance (actual output ÷ theoretical
+    output at ideal rate) × Quality (good pieces ÷ total pieces). Then the sentence that shows real
+    understanding: the arguments are always about what counts as <em>planned</em> production time —
+    is a changeover downtime or not? — so the definition has to be agreed with the plant, and
+    written down, before you code it.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Where to take this next</div>
+  <p>
+    <a href="11-tsql-performance.html">Chapter 11</a> is the indexing and partitioning you will
+    need for tag data, <a href="22-messaging-and-queues.html">chapter 22</a> is the store-and-forward
+    pattern in its general form, and <a href="19-blazor.html">chapter 19</a> is how these shops move
+    their WPF operator screens to the browser.
+    <a href="../../course/module-23-text-culture-serialization/README.md">Module 23</a> covers the
+    time-zone and culture handling this chapter keeps warning you about.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

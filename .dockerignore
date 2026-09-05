@@ -1,0 +1,49 @@
+# What never belongs in a build context.
+#
+# The context is everything Docker uploads to the daemon before the first
+# instruction runs. Without this file that is the whole repository including
+# every bin/ and obj/ — hundreds of megabytes, sent on every build, to be
+# ignored. Worse, a stale obj/ from a Windows host can leak into a Linux build
+# and produce failures that look like compiler bugs.
+#
+# The rule of thumb: if it is generated, secret, or only useful to a human, it
+# is not part of an image.
+
+# ── Build output ─────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+**/BenchmarkDotNet.Artifacts/
+**/TestResults/
+**/StrykerOutput/
+
+# ── Editors and version control ──────────────────────────────────────────────
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+**/*.user
+**/*.suo
+
+# ── Secrets. Belt and braces: these are gitignored too. ──────────────────────
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+**/*.pfx
+**/*.p12
+.env
+.env.*
+**/App_Data/
+
+# ── Everything a reader needs and an image does not ──────────────────────────
+# The exception is site/, which the Academy image genuinely ships — see
+# src/LogiFlow.Academy.Api/Dockerfile. It is not listed here for that reason.
+course/
+docs/
+labs/
+tests/
+tools/
+requests/
+README.md
+**/*.md
+docker-compose*.yml
+Dockerfile*

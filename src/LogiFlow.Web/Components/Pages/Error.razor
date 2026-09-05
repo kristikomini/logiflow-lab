@@ -1,0 +1,31 @@
+@page "/Error"
+
+@* Rendered by UseExceptionHandler in non-Development environments.
+
+   Note what it does NOT do: show the exception message. A stack trace in a production error page
+   leaks file paths, package versions and sometimes connection strings. The user gets a request
+   id; the operator gets the detail from the logs. *@
+
+<PageTitle>Error — LogiFlow</PageTitle>
+
+<h1>Something went wrong</h1>
+
+<p class="subtitle">
+    The request could not be completed. It has been logged with the id below — quote it if you
+    report this.
+</p>
+
+@if (RequestId is not null)
+{
+    <p><code>@RequestId</code></p>
+}
+
+<a class="btn" href="/orders">Back to orders</a>
+
+@code {
+    /// <summary>Correlates this page with the log entry for the failure.</summary>
+    [CascadingParameter]
+    public HttpContext? HttpContext { get; set; }
+
+    private string? RequestId => System.Diagnostics.Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

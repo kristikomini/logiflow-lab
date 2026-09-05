@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>22 · Message brokers and queues — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="22-messaging-and-queues">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 4 &mdash; Fast at scale <span>&rsaquo;</span> Chapter 22</p>
+<h1>Message brokers and queues</h1>
+<p class="lede">
+  <a href="20-redis-caching.html">Caching</a> relieved read pressure and
+  <a href="21-search-elastic.html">search</a> relieved query pressure. A message broker relieves
+  something different: <em>time</em>. It lets work that does not have to happen now stop happening
+  now, and it lets two services stop needing each other to be awake at the same moment.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    RabbitMQ, Kafka and Azure Service Bus travel through Italian backend adverts alongside
+    <em>microservizi</em>, <em>architetture event-driven</em>, DDD and CQRS &mdash; from Milano
+    consultancies to product companies in Bologna. The repository already contains the hard half:
+    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxMessage.cs"><code>OutboxMessage</code></a>
+    and
+    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor</code></a>.
+    This chapter explains what they feed.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why">Why not just call the other service</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You want to tell your friend something. You could phone them &mdash; but then you both have to
+    be free at the same second, and if their phone is off you are stuck holding the message.
+  </p>
+  <p>
+    Or you post a letter. You drop it in the box and get on with your day. Your friend reads it
+    when they get home. If they are on holiday for a week, the letter waits; nothing is lost and
+    you were never blocked.
+  </p>
+  <p>
+    A queue is the letterbox. The trade is that you no longer know <em>when</em> they read it, and
+    you cannot get an answer back in the same breath.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A synchronous HTTP call couples the caller to the callee in three ways at once:
+    <strong>availability</strong> (if it is down, you fail), <strong>latency</strong> (your
+    response time is the sum of theirs), and <strong>capacity</strong> (a slow consumer becomes
+    your slow endpoint). Chain four services and your success rate is the product of four
+    availabilities.
+  </p>
+  <p>
+    Putting a broker between them buys you: the producer completes without the consumer;
+    load-levelling, because a burst becomes queue depth rather than timeouts; retries without the
+    caller knowing; and independent scaling of each side.
+  </p>
+  <p>
+    What it costs is real and worth saying out loud: <strong>eventual consistency</strong> — the
+    work is not done when you return 202 — plus a broker to operate, harder debugging across a
+    boundary, and a whole class of new failure modes (duplicates, poison messages, ordering)
+    that this chapter is mostly about.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="msg-title">
+    <title id="msg-title">A synchronous chain fails end to end; a broker decouples the producer from the consumers</title>
+    <defs>
+      <marker id="a20b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">Synchronous: 220 ms, and any one failure fails the order</text>
+    <rect x="20"  y="40" width="110" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="75"  y="67" class="d-text" text-anchor="middle" style="font-size:11px">Orders API</text>
+    <rect x="200" y="40" width="110" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="255" y="67" class="d-text" text-anchor="middle" style="font-size:11px">Invoicing</text>
+    <rect x="380" y="40" width="110" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="435" y="67" class="d-text" text-anchor="middle" style="font-size:11px">E-mail</text>
+    <rect x="560" y="40" width="110" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="615" y="67" class="d-text" text-anchor="middle" style="font-size:11px">Warehouse</text>
+    <line x1="132" y1="62" x2="196" y2="62" class="d-arrow" marker-end="url(#a20b)"/>
+    <line x1="312" y1="62" x2="376" y2="62" class="d-arrow" marker-end="url(#a20b)"/>
+    <line x1="492" y1="62" x2="556" y2="62" class="d-arrow" marker-end="url(#a20b)"/>
+    <text x="700" y="67" class="d-small">the customer waits</text>
+    <text x="20" y="104" class="d-small">The e-mail server being slow makes placing an order slow. It should not.</text>
+
+    <text x="20" y="146" class="d-small">Asynchronous: 12 ms, and the rest happens on its own</text>
+    <rect x="20"  y="160" width="110" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="75"  y="187" class="d-text" text-anchor="middle" style="font-size:11px">Orders API</text>
+
+    <line x1="132" y1="182" x2="196" y2="182" class="d-arrow" marker-end="url(#a20b)"/>
+    <text x="164" y="174" class="d-small" text-anchor="middle">publish</text>
+
+    <rect x="200" y="150" width="150" height="64" rx="8" class="d-brand"/>
+    <text x="275" y="176" class="d-white" text-anchor="middle" style="font-size:11.5px">broker</text>
+    <text x="275" y="196" class="d-white" text-anchor="middle" style="font-size:10.5px">OrderSubmitted</text>
+
+    <line x1="352" y1="168" x2="416" y2="150" class="d-arrow" marker-end="url(#a20b)"/>
+    <line x1="352" y1="182" x2="416" y2="182" class="d-arrow" marker-end="url(#a20b)"/>
+    <line x1="352" y1="196" x2="416" y2="214" class="d-arrow" marker-end="url(#a20b)"/>
+
+    <rect x="420" y="128" width="120" height="40" rx="8" class="d-panel d-stroke"/>
+    <text x="480" y="153" class="d-small" text-anchor="middle">Invoicing</text>
+    <rect x="420" y="162" width="120" height="40" rx="8" class="d-panel d-stroke"/>
+    <text x="480" y="187" class="d-small" text-anchor="middle">E-mail</text>
+    <rect x="420" y="196" width="120" height="40" rx="8" class="d-panel d-stroke"/>
+    <text x="480" y="221" class="d-small" text-anchor="middle">Warehouse</text>
+
+    <text x="560" y="170" class="d-small">The API returned already.</text>
+    <text x="560" y="188" class="d-small">A consumer that is down</text>
+    <text x="560" y="206" class="d-small">catches up later.</text>
+
+    <text x="20" y="266" class="d-small">Adding a consumer later means subscribing to the same event — the Orders API is not redeployed and does not know it happened.</text>
+    <text x="20" y="286" class="d-small">That is the real prize: the producer stops having a list of everyone who cares.</text>
+  </svg>
+  <figcaption>
+    The order is <em>accepted</em> in 12 ms and <em>complete</em> some time later. If the business
+    cannot tolerate that gap, you do not want a queue here — you want a transaction.
+  </figcaption>
+</figure>
+
+<h2 id="shapes">Queues and topics</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A <strong>queue</strong> is the line at the supermarket. There may be four cashiers, but each
+    customer is served by exactly one of them. More cashiers, shorter line.
+  </p>
+  <p>
+    A <strong>topic</strong> is the school announcement on the loudspeaker. Everybody who is
+    listening hears it &mdash; the same message, all at once.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <ul>
+    <li><strong>Queue / point-to-point.</strong> One message, one consumer. Several instances of a
+        consumer form a <em>competing consumers</em> group, and adding instances adds throughput.
+        This is how you scale work out.</li>
+    <li><strong>Topic / publish-subscribe.</strong> One message, every interested subscriber gets
+        its own copy. This is how you decouple: publish <code>OrderSubmitted</code> and let three
+        teams subscribe without ever telling you.</li>
+  </ul>
+  <p>
+    The naming follows the intent, and it is worth getting right in an interview:
+    <strong>commands</strong> go to a queue and are addressed to one handler
+    (<code>SendInvoiceEmail</code> — imperative, one owner). <strong>Events</strong> go to a topic
+    and state a fact (<code>OrderSubmitted</code> — past tense, no expectation about who reacts).
+    A publisher that knows what its subscribers will do has not decoupled anything.
+  </p>
+</div>
+
+<h2 id="which">Which broker</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>RabbitMQ</th><th>Azure Service Bus</th><th>Apache Kafka</th></tr></thead>
+  <tbody>
+    <tr><td>Model</td><td>Smart broker, routes to queues</td><td>Managed queues + topics</td><td>Append-only partitioned log</td></tr>
+    <tr><td>After consuming</td><td>Message is gone</td><td>Message is gone</td><td>Stays; consumers hold an offset</td></tr>
+    <tr><td>Replay</td><td>No</td><td>No (dead-letter aside)</td><td>Yes — rewind the offset</td></tr>
+    <tr><td>Ordering</td><td>Per queue</td><td>Per session</td><td>Per partition</td></tr>
+    <tr><td>Best at</td><td>Routing, task queues</td><td>Anything already on Azure</td><td>High-volume streams, event sourcing</td></tr>
+    <tr><td>Operate it</td><td>You (or a host)</td><td>Microsoft</td><td>You, and it is not trivial</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  The honest default for a .NET team: <strong>Azure Service Bus</strong> if you are already on
+  Azure — the <code>Azure.Messaging.ServiceBus</code> SDK is idiomatic and there is nothing to run.
+  <strong>RabbitMQ</strong> otherwise; it is one container and covers the vast majority of
+  line-of-business needs. <strong>Kafka</strong> when you genuinely need a durable, replayable
+  stream — telemetry, event sourcing, analytics pipelines. Choosing Kafka for a queue of a hundred
+  e-mails a day is a well-known way to acquire an operations problem you did not need.
+</p>
+
+<div class="box note">
+  <div class="box-title">A licensing detail worth knowing (2026)</div>
+  <p>
+    <strong>MassTransit</strong> — the abstraction most .NET teams put over these brokers — moved
+    to a commercial licence in 2026, with v8 reaching end of life at the end of the year. This is
+    the same thing that happened to MediatR, and it is why this repository hand-writes its
+    dispatcher (see
+    <a href="../../src/LogiFlow.Application/Abstractions/Messaging/IDispatcher.cs"><code>IDispatcher.cs</code></a>).
+    Knowing the <em>pattern</em> rather than the package is what turns that kind of news into a
+    non-event. Mentioning it in an interview shows you follow the ecosystem.
+  </p>
+</div>
+
+<h2 id="guarantees">The guarantee you actually get</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Brokers offer <strong>at-least-once</strong> delivery. A message is redelivered if the consumer
+    crashes before acknowledging, if the acknowledgement is lost, or if a retry fires. So
+    duplicates are not an edge case — they are normal operation.
+  </p>
+  <p>
+    <em>Exactly-once delivery</em> does not exist in a distributed system, and claiming it in an
+    interview is a red flag. What you can build is <strong>exactly-once
+    <em>processing</em></strong>: at-least-once delivery plus an <strong>idempotent
+    consumer</strong>.
+  </p>
+  <pre><code><span class="cm">// The message id is the deduplication key — this is why OutboxMessage</span>
+<span class="cm">// carries an Id and puts it on the wire.</span>
+<span class="kw">if</span> (<span class="kw">await</span> db.ProcessedMessages.AnyAsync(m =&gt; m.Id == message.Id, ct))
+    <span class="kw">return</span>;                                   <span class="cm">// already handled; ack and move on</span>
+
+<span class="kw">await</span> DoTheWork(message, ct);
+db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty">DateTimeOffset</span>.UtcNow));
+<span class="kw">await</span> db.SaveChangesAsync(ct);              <span class="cm">// same transaction as the work</span></code></pre>
+  <p>
+    Better still, make the operation naturally idempotent: <em>set</em> the status to Shipped
+    rather than <em>toggle</em> it; <code>MERGE</code> rather than <code>INSERT</code>. Then a
+    duplicate is harmless without any bookkeeping at all.
+  </p>
+</div>
+
+<h2 id="outbox">The outbox, and the bug it prevents</h2>
+
+<p>
+  Here is the mistake almost every first messaging implementation makes:
+</p>
+
+<div class="code-head">the dual-write problem — there is no safe ordering</div>
+<pre><code><span class="kw">await</span> db.SaveChangesAsync(ct);        <span class="cm">// 1. committed</span>
+<span class="kw">await</span> bus.PublishAsync(orderPlaced);  <span class="cm">// 2. process dies HERE</span>
+<span class="cm">// → the order exists and nobody was ever told.</span>
+
+<span class="kw">await</span> bus.PublishAsync(orderPlaced);  <span class="cm">// swap them and get the mirror bug:</span>
+<span class="kw">await</span> db.SaveChangesAsync(ct);        <span class="cm">// → a message about an order that never committed.</span></code></pre>
+
+<p>
+  You cannot commit to a database and a broker atomically, so no ordering of those two lines is
+  safe. The <strong>transactional outbox</strong> makes it one write instead of two: the message is
+  inserted as a <em>row</em>, in the same transaction as the state change. Either both land or
+  neither does. A background worker then reads unprocessed rows and publishes them.
+</p>
+
+<pre><code>┌─ ONE database transaction ────────────────────────┐
+│  UPDATE Orders SET Status = <span class="st">'Submitted'</span> ...       │
+│  INSERT INTO OutboxMessages (Id, Type, Payload)   │  ← the message is a ROW
+└───────────────────────────────────────────────────┘
+                       │ commit: both, or neither
+                       ▼
+      OutboxProcessor polls, publishes, marks done</code></pre>
+
+<p class="subtle">
+  And note why this is at-least-once and not exactly-once: if the process dies <em>after</em>
+  publishing but <em>before</em> marking the row processed, it publishes again on restart. That is
+  fine — the consumer is idempotent. This is the shape in
+  <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor.cs</code></a>,
+  which is a <code>BackgroundService</code> and therefore a singleton that must create a DI scope
+  per iteration rather than injecting a <code>DbContext</code>.
+</p>
+
+<h2 id="failure">Poison messages and dead letters</h2>
+
+<div class="box trap">
+  <div class="box-title">⚠ The infinite redelivery loop</div>
+  <p>
+    A message fails. The broker redelivers it. It fails again. Nothing else in the queue moves,
+    your logs fill at thousands of lines a second, and the on-call engineer finds a 40 GB log file
+    with one error in it repeated four million times.
+  </p>
+  <p>
+    The fix has three parts: a <strong>retry policy with exponential backoff and jitter</strong>
+    (never a tight loop), a <strong>maximum delivery count</strong>, and a
+    <strong>dead-letter queue</strong> the message lands in when that count is exceeded. The DLQ
+    is not a bin — it is an inbox. Alert on its depth, because a message arriving there means a
+    human must look.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Fat messages</div>
+  <p>
+    Do not put a 12 MB PDF on the bus. Service Bus caps a standard message at 256 KB, and even
+    where the limit is higher, large payloads destroy throughput and fill the broker's disk. Use
+    the <strong>claim check</strong> pattern: store the blob, put the <em>reference</em> on the
+    message. The same applies to putting the whole entity on the message — send the id and enough
+    context, and let the consumer read what it needs.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Reaching for a queue where a transaction would do</div>
+  <p>
+    If two operations must both succeed or both fail <em>and the user is waiting for the answer</em>,
+    that is a database transaction, not a message. Messaging buys you decoupling in exchange for
+    eventual consistency; spending that price where you did not need to buy anything gives you
+    distributed-systems problems for free. "Can this be done a second later, and can it be done
+    twice?" is the entry test.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+<span class="cm"># management UI at http://localhost:15672 — guest / guest</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    In the UI create a queue, publish a message by hand, and watch <em>Ready</em> go to 1. Now the
+    experiment: start a consumer, stop it mid-way through processing <em>without</em>
+    acknowledging, and watch the message reappear as Ready. Nothing was lost, and it will be
+    delivered again — that is at-least-once, visible in ten seconds, and it is why your handler
+    must be idempotent. Then set a max delivery count and let one message fail repeatedly until it
+    lands in the dead-letter queue.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Ask first: can this happen a second later, and can it happen twice? If not, use a transaction.</li>
+    <li>Commands go to a queue and have one owner. Events go to a topic and state a fact.</li>
+    <li>Name events in the past tense. A publisher that knows its subscribers is still coupled.</li>
+    <li>Delivery is at-least-once. Exactly-once delivery does not exist.</li>
+    <li>Every consumer is idempotent, keyed on the message id — or naturally idempotent by design.</li>
+    <li>Never write to the database and the broker as two separate operations. Use the outbox.</li>
+    <li>Retries need exponential backoff and jitter, and a maximum delivery count.</li>
+    <li>A dead-letter queue is an inbox with an alert on it, not a bin.</li>
+    <li>Small messages. Store the blob, send the reference.</li>
+    <li>Ordering is per queue, per session or per partition — never global. Design so it rarely matters.</li>
+    <li>Carry the correlation id onto the message, or you lose the trace at the boundary.</li>
+    <li>Kafka is a log, not a queue. Choose it for replay and volume, not for a hundred e-mails a day.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Perché usare una coda invece di una chiamata HTTP?"</p>
+  <p class="a">
+    Decoupling in availability, latency and capacity: the producer completes without the consumer,
+    a burst becomes queue depth instead of timeouts, and each side scales on its own. Then state
+    the price honestly — eventual consistency, a broker to run, and duplicates to handle. Naming
+    the cost is what makes the answer sound like experience.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you avoid processing the same message twice?"</p>
+  <p class="a">
+    You do not avoid <em>delivery</em> twice — that is guaranteed to happen eventually. You make
+    the consumer idempotent: deduplicate on the message id in the same transaction as the work, or
+    design the operation so a repeat is harmless (set the status rather than toggling it). Say
+    explicitly that exactly-once delivery is not achievable; exactly-once processing is.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the outbox pattern and what problem does it solve?"</p>
+  <p class="a">
+    The dual-write problem: you cannot atomically commit to a database and publish to a broker, so
+    a crash between the two either loses the message or announces something that never happened.
+    The outbox inserts the message as a row in the same transaction, and a background worker
+    publishes it afterwards. Then point at the code — this repository has exactly that.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"RabbitMQ or Kafka?"</p>
+  <p class="a">
+    Different tools. RabbitMQ is a broker that routes messages and forgets them once consumed;
+    Kafka is a durable partitioned log where consumers hold an offset and can replay. Task queues,
+    routing and work distribution point at RabbitMQ or Service Bus; high-volume streams, event
+    sourcing and analytics point at Kafka. Add that on Azure the pragmatic answer is often Service
+    Bus, because there is nothing to operate.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A message keeps failing. What happens to it?"</p>
+  <p class="a">
+    It is retried with exponential backoff up to a maximum delivery count, then dead-lettered.
+    Explain why the cap matters: without one, a poison message blocks the queue and floods the
+    logs forever. Then the part people forget — the DLQ needs an alert and someone to read it,
+    otherwise you have merely moved the failure somewhere quieter.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-25-distributed-systems/README.md">Module 25 — Distributed systems
+    and integration</a> covers the outbox, idempotency, the four ways retries go wrong, and
+    observability across a boundary. The implementation is in
+    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/"><code>src/LogiFlow.Infrastructure/Persistence/Outbox/</code></a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

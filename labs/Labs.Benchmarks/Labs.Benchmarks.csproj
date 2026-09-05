@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BenchmarkDotNet harness. Benchmarks MUST run in Release or the numbers are
+    meaningless (BDN will refuse and tell you so):
+
+        dotnet run -c Release  /p:project=labs/Labs.Benchmarks
+    (i.e. `dotnet run -c Release` from inside the labs/Labs.Benchmarks folder)
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Labs.Benchmarks</RootNamespace>
+    <!-- BDN needs the assembly optimized and non-inlined-away. -->
+    <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,228 @@
+# =============================================================================
+# ci.yml — what has to be true before a change is allowed in.
+#
+# The jobs are deliberately separate rather than one long script, because a red
+# tick should name the thing that broke without anybody opening the log. "docs"
+# failing and "integration-tests" failing are different problems with different
+# owners, and a single `build-and-test` job hides which one it was.
+#
+# They also fail for genuinely different reasons:
+#
+#   docs             a cross-reference rotted            (tools/doctor.cs)
+#   build            the code stopped compiling clean    (warnings are errors)
+#   unit-tests       a rule changed behaviour            (no database needed)
+#   integration      the SQL Server path broke           (service container)
+#   supply-chain     a dependency grew a CVE overnight   (runs on a schedule too)
+#   labs-stay-red    somebody committed the homework     (see below)
+#
+# Covered in: course/module-13-deployment/04-migrations-in-ci.md
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # A CVE appears in a package you have not touched, so a repository that only
+  # builds on push finds out at the least convenient moment. 06:00 UTC daily.
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+# A second push to the same branch makes the first run's answer worthless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # Turns on RestoreLockedMode (see Directory.Build.props): a restore that would
+  # change packages.lock.json fails instead of silently resolving something new.
+  ContinuousIntegrationBuild: true
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # The cheapest job, first: it needs no restore, no database and no compiler,
+  # and it catches the failure mode this repository is most exposed to.
+  # ───────────────────────────────────────────────────────────────────────────
+  docs:
+    name: Cross-references
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: doctor
+        run: dotnet run tools/doctor.cs
+
+      - name: The viva deck matches GOLDEN-RULES.md
+        run: dotnet run tools/viva-deck.cs --check
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Build once, warnings-as-errors, then the suites that need nothing external.
+  # ───────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # The lock files are the exact restore graph, so they are the exact
+          # cache key. No lock file, no meaningful key.
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore (locked)
+        run: dotnet restore LogiFlow.slnf
+
+      - name: Build
+        run: dotnet build LogiFlow.slnf --no-restore --configuration Release
+
+      # Everything except the integration tests, which want a real SQL Server
+      # and get their own job. `--filter` on the assembly is done by selecting
+      # projects, because a filter that silently matches nothing is a green tick
+      # that means nothing.
+      - name: Domain tests
+        run: dotnet test tests/LogiFlow.Domain.Tests --no-build --configuration Release
+
+      - name: Application tests
+        run: dotnet test tests/LogiFlow.Application.Tests --no-build --configuration Release
+
+      - name: Infrastructure tests
+        run: dotnet test tests/LogiFlow.Infrastructure.Tests --no-build --configuration Release
+
+      - name: Academy accounts tests
+        run: dotnet test tests/LogiFlow.Academy.Api.Tests --no-build --configuration Release
+
+      # These are the ones that keep the design honest: Domain referencing EF
+      # Core is a test failure, not a code review comment somebody might miss.
+      - name: Architecture tests
+        run: dotnet test tests/LogiFlow.ArchitectureTests --no-build --configuration Release
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Real HTTP against a real SQL Server. The in-memory provider is not a
+  # database (module 12's golden rule), so this job exists to be slow.
+  # ───────────────────────────────────────────────────────────────────────────
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+
+    services:
+      sql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          # A throwaway password for a container that lives for four minutes and
+          # is not reachable from outside the runner. Never a pattern to copy.
+          MSSQL_SA_PASSWORD: "Str0ng!Passw0rd"
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Str0ng!Passw0rd' -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Integration tests
+        # The factory reads this and creates LogiFlow_Test_{guid} per run, then
+        # drops it. See tests/LogiFlow.Api.IntegrationTests/LogiFlowApiFactory.cs.
+        env:
+          LOGIFLOW_TEST_SQL: "Server=localhost,1433;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=True;Encrypt=False"
+        run: dotnet test tests/LogiFlow.Api.IntegrationTests --configuration Release
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The labs are homework, and they ship RED on purpose. A green Labs.Exercises
+  # means somebody committed their answers over the exercises — which destroys
+  # the exercise for every future reader, silently, and is exactly the kind of
+  # thing nobody notices in a diff of 113 test files.
+  #
+  # So this job inverts the usual assertion: the test run MUST fail.
+  # ───────────────────────────────────────────────────────────────────────────
+  labs-stay-red:
+    name: Labs are still unsolved
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: The exercises must not pass
+        run: |
+          if dotnet test labs/Labs.Exercises --configuration Release; then
+            echo "::error::labs/Labs.Exercises is GREEN. The exercises are meant to ship failing —"
+            echo "::error::someone has committed the solutions over them. See course/SOLUTIONS.md,"
+            echo "::error::which is where worked answers belong."
+            exit 1
+          fi
+          echo "Labs are red, as intended."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # NuGetAudit already fails the build on a known CVE, but only for packages the
+  # build touches, and only when the build runs. This asks the question directly,
+  # including transitively, and the schedule above is what makes it useful.
+  # ───────────────────────────────────────────────────────────────────────────
+  supply-chain:
+    name: Vulnerable packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore LogiFlow.slnf
+
+      - name: dotnet list package --vulnerable
+        run: |
+          dotnet list LogiFlow.slnf package --vulnerable --include-transitive > audit.txt 2>&1 || true
+          cat audit.txt
+          # The command reports findings on stdout and still exits 0, so the exit
+          # code has to be built from the output. Grepping for the severity words
+          # is deliberate: "has the following vulnerable packages" appears even
+          # when the list under it is empty on some SDK versions.
+          if grep -qE '(Critical|High|Moderate|Low)$' audit.txt; then
+            echo "::error::A dependency has a known advisory. Read it before bumping —"
+            echo "::error::see course/module-13-deployment/03-supply-chain.md."
+            exit 1
+          fi
+          echo "No known advisories."
+
+      - name: Deprecated packages (report only)
+        run: dotnet list LogiFlow.slnf package --deprecated --include-transitive

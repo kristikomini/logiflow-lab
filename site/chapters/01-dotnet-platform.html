@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>01 · .NET and .NET Core — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="01-dotnet-platform">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 01</p>
+<h1>.NET and .NET Core</h1>
+<p class="lede">
+  C# is a language. .NET is everything that makes the language <em>run</em>: a compiler, a runtime
+  that turns compiled code into machine instructions, a garbage collector, a class library, and a
+  package system. Most confusion about "which .NET" is really confusion about which of those five
+  things is being discussed.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Buona esperienza nello sviluppo con framework .NET / .NET Core."</em> &mdash; the slash
+  means both, which means migration.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what-net-actually-is">What .NET actually is</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You write a letter in English. The person receiving it only reads Japanese. So you need a
+    translator. But this translator is clever: instead of translating the whole letter in advance,
+    they translate each sentence <em>the moment it is read out loud</em> &mdash; and they remember
+    their translation, so if the same sentence comes up again it is instant.
+  </p>
+  <p>
+    Your C# is the English. The computer&rsquo;s own language is the Japanese. .NET is the clever
+    translator &mdash; plus a tidy assistant who quietly throws away the pages nobody is reading
+    any more.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    .NET is a managed execution environment. The C# compiler (<em>Roslyn</em>) does not produce
+    machine code; it produces <strong>IL</strong> (Intermediate Language) packaged into an
+    <strong>assembly</strong> &mdash; a <code>.dll</code> or <code>.exe</code> that also carries
+    <em>metadata</em> describing every type inside it. At run time the <strong>CLR</strong>
+    (Common Language Runtime) loads that assembly and the <strong>JIT</strong> compiler translates
+    each method into native code for the actual CPU, the first time that method is called, caching
+    the result.
+  </p>
+  <p>
+    "Managed" means the runtime owns memory: the <strong>garbage collector</strong> reclaims
+    objects you stop referencing, so there is no <code>free()</code>. The same metadata that makes
+    JIT possible is what makes reflection, serialisation and dependency injection possible.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 860 300" role="img" aria-labelledby="compile-title">
+    <title id="compile-title">From C# source to machine code</title>
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="60" width="150" height="76" rx="9" class="d-panel"/>
+    <rect x="16" y="60" width="150" height="76" rx="9" class="d-stroke"/>
+    <text x="91" y="88" class="d-text" text-anchor="middle">Program.cs</text>
+    <text x="91" y="108" class="d-small" text-anchor="middle">your C# source</text>
+    <text x="91" y="126" class="d-mono" text-anchor="middle">text</text>
+
+    <path d="M168 98 L214 98" class="d-arrow" stroke-width="2" marker-end="url(#a1)"/>
+    <text x="191" y="88" class="d-small" text-anchor="middle">build</text>
+
+    <rect x="216" y="60" width="160" height="76" rx="9" class="d-brand" opacity=".92"/>
+    <text x="296" y="88" class="d-white" text-anchor="middle">Roslyn compiler</text>
+    <text x="296" y="108" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.9">checks types,</text>
+    <text x="296" y="124" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.9">emits IL + metadata</text>
+
+    <path d="M378 98 L424 98" class="d-arrow" stroke-width="2" marker-end="url(#a1)"/>
+
+    <rect x="426" y="60" width="160" height="76" rx="9" class="d-panel"/>
+    <rect x="426" y="60" width="160" height="76" rx="9" class="d-stroke"/>
+    <text x="506" y="88" class="d-text" text-anchor="middle">MyApp.dll</text>
+    <text x="506" y="108" class="d-small" text-anchor="middle">the assembly</text>
+    <text x="506" y="126" class="d-mono" text-anchor="middle">IL + metadata</text>
+
+    <path d="M588 98 L634 98" class="d-arrow" stroke-width="2" marker-end="url(#a1)"/>
+    <text x="611" y="88" class="d-small" text-anchor="middle">run</text>
+
+    <rect x="636" y="40" width="208" height="116" rx="9" class="d-panel"/>
+    <rect x="636" y="40" width="208" height="116" rx="9" class="d-stroke"/>
+    <text x="740" y="66" class="d-text" text-anchor="middle">CLR (the runtime)</text>
+    <text x="740" y="88" class="d-small" text-anchor="middle">JIT &mdash; compiles each method</text>
+    <text x="740" y="105" class="d-small" text-anchor="middle">on first call, then caches it</text>
+    <text x="740" y="127" class="d-small" text-anchor="middle">GC &mdash; reclaims what you</text>
+    <text x="740" y="144" class="d-small" text-anchor="middle">stopped referencing</text>
+
+    <path d="M740 156 L740 196" class="d-arrow" stroke-width="2" marker-end="url(#a1)"/>
+    <rect x="636" y="198" width="208" height="46" rx="9" class="d-panel"/>
+    <rect x="636" y="198" width="208" height="46" rx="9" class="d-stroke"/>
+    <text x="740" y="226" class="d-text" text-anchor="middle">native machine code</text>
+
+    <text x="16" y="232" class="d-small">Two compilations, not one. That is why a .NET program is</text>
+    <text x="16" y="250" class="d-small">portable (IL runs anywhere the CLR runs) <tspan class="d-small">and</tspan> fast</text>
+    <text x="16" y="268" class="d-small">(the JIT knows the exact CPU it is running on).</text>
+  </svg>
+  <figcaption>Compile once to IL, compile again — at run time — to the machine you are actually on.</figcaption>
+</figure>
+
+<h2 id="framework-vs-core">.NET Framework vs .NET Core vs .NET 5+</h2>
+
+<p>
+  This is the single most common interview question on this topic, and the naming history is
+  genuinely confusing, so learn it as a story rather than a table.
+</p>
+
+<ul>
+  <li><strong>.NET Framework (2002&ndash;2019, ends at 4.8).</strong> Windows only. Installed
+      <em>into</em> Windows, one shared copy for every application on the machine. Still fully
+      supported, still runs an enormous amount of Italian enterprise software, but it receives no
+      new features &mdash; only security fixes.</li>
+  <li><strong>.NET Core (2016&ndash;2019, 1.0&ndash;3.1).</strong> A rewrite. Cross-platform,
+      open source, and shipped <em>with</em> the application instead of being installed into the
+      OS. Much faster.</li>
+  <li><strong>.NET 5 and later (2020&rarr;).</strong> The two were unified and the word "Core" was
+      dropped &mdash; and version 4 was skipped so nobody would confuse ".NET 4" with ".NET
+      Framework 4.x". This is just "<strong>.NET</strong>" now: <code>net8.0</code>,
+      <code>net10.0</code>.</li>
+</ul>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th>.NET Framework 4.8</th><th>Modern .NET (5+)</th></tr></thead>
+  <tbody>
+    <tr><td>Platforms</td><td>Windows only</td><td>Windows, Linux, macOS, containers</td></tr>
+    <tr><td>Installed</td><td>Machine-wide, part of Windows</td><td>Side-by-side, or published with the app</td></tr>
+    <tr><td>Web stack</td><td>ASP.NET (WebForms, MVC 5, Web API 2)</td><td>ASP.NET Core</td></tr>
+    <tr><td>Project file</td><td>Long, lists every <code>.cs</code> file</td><td>SDK-style, a dozen lines</td></tr>
+    <tr><td>Future</td><td>Security fixes only</td><td>A release every November</td></tr>
+    <tr><td>You will meet it</td><td>Maintaining what exists</td><td>Everything new</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The trap</div>
+  <p>
+    Saying ".NET Core is the new .NET Framework". It is not an upgrade, it is a re-implementation
+    &mdash; and some things did not come with it. <strong>WebForms, WCF server-side, .NET
+    Remoting and AppDomains do not exist in modern .NET.</strong> A migration is therefore never
+    just a re-target; the honest answer to "can we move this to .NET 10?" always starts with
+    "what does it use?"
+  </p>
+</div>
+
+<h3>Release cadence &mdash; worth knowing by heart</h3>
+<p>
+  A new major version ships every <strong>November</strong>. Even-numbered releases are
+  <strong>LTS</strong> (Long Term Support, three years); odd-numbered ones are
+  <strong>STS</strong> (eighteen months). So .NET 8 and .NET 10 are LTS &mdash; and that is why
+  enterprises sit on them. When an interviewer asks "which version would you target for a new
+  internal service?", the answer they want is "the current LTS, unless there is a specific reason
+  not to."
+</p>
+
+<h2 id="sdk-vs-runtime">SDK vs runtime</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    The <strong>runtime</strong> is an oven. It is all you need to <em>bake</em> a cake somebody
+    else prepared. The <strong>SDK</strong> is the whole kitchen &mdash; oven included, plus the
+    bowls, scales and recipe books you need to <em>make</em> the cake. Your laptop needs the
+    kitchen. The server only needs the oven.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The <strong>runtime</strong> executes IL: the CLR, the GC and the base class library. The
+    <strong>SDK</strong> contains the runtime <em>plus</em> the compilers, MSBuild, the templates
+    and the <code>dotnet</code> CLI. Developer machines and build agents need the SDK; servers
+    need only the runtime &mdash; or nothing at all, if you publish
+    <em>self-contained</em> and ship the runtime inside the output folder.
+  </p>
+</div>
+
+<div class="code-head">terminal &mdash; what is installed on this machine</div>
+<pre><code><span class="cm"># which SDK will be used here (respects global.json)</span>
+dotnet --version
+
+<span class="cm"># everything installed, SDKs and runtimes separately</span>
+dotnet --info
+dotnet --list-sdks
+dotnet --list-runtimes</code></pre>
+
+<p>
+  A <code>global.json</code> in the repository root pins the SDK, so every developer and every
+  build agent compiles with the same one. This repository has one:
+</p>
+
+<div class="code-head">global.json</div>
+<pre><code>{
+  <span class="st">"sdk"</span>: {
+    <span class="st">"version"</span>: <span class="st">"10.0.300"</span>,
+    <span class="st">"rollForward"</span>: <span class="st">"latestFeature"</span>,
+    <span class="st">"allowPrerelease"</span>: <span class="kw">false</span>
+  }
+}</code></pre>
+
+<h2 id="the-project-file">The project file</h2>
+
+<p>
+  Modern <code>.csproj</code> files are short because they are subtractive: everything is included
+  by default, so the file only records what is unusual.
+</p>
+
+<div class="code-head">LogiFlow.Api.csproj</div>
+<pre><code><span class="kw">&lt;Project</span> <span class="ty">Sdk</span>=<span class="st">"Microsoft.NET.Sdk.Web"</span><span class="kw">&gt;</span>
+
+  <span class="kw">&lt;PropertyGroup&gt;</span>
+    <span class="kw">&lt;TargetFramework&gt;</span>net10.0<span class="kw">&lt;/TargetFramework&gt;</span>
+    <span class="kw">&lt;Nullable&gt;</span>enable<span class="kw">&lt;/Nullable&gt;</span>
+    <span class="kw">&lt;ImplicitUsings&gt;</span>enable<span class="kw">&lt;/ImplicitUsings&gt;</span>
+    <span class="kw">&lt;TreatWarningsAsErrors&gt;</span>true<span class="kw">&lt;/TreatWarningsAsErrors&gt;</span>
+  <span class="kw">&lt;/PropertyGroup&gt;</span>
+
+  <span class="kw">&lt;ItemGroup&gt;</span>
+    <span class="cm">&lt;!-- a NuGet package --&gt;</span>
+    <span class="kw">&lt;PackageReference</span> <span class="ty">Include</span>=<span class="st">"Microsoft.EntityFrameworkCore.SqlServer"</span> <span class="kw">/&gt;</span>
+    <span class="cm">&lt;!-- another project in the same solution --&gt;</span>
+    <span class="kw">&lt;ProjectReference</span> <span class="ty">Include</span>=<span class="st">"..\LogiFlow.Application\LogiFlow.Application.csproj"</span> <span class="kw">/&gt;</span>
+  <span class="kw">&lt;/ItemGroup&gt;</span>
+
+<span class="kw">&lt;/Project&gt;</span></code></pre>
+
+<p>Four things to be able to explain:</p>
+<ul>
+  <li><strong><code>Sdk="…"</code></strong> &mdash; which build rules apply.
+      <code>Microsoft.NET.Sdk</code> for a library, <code>.Web</code> for ASP.NET Core,
+      <code>.Worker</code> for a background service.</li>
+  <li><strong><code>TargetFramework</code></strong> &mdash; the TFM. <code>net10.0</code> is
+      portable; <code>net10.0-windows</code> unlocks Windows-only APIs and gives up Linux.</li>
+  <li><strong><code>Nullable</code></strong> &mdash; nullable reference types
+      (<a href="02-csharp-fundamentals.html#nullability">chapter 02</a>). Turning this on is the
+      cheapest bug reduction available in C#.</li>
+  <li><strong><code>ImplicitUsings</code></strong> &mdash; the compiler adds the obvious
+      <code>using</code> lines (<code>System</code>, <code>System.Linq</code>&hellip;) for you.</li>
+</ul>
+
+<div class="box note">
+  <div class="box-title">Central Package Management</div>
+  <p>
+    Notice the <code>PackageReference</code> above has no <code>Version</code>. That is because
+    this repository uses <code>Directory.Packages.props</code>, where every version is declared
+    once for the whole solution. It is how you stop project A using Newtonsoft 12 and project B
+    using 13 &mdash; a genuinely good thing to mention in an interview.
+  </p>
+</div>
+
+<h2 id="the-cli">The CLI you will actually use</h2>
+
+<div class="code-head">terminal &mdash; the daily commands</div>
+<pre><code>dotnet new webapi -o LogiFlow.Api   <span class="cm"># create from a template</span>
+dotnet restore                      <span class="cm"># download NuGet packages</span>
+dotnet build                        <span class="cm"># compile to IL</span>
+dotnet run                          <span class="cm"># build, then start</span>
+dotnet watch                        <span class="cm"># rebuild and restart on every save</span>
+dotnet test                         <span class="cm"># run the test projects</span>
+dotnet publish -c Release -o out    <span class="cm"># everything needed to deploy</span>
+
+dotnet add package Serilog          <span class="cm"># add a dependency</span>
+dotnet list package --outdated      <span class="cm"># what has moved on without you</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Debug vs Release</div>
+  <p>
+    <code>dotnet run</code> defaults to <strong>Debug</strong>, which disables most JIT
+    optimisations so that the debugger can map machine code back to your source. Any performance
+    number measured in Debug is meaningless. Benchmark with <code>-c Release</code> &mdash; and
+    if an interviewer mentions a timing they took in Debug, saying so politely is a very good sign.
+  </p>
+</div>
+
+<h2 id="assemblies-and-nuget">Assemblies, NuGet and where code comes from</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A <strong>NuGet package</strong> is a box of Lego that someone else designed and put on a
+    shelf for everyone. You do not build a wheel yourself &mdash; you take the wheel box down,
+    check it says which version it is, and click it onto your model.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    An <strong>assembly</strong> is the unit of deployment and of versioning: one
+    <code>.dll</code>, containing IL, metadata and a manifest. <strong>NuGet</strong> is the
+    package manager that fetches assemblies (and the transitive graph they depend on) into
+    <code>~/.nuget/packages</code>, and <code>obj/project.assets.json</code> records exactly what
+    was resolved. If you have ever seen a build succeed locally and fail on the agent, that file
+    &mdash; or a missing <code>global.json</code> &mdash; is very often the reason.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Prove IL exists rather than taking it on trust. Two minutes:</p>
+  <pre><code>dotnet new console -o IlDemo
+<span class="kw">cd</span> IlDemo
+dotnet build
+
+<span class="cm"># The output is not machine code. Open it and look:</span>
+<span class="cm"># bin/Debug/net10.0/IlDemo.dll</span>
+<span class="cm"># Paste it into https://sharplab.io and switch the output to "IL"</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    SharpLab is the fastest way to answer "what does this C# actually compile to?" &mdash; it is
+    also how you win arguments about whether <code>foreach</code> allocates.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-22-clr-internals/README.md">Module 22 &mdash; CLR internals</a>
+    takes this chapter apart properly: JIT tiering, assembly loading, and what
+    <code>ReadyToRun</code> changes. <a href="../../course/module-19-memory-and-gc/README.md">Module
+    19</a> does the same for the garbage collector.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>C# compiles to <strong>IL</strong>, not machine code. The JIT does the second compilation,
+        per method, at run time.</li>
+    <li>"Managed" means the runtime owns memory. The GC is not optional and not a leak-proof
+        guarantee &mdash; it collects what is <em>unreachable</em>, not what you are finished with.</li>
+    <li>.NET Framework is Windows-only and feature-frozen at 4.8. Modern .NET is cross-platform
+        and ships every November.</li>
+    <li>Version 4 was skipped to avoid collision with .NET Framework 4.x. Say this and you sound
+        like you were there.</li>
+    <li><strong>SDK to build, runtime to run.</strong> Pin the SDK with <code>global.json</code>.</li>
+    <li>The TFM (<code>net10.0</code>) decides which APIs exist. Adding
+        <code>-windows</code> buys Windows APIs and costs you Linux.</li>
+    <li>Prefer the current <strong>LTS</strong> (even-numbered) for anything a business depends on.</li>
+    <li>Never quote a performance measurement taken in a Debug build.</li>
+    <li>A .NET Framework &rarr; .NET migration is blocked by <em>what the app uses</em> &mdash;
+        WebForms, WCF hosting, AppDomains &mdash; not by the target framework line.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between .NET Framework and .NET Core?"</p>
+  <p class="a">
+    Give the story, not a list: Framework is the original Windows-only runtime installed into the
+    OS, frozen at 4.8; Core was a cross-platform rewrite shipped with the application; from .NET 5
+    the two lines merged and the name became just ".NET". Then add the sentence that shows
+    experience: <em>"which matters mostly when you have to migrate, and the blockers are usually
+    WebForms or WCF hosting rather than the language."</em>
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What happens between pressing F5 and your code running?"</p>
+  <p class="a">
+    Roslyn compiles C# to IL inside an assembly with metadata; the host starts the CLR; the CLR
+    loads the assembly; the JIT compiles each method to native code on first call and caches it;
+    the GC manages the heap throughout.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Do I need the SDK on the production server?"</p>
+  <p class="a">
+    No &mdash; the runtime is enough, and not even that if you publish self-contained. The SDK
+    belongs on developer machines and build agents.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is IL, and why bother with it?"</p>
+  <p class="a">
+    A CPU-independent instruction set. It buys portability (one build, many platforms), the
+    metadata that reflection and DI depend on, and a JIT that can optimise for the exact processor
+    it finds at run time &mdash; something an ahead-of-time compiler cannot do.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 · Async, await and exceptions — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="07-async-and-errors">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 07</p>
+<h1>Async, await and exceptions</h1>
+<p class="lede">
+  Every Web API method you will write is <code>async</code>. Most developers use the keyword for
+  years without being able to say what it does &mdash; and then hit a deadlock in production and
+  have nowhere to start. This chapter is the mental model, plus the failure handling that belongs
+  next to it.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Ottima conoscenza del linguaggio C#"</em> plus <em>"sviluppo di Web API"</em>. Async is
+  where those two meet: it is the single biggest determinant of how many requests a server can
+  handle.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why-async">Why async exists at all</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A waiter takes your order and walks it to the kitchen. Now &mdash; should he stand at the
+    kitchen door and stare at your pasta until it is ready?
+  </p>
+  <p>
+    Of course not. He goes and serves four other tables, and comes back when the bell rings. One
+    waiter, five tables. That is <code>async</code>.
+  </p>
+  <p>
+    The important detail: <em>waiting faster is not the goal</em>. Your pasta takes exactly as long
+    either way. What changes is how many other people get served while it cooks.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A thread costs about 1&nbsp;MB of stack and is a scarce, OS-scheduled resource. During an I/O
+    operation &mdash; a database round trip, an HTTP call, a file read &mdash; a synchronous thread
+    is <em>blocked</em>: consuming memory, contributing nothing.
+  </p>
+  <p>
+    <code>await</code> on an I/O operation releases the thread back to the thread pool. The
+    operation continues at the hardware/OS level with no thread at all, and when it completes a
+    continuation is scheduled onto some available thread. The result is
+    <strong>throughput</strong>, not latency: the same hardware serves far more concurrent
+    requests. An individual request is not faster &mdash; very slightly slower, in fact.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 340" role="img" aria-labelledby="async-title">
+    <title id="async-title">Threads during blocking I/O versus awaited I/O</title>
+
+    <text x="20" y="26" class="d-text" style="font-weight:700">Synchronous — 3 requests, 3 threads, all asleep</text>
+    <rect x="20" y="38" width="796" height="110" rx="9" class="d-fill"/>
+    <rect x="20" y="38" width="796" height="110" rx="9" class="d-stroke"/>
+
+    <text x="36" y="64" class="d-mono">thread 1</text>
+    <rect x="120" y="52" width="70" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <rect x="192" y="52" width="480" height="18" rx="4" class="d-panel"/>
+    <rect x="192" y="52" width="480" height="18" rx="4" class="d-stroke" stroke-dasharray="3 3"/>
+    <text x="432" y="66" class="d-small" text-anchor="middle">BLOCKED — waiting for SQL Server</text>
+    <rect x="674" y="52" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+
+    <text x="36" y="96" class="d-mono">thread 2</text>
+    <rect x="120" y="84" width="70" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <rect x="192" y="84" width="480" height="18" rx="4" class="d-panel"/>
+    <rect x="192" y="84" width="480" height="18" rx="4" class="d-stroke" stroke-dasharray="3 3"/>
+    <text x="432" y="98" class="d-small" text-anchor="middle">BLOCKED</text>
+    <rect x="674" y="84" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+
+    <text x="36" y="128" class="d-mono">thread 3</text>
+    <rect x="120" y="116" width="70" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <rect x="192" y="116" width="480" height="18" rx="4" class="d-panel"/>
+    <rect x="192" y="116" width="480" height="18" rx="4" class="d-stroke" stroke-dasharray="3 3"/>
+    <text x="432" y="130" class="d-small" text-anchor="middle">BLOCKED</text>
+    <rect x="674" y="116" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+
+    <text x="20" y="188" class="d-text" style="font-weight:700">Asynchronous — 3 requests, 1 thread, reused</text>
+    <rect x="20" y="200" width="796" height="86" rx="9" class="d-fill"/>
+    <rect x="20" y="200" width="796" height="86" rx="9" class="d-stroke"/>
+
+    <text x="36" y="226" class="d-mono">thread 1</text>
+    <rect x="120" y="214" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <text x="150" y="228" class="d-white" text-anchor="middle" style="font-size:10px">req A</text>
+    <rect x="184" y="214" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <text x="214" y="228" class="d-white" text-anchor="middle" style="font-size:10px">req B</text>
+    <rect x="248" y="214" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <text x="278" y="228" class="d-white" text-anchor="middle" style="font-size:10px">req C</text>
+    <rect x="640" y="214" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <text x="670" y="228" class="d-white" text-anchor="middle" style="font-size:10px">A done</text>
+    <rect x="704" y="214" width="60" height="18" rx="4" class="d-brand" opacity=".9"/>
+    <text x="734" y="228" class="d-white" text-anchor="middle" style="font-size:10px">B done</text>
+
+    <text x="36" y="260" class="d-mono">no thread</text>
+    <rect x="312" y="248" width="322" height="18" rx="4" class="d-panel"/>
+    <rect x="312" y="248" width="322" height="18" rx="4" class="d-stroke" stroke-dasharray="3 3"/>
+    <text x="473" y="262" class="d-small" text-anchor="middle">all three I/O operations in flight, costing zero threads</text>
+
+    <text x="20" y="316" class="d-small">Each request takes the same wall-clock time in both pictures. The second one serves hundreds more of them.</text>
+  </svg>
+  <figcaption>Async buys throughput by not holding a thread while nothing is happening.</figcaption>
+</figure>
+
+<div class="box trap">
+  <div class="box-title">⚠ Async is not "another thread"</div>
+  <p>
+    The most common misconception. <code>await httpClient.GetAsync(...)</code> does not start a
+    thread &mdash; it <em>frees</em> one. Only <code>Task.Run</code> moves work to a pool thread,
+    and that is for <strong>CPU-bound</strong> work. Wrapping an I/O call in
+    <code>Task.Run</code> makes things strictly worse: you now occupy a thread <em>and</em> pay for
+    the switch.
+  </p>
+</div>
+
+<h2 id="how-await-works">What <code>await</code> actually compiles to</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The compiler rewrites an <code>async</code> method into a <strong>state machine</strong>: a
+    generated type with a field per local variable and an integer recording which
+    <code>await</code> you stopped at. Calling the method runs it synchronously until the first
+    <code>await</code> of an incomplete task; at that point it registers a continuation and
+    <em>returns a <code>Task</code> to the caller</em>. When the awaited operation finishes, the
+    continuation resumes the method at the recorded state.
+  </p>
+  <p>
+    Two consequences worth stating in an interview: the code after an <code>await</code> may run
+    on a <em>different thread</em>, and if the awaited task is already complete there is no
+    suspension at all &mdash; it just carries on, which is why a well-written async method has
+    almost no overhead on the fast path.
+  </p>
+</div>
+
+<div class="code-head">the shape you write, every day</div>
+<pre><code><span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">OrderDto</span>?&gt; GetAsync(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+{
+    <span class="cm">// runs synchronously up to here</span>
+    <span class="kw">var</span> order = <span class="kw">await</span> _db.Orders
+        .AsNoTracking()
+        .FirstOrDefaultAsync(o =&gt; o.Id == id, ct);   <span class="cm">// ← thread released</span>
+
+    <span class="cm">// resumes here, possibly on a different thread</span>
+    <span class="kw">if</span> (order <span class="kw">is null</span>) <span class="kw">return null</span>;
+
+    <span class="kw">return new</span> <span class="ty">OrderDto</span>(order.Id, order.Total, order.Status);
+}</code></pre>
+
+<h3>The return types</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Signature</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>Task</code></td><td>Asynchronous, no result. The <code>void</code> of async.</td></tr>
+    <tr><td><code>Task&lt;T&gt;</code></td><td>Asynchronous, produces a <code>T</code>.</td></tr>
+    <tr><td><code>ValueTask&lt;T&gt;</code></td><td>Avoids an allocation when the result is usually already available (a cache hit). Awaitable <strong>once</strong>. Use only where measured.</td></tr>
+    <tr><td><code>async void</code></td><td><strong>Event handlers only.</strong> See below.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>async void</code> — the one that takes the process down</div>
+  <p>
+    An <code>async void</code> method returns nothing, so there is no <code>Task</code> to await
+    and nothing to carry an exception back to the caller. An exception thrown inside it is raised
+    on the synchronization context and <strong>crashes the process</strong>. It also cannot be
+    awaited, so callers cannot know when it finished. The only legitimate use is an event handler,
+    whose signature you do not control.
+  </p>
+</div>
+
+<h2 id="deadlock">The deadlock: <code>.Result</code> and <code>.Wait()</code></h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You send your little brother upstairs to fetch a book, and you stand in the doorway to wait.
+    He comes back down &mdash; but the doorway is completely blocked by <em>you</em>, waiting for
+    him. He cannot get through, so he never finishes, so you never stop waiting. Both of you are
+    stuck there for ever.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    In a context with a single-threaded <code>SynchronizationContext</code> &mdash; classic
+    ASP.NET, WinForms, WPF &mdash; the continuation after an <code>await</code> is posted
+    <em>back to that context</em>. If the calling thread is blocked in <code>.Result</code>, the
+    context is occupied and the continuation can never run. The task never completes; the block
+    never releases. A classic deadlock, and one that typically appears only under load.
+  </p>
+  <p>
+    ASP.NET <strong>Core</strong> has no synchronization context, so this specific deadlock is far
+    less likely there &mdash; but blocking still burns a thread pool thread, and under load causes
+    <em>thread pool starvation</em>, which looks identical from the outside.
+  </p>
+</div>
+
+<div class="code-head">the rule with no exceptions</div>
+<pre><code><span class="cm">// ✗ never</span>
+<span class="kw">var</span> order = GetOrderAsync(id).Result;
+GetOrderAsync(id).Wait();
+<span class="kw">var</span> x = GetOrderAsync(id).GetAwaiter().GetResult();
+
+<span class="cm">// ✓ async all the way up — the caller becomes async too, and so does its caller,</span>
+<span class="cm">//   until you reach the framework, which is async already.</span>
+<span class="kw">var</span> order = <span class="kw">await</span> GetOrderAsync(id);</code></pre>
+
+<p class="subtle">
+  "Async all the way" is not a stylistic preference. There is no safe way to block on async code
+  in a general library, which is why the guidance is absolute.
+</p>
+
+<h3><code>ConfigureAwait(false)</code></h3>
+<p>
+  In <strong>library</strong> code, <code>await something.ConfigureAwait(false)</code> says
+  "resume anywhere; I do not need the original context." It avoids the deadlock above and is
+  slightly faster. In an ASP.NET Core <strong>application</strong> it is unnecessary (there is no
+  context to capture) and most teams omit it. Knowing <em>why</em> the answer differs is the point
+  of the question.
+</p>
+
+<h2 id="cancellation">CancellationToken</h2>
+
+<p>
+  When a user closes the browser tab, ASP.NET Core cancels the request token. If you passed it
+  down, the database query is abandoned and the work stops. If you did not, your server keeps
+  computing an answer nobody will ever read.
+</p>
+
+<div class="code-head">pass it down, always</div>
+<pre><code>[<span class="ty">HttpGet</span>(<span class="st">"{id:int}"</span>)]
+<span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">IActionResult</span>&gt; Get(<span class="ty">int</span> id, <span class="ty">CancellationToken</span> ct)
+{                                     <span class="cm">// ↑ ASP.NET Core supplies this automatically</span>
+    <span class="kw">var</span> dto = <span class="kw">await</span> _service.GetAsync(id, ct);
+    <span class="kw">return</span> dto <span class="kw">is null</span> ? NotFound() : Ok(dto);
+}
+
+<span class="cm">// In a long loop, check it yourself:</span>
+<span class="kw">foreach</span> (<span class="kw">var</span> batch <span class="kw">in</span> batches)
+{
+    ct.ThrowIfCancellationRequested();
+    <span class="kw">await</span> ProcessAsync(batch, ct);
+}</code></pre>
+
+<h3>Running things at the same time</h3>
+<div class="code-head">sequential vs parallel</div>
+<pre><code><span class="cm">// Sequential — 300 ms, and only if the second genuinely needs the first</span>
+<span class="kw">var</span> customer = <span class="kw">await</span> GetCustomerAsync(id, ct);      <span class="cm">// 100 ms</span>
+<span class="kw">var</span> orders   = <span class="kw">await</span> GetOrdersAsync(id, ct);        <span class="cm">// 200 ms</span>
+
+<span class="cm">// Concurrent — 200 ms. Start both, then await both.</span>
+<span class="kw">var</span> customerTask = GetCustomerAsync(id, ct);
+<span class="kw">var</span> ordersTask   = GetOrdersAsync(id, ct);
+<span class="kw">await</span> <span class="ty">Task</span>.WhenAll(customerTask, ordersTask);
+
+<span class="kw">var</span> c = <span class="kw">await</span> customerTask;
+<span class="kw">var</span> o = <span class="kw">await</span> ordersTask;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Not with a DbContext</div>
+  <p>
+    <code>DbContext</code> is <strong>not thread-safe</strong> and permits exactly one operation at
+    a time. Two EF Core queries in a <code>Task.WhenAll</code> on the same context throws
+    <em>"A second operation was started on this context"</em>. Concurrency there requires separate
+    contexts, usually via <code>IDbContextFactory</code>.
+  </p>
+</div>
+
+<h2 id="exceptions">Exceptions</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    An exception is a fire alarm. When something goes badly wrong, you do not quietly carry on
+    cooking &mdash; you stop, and the alarm sounds all the way up the building until somebody whose
+    job it is comes to deal with it.
+  </p>
+  <p>
+    The worst possible thing is to hear the alarm, switch it off, and say nothing. The building is
+    still on fire; now nobody knows.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Exceptions are for the <em>exceptional</em>: conditions the current method cannot handle
+    meaningfully. They are expensive (stack capture and unwinding), so they must never be used for
+    ordinary control flow &mdash; "user not found" on a lookup endpoint is a result, not an
+    exception. Catch only where you can do something useful: retry, enrich, translate to an HTTP
+    status, or log and rethrow.
+  </p>
+</div>
+
+<div class="code-head">the shapes that matter</div>
+<pre><code><span class="kw">try</span>
+{
+    <span class="kw">await</span> _payments.ChargeAsync(order, ct);
+}
+<span class="kw">catch</span> (<span class="ty">HttpRequestException</span> ex) <span class="kw">when</span> (ex.StatusCode == <span class="ty">HttpStatusCode</span>.TooManyRequests)
+{
+    <span class="cm">// exception filter: only enters the catch if the condition holds,</span>
+    <span class="cm">// and — importantly — does NOT unwind the stack to decide</span>
+    <span class="kw">await</span> <span class="ty">Task</span>.Delay(1000, ct);
+    <span class="kw">await</span> _payments.ChargeAsync(order, ct);
+}
+<span class="kw">catch</span> (<span class="ty">PaymentDeclinedException</span>)
+{
+    <span class="kw">throw</span>;          <span class="cm">// ✓ rethrow — keeps the original stack trace</span>
+    <span class="cm">// throw ex;   ✗ resets the stack trace to this line. Never do this.</span>
+}
+<span class="kw">finally</span>
+{
+    <span class="cm">// runs whether or not it threw — cleanup belongs here</span>
+    _metrics.RecordAttempt(order.Id);
+}</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Do</th><th>Do not</th></tr></thead>
+  <tbody>
+    <tr><td>Catch the specific type you can handle</td><td><code>catch (Exception) { }</code> &mdash; swallowing</td></tr>
+    <tr><td><code>throw;</code></td><td><code>throw ex;</code> &mdash; destroys the stack trace</td></tr>
+    <tr><td>Return a result for expected outcomes</td><td>Use exceptions as control flow</td></tr>
+    <tr><td>Handle centrally in middleware (<a href="14-web-api.html">ch. 11</a>)</td><td>Wrap every controller action in try/catch</td></tr>
+    <tr><td>Include context in the message</td><td><code>throw new Exception("error")</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3><code>using</code> and IDisposable</h3>
+<p>
+  The GC reclaims <em>memory</em>. It does not close files, sockets or database connections &mdash;
+  those are unmanaged resources, and releasing them is your job.
+</p>
+
+<div class="code-head">deterministic cleanup</div>
+<pre><code><span class="cm">// using declaration — disposed at the end of the enclosing scope</span>
+<span class="kw">using var</span> connection = <span class="kw">new</span> <span class="ty">SqlConnection</span>(cs);
+<span class="kw">await</span> connection.OpenAsync(ct);
+
+<span class="cm">// the async form, when the type implements IAsyncDisposable</span>
+<span class="kw">await using var</span> stream = file.OpenRead();
+
+<span class="cm">// It is exactly this, and the finally runs even if you throw:</span>
+<span class="cm">// try { ... } finally { connection.Dispose(); }</span></code></pre>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Watch the thread actually change. Run this in a console app and note the two ids &mdash; then
+    explain why a WinForms app would print the same id twice.
+  </p>
+  <pre><code><span class="ty">Console</span>.WriteLine($<span class="st">"before: thread {Environment.CurrentManagedThreadId}"</span>);
+<span class="kw">await</span> <span class="ty">Task</span>.Delay(100);
+<span class="ty">Console</span>.WriteLine($<span class="st">"after:  thread {Environment.CurrentManagedThreadId}"</span>);
+
+<span class="cm">// Then break it on purpose — from a WinForms button handler, call:</span>
+<span class="cm">//     var r = SomethingAsync().Result;</span>
+<span class="cm">// and watch the UI freeze permanently. That is the deadlock, live.</span></code></pre>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-04-async/README.md">Module 04</a> is the full treatment, and
+    <code>labs/Labs.Playground</code> has runnable demos &mdash; including
+    <code>dotnet run valuetask -c Release</code>, which must be run in Release because a Debug
+    build emits the state machine as a class and hides the allocation difference entirely.
+    <a href="../../course/module-21-threading-and-memory-model/README.md">Module 21</a> covers what
+    happens when two threads touch the same field.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Async buys <strong>throughput</strong>, not speed. One request is marginally slower; the
+        server handles far more of them.</li>
+    <li><code>await</code> on I/O <em>releases</em> a thread. It does not start one.</li>
+    <li><code>Task.Run</code> is for CPU-bound work. Wrapping I/O in it is strictly worse.</li>
+    <li>Never <code>.Result</code>, <code>.Wait()</code> or <code>.GetAwaiter().GetResult()</code>.
+        Async all the way up.</li>
+    <li><code>async void</code> only for event handlers. Elsewhere its exceptions kill the process.</li>
+    <li>Accept and forward a <code>CancellationToken</code> in every async method that does real work.</li>
+    <li><code>Task.WhenAll</code> for independent work &mdash; but never two queries on one
+        <code>DbContext</code>.</li>
+    <li><code>ConfigureAwait(false)</code> in libraries; unnecessary in ASP.NET Core applications.</li>
+    <li><code>throw;</code> preserves the stack trace. <code>throw ex;</code> destroys it.</li>
+    <li>Expected outcomes are results, not exceptions. Exceptions are expensive and mean
+        <em>exceptional</em>.</li>
+    <li>Never swallow an exception silently. If you cannot handle it, let it travel.</li>
+    <li><code>using</code> for anything holding an unmanaged resource. The GC will not close your
+        connections.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What does <code>await</code> do?"</p>
+  <p class="a">
+    It suspends the method, returns a <code>Task</code> to the caller and releases the thread; when
+    the operation completes, a continuation resumes the method at the point it stopped, possibly on
+    a different thread. Add that the compiler implements this as a state machine &mdash; it shows
+    you know it is not magic.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why does <code>.Result</code> deadlock?"</p>
+  <p class="a">
+    Because the continuation wants the synchronization context that the blocking call is already
+    occupying. Then show range: it is far less likely in ASP.NET Core, which has no such context,
+    but blocking there still causes thread pool starvation &mdash; so the rule stands either way.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Does async make my application faster?"</p>
+  <p class="a">
+    No &mdash; it makes it <em>scale</em>. A single request is slightly slower because of the state
+    machine; the server handles far more concurrent requests because threads are not sleeping
+    through I/O. Candidates who say "faster" are usually repeating something they read.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you catch <code>Exception</code>?"</p>
+  <p class="a">
+    At a process boundary where the alternative is a crash: a background service loop, a message
+    consumer, or global exception middleware &mdash; and only to log with full context and then
+    either translate it into a response or rethrow. Anywhere else, catch the specific type.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a <code>CancellationToken</code> for?"</p>
+  <p class="a">
+    Cooperative cancellation. ASP.NET Core signals it when the client disconnects; passing it to
+    EF Core and <code>HttpClient</code> means abandoned work actually stops instead of finishing an
+    answer that nobody will read.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

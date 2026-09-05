@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 · SOLID and design patterns — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="05-solid-and-patterns">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 05</p>
+<h1>SOLID and design patterns</h1>
+<p class="lede">
+  <a href="03-oop.html">The previous chapter</a> gave you the tools: classes, interfaces,
+  inheritance. This one is about <em>when</em> to reach for them. SOLID is five pieces of advice
+  about where to put a seam; a design pattern is a solution somebody else already debugged, with a
+  name attached so you can say it in one word.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    This is not in the advert you are reading. It is here because Italian .NET adverts name
+    <em>"principi SOLID"</em> and <em>"design pattern"</em> constantly, and because it is the
+    easiest thing in the world for an interviewer to ask: <em>"mi spiega SOLID?"</em> Every
+    candidate has memorised the five words. Very few can point at code they wrote and say which
+    principle it obeys. That gap is the whole opportunity.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what-for">What a principle is actually for</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a Lego castle glued together. It looks great. Now your friend wants a
+    <em>drawbridge</em> instead of a door. With glue, you have to smash part of the castle and
+    hope the rest survives. With studs — the little bumps Lego bricks click onto — you pull the
+    door off and click the drawbridge on.
+  </p>
+  <p>
+    SOLID is five bits of advice about <strong>where to put the studs</strong>. Not everywhere:
+    a castle made of nothing but studs falls over. Just at the places somebody will want to
+    change.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    SOLID is a set of heuristics for managing <strong>coupling</strong> and
+    <strong>cohesion</strong>. Code that is highly cohesive (one module, one reason to exist) and
+    loosely coupled (modules meet at interfaces, not at concrete types) is cheaper to change,
+    because the blast radius of a change stays small.
+  </p>
+  <p>
+    The key word is <em>heuristics</em>. They are not laws, they have costs, and applied
+    religiously they produce the thing they were meant to prevent: a codebase where a one-line
+    behaviour change means touching eight files. The honest senior answer to "do you follow
+    SOLID?" is <em>"where the change is likely — yes; speculatively, no."</em>
+  </p>
+</div>
+
+<h2 id="the-five">The five, one at a time</h2>
+
+<h3 id="srp">S &mdash; Single Responsibility</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A pencil should not also be a stapler. If someone complains about the stapling, you should
+    not have to touch the drawing.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The usual phrasing — "a class should do one thing" — is uselessly vague. Uncle Bob's later
+    and better version: <strong>a module should have one reason to change</strong>, meaning one
+    group of people who request changes to it.
+  </p>
+  <p>
+    An <code>Invoice</code> class that calculates totals <em>and</em> renders a PDF has two
+    audiences: finance and design. Finance changing the VAT rules should not risk breaking the
+    layout. Two reasons to change, two modules.
+  </p>
+</div>
+
+<h3 id="ocp">O &mdash; Open/Closed</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A power socket lets you add a new lamp without rewiring the house. You <em>extend</em> what
+    the house can do without <em>opening</em> the walls.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Open for extension, closed for modification: you should be able to add behaviour by adding a
+    type, not by editing a <code>switch</code> that every other feature also depends on.
+  </p>
+  <p>
+    The smell is a growing <code>if/else if</code> chain over a type or an enum, repeated in
+    several places. The fix is usually <a href="#strategy">Strategy</a>. But note the
+    qualifier: OCP is worth paying for on the axis that actually varies. A shipping-cost
+    calculator gains new countries forever, so make that extensible. It will never gain a new
+    <em>currency arithmetic</em>, so do not abstract that.
+  </p>
+</div>
+
+<h3 id="lsp">L &mdash; Liskov Substitution</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    If the sign says "this is a bird", and you take it home and it sinks in the bath and bites
+    the cat, the sign lied. Anything labelled a bird has to behave like one.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A subtype must be usable anywhere its base type is, without the caller knowing. Concretely, a
+    derived class must not <strong>strengthen preconditions</strong> (demand more) or
+    <strong>weaken postconditions</strong> (promise less).
+  </p>
+  <p>
+    The classic violation is <code>Square : Rectangle</code>: setting <code>Width</code> on a
+    Rectangle leaves <code>Height</code> alone, but a Square must change both, so code written
+    against Rectangle breaks. The everyday violation is a method that throws
+    <code>NotSupportedException</code> — a subtype announcing that it is not, in fact, one of
+    these.
+  </p>
+</div>
+
+<h3 id="isp">I &mdash; Interface Segregation</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A TV remote with 60 buttons when you only ever use four. Give people the small remote.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    No client should be forced to depend on methods it does not use. A fat
+    <code>IRepository</code> with twenty methods means every implementation, every test double
+    and every mock has to deal with all twenty.
+  </p>
+  <p>
+    In this repository, look at
+    <a href="../../src/LogiFlow.Application/Abstractions/Data/IRepositories.cs"><code>IRepositories.cs</code></a>:
+    the read side and write side are separate, and each repository interface carries only what its
+    aggregate needs. That is ISP, and it is also what makes the handler tests short.
+  </p>
+</div>
+
+<h3 id="dip">D &mdash; Dependency Inversion</h3>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You do not build your kitchen around one particular kettle. You put a <em>socket</em> in the
+    wall. Any kettle that fits the socket works. The kitchen doesn't know about kettles; the
+    kettle knows about sockets.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Two halves, and people usually quote only the first:
+  </p>
+  <ul>
+    <li>High-level modules should not depend on low-level modules; both depend on abstractions.</li>
+    <li><strong>Abstractions should not depend on details; details depend on abstractions.</strong></li>
+  </ul>
+  <p>
+    The second half is the one that decides where the interface <em>lives</em>. If
+    <code>IOrderRepository</code> sits in the Infrastructure project next to its SQL
+    implementation, you have not inverted anything — Application still points at Infrastructure.
+    Put the interface in Application, the implementation in Infrastructure, and the arrow flips.
+    That single move is what <a href="23-architecture-and-cqrs.html">clean architecture</a> is
+    built on.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="dip-title">
+    <title id="dip-title">Dependency inversion: the arrow from Application to Infrastructure is flipped by moving the interface</title>
+    <defs>
+      <marker id="a04" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">Without inversion</text>
+    <rect x="20"  y="40" width="150" height="52" rx="8" class="d-panel d-stroke"/>
+    <text x="95"  y="70" class="d-text" text-anchor="middle">Application</text>
+    <rect x="230" y="40" width="150" height="52" rx="8" class="d-panel d-stroke"/>
+    <text x="305" y="70" class="d-text" text-anchor="middle">Infrastructure</text>
+    <line x1="172" y1="66" x2="226" y2="66" class="d-arrow" marker-end="url(#a04)"/>
+    <text x="199" y="112" class="d-small" text-anchor="middle">new SqlOrderRepository()</text>
+    <text x="20" y="140" class="d-small">The business rules cannot compile without SQL Server.</text>
+
+    <text x="450" y="26" class="d-small">With inversion</text>
+    <rect x="450" y="40" width="150" height="52" rx="8" class="d-panel d-stroke"/>
+    <text x="525" y="70" class="d-text" text-anchor="middle">Application</text>
+    <rect x="450" y="112" width="150" height="46" rx="8" class="d-brand"/>
+    <text x="525" y="140" class="d-white" text-anchor="middle" style="font-size:12px">IOrderRepository</text>
+    <line x1="525" y1="94" x2="525" y2="108" class="d-arrow" marker-end="url(#a04)"/>
+
+    <rect x="660" y="40" width="150" height="52" rx="8" class="d-panel d-stroke"/>
+    <text x="735" y="70" class="d-text" text-anchor="middle">Infrastructure</text>
+    <path d="M735 94 L735 135 L606 135" class="d-arrow" fill="none" marker-end="url(#a04)"/>
+    <text x="450" y="182" class="d-small">Both point at the interface, and the interface lives</text>
+    <text x="450" y="198" class="d-small">in Application. Now the arrow between the two projects</text>
+    <text x="450" y="214" class="d-small">runs Infrastructure &rarr; Application, not the other way.</text>
+
+    <line x1="415" y1="30" x2="415" y2="240" class="d-stroke" stroke-dasharray="4 4"/>
+
+    <text x="20" y="176" class="d-small">Swapping SQL Server for anything means editing</text>
+    <text x="20" y="192" class="d-small">the Application project. Testing means a database.</text>
+  </svg>
+  <figcaption>
+    Dependency inversion is not "use an interface". It is <em>which project the interface lives
+    in</em>. Move the file, and the compiler enforces the architecture for you.
+  </figcaption>
+</figure>
+
+<h2 id="patterns">The patterns you will actually meet</h2>
+
+<p>
+  There are 23 patterns in the Gang of Four book and you will meet about six of them in ordinary
+  .NET work. Learn these properly rather than all of them shallowly.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Pattern</th><th>In one line</th><th>Where it is in this repository</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Repository</strong></td><td>A collection-shaped façade over storage</td><td><code>IOrderRepository</code>, <code>ICustomerRepository</code></td></tr>
+    <tr><td><strong>Unit of Work</strong></td><td>One commit for a whole business operation</td><td><code>IUnitOfWork</code> — <code>DbContext</code> already is one</td></tr>
+    <tr><td><strong>Strategy</strong></td><td>Swap an algorithm behind one interface</td><td>Pricing rules per customer tier</td></tr>
+    <tr><td><strong>Decorator</strong></td><td>Wrap a thing in a thing with the same shape</td><td><code>Behaviors/</code> — logging, caching, validation, transactions</td></tr>
+    <tr><td><strong>Mediator</strong></td><td>Senders and handlers never meet</td><td><code>IDispatcher</code> (a hand-written MediatR)</td></tr>
+    <tr><td><strong>Factory</strong></td><td>Construction logic that is more than <code>new</code></td><td><code>Order.Create(...)</code> returning a <code>Result</code></td></tr>
+    <tr><td><strong>Options</strong></td><td>Strongly-typed configuration</td><td><code>JwtOptions</code>, bound from a config section</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3 id="strategy">Strategy, the one that pays for itself</h3>
+
+<div class="code-head">before: the growing if-chain</div>
+<pre><code><span class="kw">public decimal</span> Discount(<span class="ty">Order</span> order, <span class="ty">CustomerTier</span> tier)
+{
+    <span class="kw">if</span> (tier == <span class="ty">CustomerTier</span>.Bronze) <span class="kw">return</span> <span class="nu">0m</span>;
+    <span class="kw">if</span> (tier == <span class="ty">CustomerTier</span>.Silver) <span class="kw">return</span> order.Total * <span class="nu">0.02m</span>;
+    <span class="kw">if</span> (tier == <span class="ty">CustomerTier</span>.Gold)   <span class="kw">return</span> order.Total * <span class="nu">0.05m</span>;
+    <span class="cm">// ...and the same chain appears in the invoice, the quote,</span>
+    <span class="cm">// and the export. Adding "Platinum" means finding all four.</span>
+    <span class="kw">throw new</span> <span class="ty">ArgumentOutOfRangeException</span>(<span class="kw">nameof</span>(tier));
+}</code></pre>
+
+<div class="code-head">after: one type per rule, resolved by DI</div>
+<pre><code><span class="kw">public interface</span> <span class="ty">IDiscountPolicy</span>
+{
+    <span class="ty">CustomerTier</span> Tier { <span class="kw">get</span>; }
+    <span class="kw">decimal</span> DiscountFor(<span class="ty">Order</span> order);
+}
+
+<span class="kw">public sealed class</span> <span class="ty">GoldDiscount</span> : <span class="ty">IDiscountPolicy</span>
+{
+    <span class="kw">public</span> <span class="ty">CustomerTier</span> Tier =&gt; <span class="ty">CustomerTier</span>.Gold;
+    <span class="kw">public decimal</span> DiscountFor(<span class="ty">Order</span> order) =&gt; order.Total * <span class="nu">0.05m</span>;
+}
+
+<span class="cm">// Registration: every policy in the assembly, found once.</span>
+services.Scan(s =&gt; s.FromAssemblyOf&lt;<span class="ty">IDiscountPolicy</span>&gt;()
+    .AddClasses(c =&gt; c.AssignableTo&lt;<span class="ty">IDiscountPolicy</span>&gt;())
+    .AsImplementedInterfaces()
+    .WithSingletonLifetime());
+
+<span class="cm">// Use: the chain is gone, and so is the throw.</span>
+<span class="kw">public sealed class</span> <span class="ty">DiscountCalculator</span>(<span class="ty">IEnumerable</span>&lt;<span class="ty">IDiscountPolicy</span>&gt; policies)
+{
+    <span class="kw">private readonly</span> <span class="ty">Dictionary</span>&lt;<span class="ty">CustomerTier</span>, <span class="ty">IDiscountPolicy</span>&gt; _byTier =
+        policies.ToDictionary(p =&gt; p.Tier);
+
+    <span class="kw">public decimal</span> For(<span class="ty">Order</span> order, <span class="ty">CustomerTier</span> tier) =&gt;
+        _byTier.TryGetValue(tier, <span class="kw">out var</span> p) ? p.DiscountFor(order) : <span class="nu">0m</span>;
+}</code></pre>
+
+<p class="subtle">
+  Adding Platinum is now one new file and zero edits &mdash; that is Open/Closed, concretely. Note
+  also what it did to testability: <code>GoldDiscount</code> is a class with no dependencies, so
+  its test is three lines.
+</p>
+
+<h3 id="decorator">Decorator, the one this repository leans on</h3>
+
+<p>
+  A decorator implements the same interface as the thing it wraps, does something, and delegates.
+  Because the shape is identical, you can stack them, and nothing downstream notices. This
+  repository's <code>Behaviors/</code> folder is four decorators around every single request:
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 250" role="img" aria-labelledby="dec-title">
+    <title id="dec-title">Four pipeline behaviours wrapping a request handler like nested boxes</title>
+    <rect x="30"  y="30" width="700" height="180" rx="10" class="d-panel d-stroke"/>
+    <text x="46"  y="52" class="d-small">LoggingBehavior &mdash; start, duration, outcome</text>
+    <rect x="70"  y="62" width="620" height="130" rx="10" class="d-panel d-stroke"/>
+    <text x="86"  y="84" class="d-small">ValidationBehavior &mdash; reject bad input before anything else runs</text>
+    <rect x="110" y="94" width="540" height="86" rx="10" class="d-panel d-stroke"/>
+    <text x="126" y="116" class="d-small">CachingBehavior &mdash; queries only; return early on a hit</text>
+    <rect x="150" y="126" width="460" height="42" rx="10" class="d-brand"/>
+    <text x="380" y="152" class="d-white" text-anchor="middle" style="font-size:12.5px">TransactionBehavior &rarr; CreateOrderCommandHandler</text>
+    <text x="30" y="236" class="d-small">The handler contains business logic and nothing else. Every cross-cutting concern is a wrapper it never sees.</text>
+  </svg>
+  <figcaption>
+    Order matters. Validation outside the transaction means an invalid request never opens one;
+    caching inside logging means a cache hit is still logged. Read them from the outside in.
+  </figcaption>
+</figure>
+
+<div class="box trap">
+  <div class="box-title">⚠ The mistake candidates make</div>
+  <p>
+    <strong>An interface for every class.</strong> <code>IOrderMapper</code>,
+    <code>IEmailFormatter</code>, <code>IPriceRounder</code> — each with exactly one
+    implementation, forever. This is cargo-cult DIP. An interface earns its keep when there is a
+    second implementation, a test double you actually need, or a boundary you want the compiler to
+    police. Otherwise it is a file you have to open twice to read one method.
+  </p>
+  <p>
+    A good interviewer will push on this deliberately. "Would you put an interface on this?" is
+    often a test of whether you can say <em>no</em> with a reason.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The other one</div>
+  <p>
+    <strong>Repository wrapped around <code>DbContext</code>, badly.</strong>
+    <code>DbSet&lt;T&gt;</code> is already a repository and <code>DbContext</code> is already a
+    Unit of Work, so a <code>GenericRepository&lt;T&gt;</code> that just forwards calls adds a
+    layer and removes capability — you lose <code>Include</code>, projections, split queries and
+    everything else in <a href="12-ef-core.html">chapter 12</a>.
+  </p>
+  <p>
+    A repository is worth having when it is <em>aggregate-shaped</em>: methods that speak the
+    domain's language (<code>GetWithLinesAsync</code>, <code>NextOrderNumberAsync</code>), not a
+    generic <code>IQueryable&lt;T&gt; Query()</code> that leaks EF Core back out again.
+  </p>
+</div>
+
+<h2 id="not-here">The patterns deliberately not here</h2>
+
+<ul>
+  <li><strong>Singleton</strong> (the static-instance kind) — the DI container already gives you
+      one instance with a controlled lifetime and a way to substitute it in tests. A
+      <code>static Instance</code> property gives you a global variable you cannot mock. See the
+      captive-dependency trap in <a href="14-web-api.html#di">chapter 14</a>.</li>
+  <li><strong>Service Locator</strong> — injecting <code>IServiceProvider</code> and resolving
+      inside a method. It hides dependencies from the constructor, so nothing tells you what a
+      class needs until it throws at runtime. Widely considered an anti-pattern.</li>
+  <li><strong>Abstract Factory, Visitor, Flyweight</strong> — real patterns, rare in line-of-business
+      .NET. Recognise them; do not go looking for places to use them.</li>
+</ul>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Find the patterns in this repository rather than reading about them:</p>
+  <pre><code>ls src/LogiFlow.Application/Behaviors/          <span class="cm"># four decorators</span>
+cat src/LogiFlow.Application/Abstractions/Messaging/IDispatcher.cs
+cat src/LogiFlow.Application/Abstractions/Data/IRepositories.cs</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then do the exercise that actually teaches it: delete <code>CachingBehavior</code> from the DI
+    registration and run the tests. Nothing in any handler changes, nothing fails to compile, and
+    the behaviour is simply gone. That is what "loosely coupled" buys you, measured in edits.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>SOLID is five heuristics about where to put a seam, not five laws.</li>
+    <li>SRP: one reason to change means one group of people asking for changes.</li>
+    <li>OCP earns its cost only on the axis that genuinely varies. Guess wrong and it is pure overhead.</li>
+    <li>LSP: a subtype that throws <code>NotSupportedException</code> is announcing it is not a subtype.</li>
+    <li>ISP: narrow interfaces make short tests. Wide ones make mock setup.</li>
+    <li>DIP is decided by <em>which project the interface file lives in</em>, not by using an interface.</li>
+    <li>An interface with one implementation and no test double is a file, not an abstraction.</li>
+    <li>A pattern is a name for a solution. Naming it is the benefit; forcing it is the cost.</li>
+    <li>Decorators stack because they share a shape. Order them deliberately.</li>
+    <li>Prefer the DI container to Singleton, and constructor injection to Service Locator.</li>
+    <li>A repository should speak the domain's language, not expose <code>IQueryable</code>.</li>
+    <li>If you cannot name the change a pattern is protecting you from, you do not need it yet.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Mi spiega i principi SOLID?"</p>
+  <p class="a">
+    Name the five, but spend your time on one. Everybody recites the list; the answer that lands
+    is "…and the one I actually use daily is Dependency Inversion — for example, in my project the
+    repository interfaces live in the Application layer and the EF Core implementations in
+    Infrastructure, so the business rules compile without a database and the unit tests need no
+    container."
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Which design patterns have you used?"</p>
+  <p class="a">
+    Pick two you can describe from code, not from a diagram. Decorator is a strong choice because
+    the example is vivid: "logging, validation, caching and transactions are four wrappers around
+    the handler, so the handler has business logic and nothing else." Then say what it cost —
+    stack traces get deeper, and the execution order is a real design decision.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Is the Repository pattern an anti-pattern over EF Core?"</p>
+  <p class="a">
+    This is a trap and a good one. The right answer is "it depends what it wraps". A generic
+    <code>Repository&lt;T&gt;</code> forwarding to <code>DbSet&lt;T&gt;</code> adds indirection and
+    removes capability, because <code>DbContext</code> is already Unit of Work + Repository. An
+    aggregate-shaped repository with domain-named methods is useful: it keeps query construction
+    out of handlers and gives you a seam for tests. Say which one you have written.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Give me an example of code that violates the Single Responsibility Principle."</p>
+  <p class="a">
+    Use something concrete and slightly embarrassing rather than a textbook example: a controller
+    that validated input, called the database, formatted currency for the UI and sent a
+    confirmation email. Four audiences, four reasons to change. Then say what you did about it,
+    and — better — what you deliberately left alone because it was not changing.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you <em>not</em> introduce an interface?"</p>
+  <p class="a">
+    When there is one implementation, no test needs to replace it, and it does not sit on a layer
+    boundary. Add that speculative abstraction has a real cost: navigation, indirection, and the
+    illusion of flexibility along an axis nobody will ever use. YAGNI is a SOLID principle in
+    practice even though it is not in the acronym.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-26-patterns-and-solid/README.md">Module 26 — Design patterns and
+    SOLID, in this codebase</a> walks the same ground against the real source, including the
+    patterns deliberately left out and when a pattern is the wrong answer. For where the layers
+    come from, continue to <a href="23-architecture-and-cqrs.html">chapter 23</a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

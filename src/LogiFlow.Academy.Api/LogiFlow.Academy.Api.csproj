@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    THE ACADEMY SERVICE
+    ===================
+    Accounts and progress storage for the tutorial site in `site/`, plus a static
+    file host for the site itself, so the whole thing is one `dotnet run` away.
+
+    Deliberately STANDALONE. It references none of the LogiFlow layers and they
+    reference nothing here: the two systems share a repository and nothing else.
+    Coupling a study-progress service to a logistics domain would be exactly the
+    kind of accidental dependency the architecture tests in this solution exist
+    to prevent.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>LogiFlow.Academy.Api</RootNamespace>
+    <UserSecretsId>logiflow-academy-dev-secrets</UserSecretsId>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogiFlow.Academy.Api.Tests" />
+  </ItemGroup>
+
+</Project>

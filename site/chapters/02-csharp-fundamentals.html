@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 · C# fundamentals — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="02-csharp-fundamentals">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 02</p>
+<h1>C# fundamentals</h1>
+<p class="lede">
+  Not a syntax tour &mdash; you can already write a <code>for</code> loop. This is the handful of
+  ideas that decide whether your code behaves the way you expected: what a variable actually
+  holds, when a copy is made, what <code>null</code> means, and why strings are strange.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Ottima conoscenza del linguaggio C#."</em> &mdash; <strong>Ottima</strong> is the
+  strongest word used anywhere in the posting. This is the chapter you cannot skim.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="value-vs-reference">Value types and reference types</h2>
+
+<p>
+  If you understand exactly one thing from this chapter, make it this one. Almost every
+  "why did my change disappear?" bug in C# traces back here.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You have a notebook. On one page you write the number <strong>7</strong>. On another page you
+    write <strong>"the red book on the top shelf"</strong>.
+  </p>
+  <p>
+    Now a friend copies both pages. If they rub out their 7 and write 9, <em>your</em> 7 is
+    untouched &mdash; they copied the number itself. But if they go to the red book on the top
+    shelf and scribble in it, your book is scribbled in too &mdash; because you both copied the
+    same <em>directions</em>, not the book.
+  </p>
+  <p>
+    A number is a <strong>value type</strong>. Directions to a thing are a
+    <strong>reference type</strong>.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A <strong>value type</strong> (<code>int</code>, <code>bool</code>, <code>DateTime</code>,
+    <code>decimal</code>, any <code>struct</code>, any <code>enum</code>) stores its data directly
+    in the variable&rsquo;s storage location. Assignment copies the bits.
+  </p>
+  <p>
+    A <strong>reference type</strong> (<code>class</code>, <code>string</code>, arrays,
+    delegates, <code>record</code> by default) stores a reference to an object on the managed
+    heap. Assignment copies the reference &mdash; both variables now denote the same object.
+  </p>
+  <p class="subtle">
+    The common shorthand "value types live on the stack" is <em>usually</em> true and
+    <em>not</em> a rule: an <code>int</code> field inside a class lives on the heap with its
+    object, and captured locals are lifted into a compiler-generated class. The reliable statement
+    is about <em>copy semantics</em>, not location.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="mem-title">
+    <title id="mem-title">Stack and heap after assigning a value type and a reference type</title>
+    <defs>
+      <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-text" style="font-weight:700">Stack &mdash; the variables</text>
+    <text x="470" y="26" class="d-text" style="font-weight:700">Heap &mdash; the objects</text>
+
+    <!-- value types -->
+    <rect x="20" y="42" width="300" height="96" rx="9" class="d-panel"/>
+    <rect x="20" y="42" width="300" height="96" rx="9" class="d-stroke"/>
+    <text x="36" y="64" class="d-mono">int a = 7;</text>
+    <rect x="36" y="74" width="120" height="30" rx="5" class="d-fill"/>
+    <rect x="36" y="74" width="120" height="30" rx="5" class="d-stroke"/>
+    <text x="96" y="94" class="d-mono" text-anchor="middle">a │ 7</text>
+
+    <text x="36" y="124" class="d-mono">int b = a;   // copies the 7</text>
+    <rect x="176" y="74" width="120" height="30" rx="5" class="d-fill"/>
+    <rect x="176" y="74" width="120" height="30" rx="5" class="d-stroke"/>
+    <text x="236" y="94" class="d-mono" text-anchor="middle">b │ 7</text>
+
+    <!-- reference types -->
+    <rect x="20" y="160" width="300" height="130" rx="9" class="d-panel"/>
+    <rect x="20" y="160" width="300" height="130" rx="9" class="d-stroke"/>
+    <text x="36" y="182" class="d-mono">var x = new Order();</text>
+    <rect x="36" y="192" width="120" height="30" rx="5" class="d-fill"/>
+    <rect x="36" y="192" width="120" height="30" rx="5" class="d-stroke"/>
+    <text x="96" y="212" class="d-mono" text-anchor="middle">x │ ●</text>
+
+    <text x="36" y="248" class="d-mono">var y = x;</text>
+    <rect x="176" y="192" width="120" height="30" rx="5" class="d-fill"/>
+    <rect x="176" y="192" width="120" height="30" rx="5" class="d-stroke"/>
+    <text x="236" y="212" class="d-mono" text-anchor="middle">y │ ●</text>
+    <text x="36" y="272" class="d-small">both hold the same address &mdash; one object, two names</text>
+
+    <!-- the heap object -->
+    <rect x="560" y="170" width="250" height="88" rx="9" class="d-brand" opacity=".92"/>
+    <text x="685" y="198" class="d-white" text-anchor="middle">Order</text>
+    <text x="685" y="220" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.92">Id = 1</text>
+    <text x="685" y="238" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px;opacity:.92">Status = Draft</text>
+
+    <path d="M156 207 L556 207" class="d-arrow" stroke-width="1.8" marker-end="url(#a2)"/>
+    <path d="M296 207 L556 207" class="d-arrow" stroke-width="1.8" marker-end="url(#a2)"/>
+
+    <text x="470" y="290" class="d-small">y.Status = Sent;  →  x.Status is Sent too.</text>
+    <text x="470" y="112" class="d-small">Nothing here. Value types carry no object.</text>
+  </svg>
+  <figcaption>
+    Assignment always copies what is <em>in</em> the variable. For a value type that is the data;
+    for a reference type it is the address.
+  </figcaption>
+</figure>
+
+<div class="code-head">the bug this causes, in four lines</div>
+<pre><code><span class="kw">var</span> original = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">string</span>&gt; { <span class="st">"a"</span>, <span class="st">"b"</span> };
+<span class="kw">var</span> backup   = original;          <span class="cm">// NOT a backup — the same list</span>
+original.Add(<span class="st">"c"</span>);
+
+<span class="ty">Console</span>.WriteLine(backup.Count);   <span class="cm">// <span class="out">3</span>, and somebody's afternoon is gone</span>
+
+<span class="cm">// A real copy:</span>
+<span class="kw">var</span> realBackup = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">string</span>&gt;(original);</code></pre>
+
+<h3>class vs struct &mdash; when to choose which</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th><code>class</code></th><th><code>struct</code></th></tr></thead>
+  <tbody>
+    <tr><td>Kind</td><td>Reference type</td><td>Value type</td></tr>
+    <tr><td>Assignment</td><td>Copies the reference</td><td>Copies all the fields</td></tr>
+    <tr><td>Can be <code>null</code></td><td>Yes</td><td>Only as <code>Nullable&lt;T&gt;</code> (<code>int?</code>)</td></tr>
+    <tr><td>Default equality</td><td>Reference identity</td><td>Field-by-field</td></tr>
+    <tr><td>Inheritance</td><td>Yes</td><td>No (interfaces only)</td></tr>
+    <tr><td>Use it for</td><td>Almost everything</td><td>Small, immutable, value-like data</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  The practical guidance: <strong>use a class unless you have a measured reason not to.</strong>
+  A struct earns its place when it is small (roughly 16 bytes or less), immutable, and allocated
+  in large numbers &mdash; a coordinate, a money amount, a database identifier. A large mutable
+  struct is one of the few genuinely bad ideas the language lets you express.
+</p>
+
+<h2 id="nullability">null, and how C# stopped losing to it</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    <code>null</code> means "the page where the directions should be written is <em>blank</em>".
+    If you follow blank directions, you fall over. That falling over is called a
+    <em>NullReferenceException</em>, and for about twenty years it was the single most common way
+    programs crashed.
+  </p>
+  <p>
+    So C# added a rule: you must now say, in advance, which pages are <em>allowed</em> to be
+    blank. You mark those with a question mark. If you forget to check one, the compiler warns you
+    before the program ever runs.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    With <code>&lt;Nullable&gt;enable&lt;/Nullable&gt;</code> in the project file, reference types
+    are non-nullable by default and <code>string?</code> is the opt-in. The compiler runs
+    <em>flow analysis</em>: it tracks whether each reference has been proven non-null on this path
+    and warns when you dereference one that has not.
+  </p>
+  <p>
+    Crucially this is a <strong>compile-time</strong> feature with no runtime representation
+    &mdash; <code>string?</code> and <code>string</code> are the same type to the CLR. It cannot
+    protect you at a boundary where data arrives from outside (JSON, a database, reflection), which
+    is exactly why validation at the edge still matters.
+  </p>
+</div>
+
+<div class="code-head">the operators, and what each one means</div>
+<pre><code><span class="ty">string</span>? name = GetName();          <span class="cm">// ? — this one may legitimately be null</span>
+
+<span class="cm">// ?.  null-conditional: stop and give null instead of throwing</span>
+<span class="ty">int</span>? length = name?.Length;
+
+<span class="cm">// ??  null-coalescing: a fallback</span>
+<span class="ty">string</span> shown = name ?? <span class="st">"(unknown)"</span>;
+
+<span class="cm">// ??= assign only if currently null</span>
+name ??= <span class="st">"(unknown)"</span>;
+
+<span class="cm">// !   null-forgiving: "trust me, compiler." A promise, not a check.</span>
+<span class="ty">int</span> risky = name!.Length;         <span class="cm">// silences the warning, keeps the crash</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The <code>!</code> operator</div>
+  <p>
+    <code>!</code> does not make anything safe. It switches off the one thing that was helping you.
+    Every use should be rare, local, and justified by a comment &mdash; typically "the framework
+    guarantees this is set after <code>OnModelCreating</code>". Reaching for <code>!</code> to
+    clear a warning is the C# equivalent of taping over a warning light.
+  </p>
+</div>
+
+<h2 id="strings">Strings</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A string in C# is written in permanent ink. You can never change one. When you "add" to a
+    string, what really happens is that a brand new string is written out on a fresh page, and the
+    old one is thrown in the bin.
+  </p>
+  <p>
+    Do that once, and nobody notices. Do it ten thousand times in a loop, and you have filled the
+    bin with 9,999 sheets of paper for one sentence.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <code>string</code> is an immutable reference type. Every operation that appears to modify one
+    &mdash; <code>+</code>, <code>Replace</code>, <code>Trim</code>, <code>ToUpper</code> &mdash;
+    allocates a new instance. In a loop this is quadratic in both time and allocation, which is
+    why <code>StringBuilder</code> exists: it keeps a mutable buffer and materialises the string
+    once.
+  </p>
+  <p>
+    Immutability is what makes strings safe to share across threads and usable as dictionary keys,
+    and it is why string literals can be <em>interned</em> &mdash; one copy per identical literal
+    for the whole process.
+  </p>
+</div>
+
+<div class="code-head">the loop, and the fix</div>
+<pre><code><span class="cm">// ✗ 10,000 allocations, each one longer than the last</span>
+<span class="ty">string</span> csv = <span class="st">""</span>;
+<span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> orders)
+    csv += o.Id + <span class="st">","</span>;
+
+<span class="cm">// ✓ one buffer, one string at the end</span>
+<span class="kw">var</span> sb = <span class="kw">new</span> <span class="ty">StringBuilder</span>();
+<span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> orders)
+    sb.Append(o.Id).Append(<span class="st">','</span>);
+<span class="ty">string</span> csv2 = sb.ToString();
+
+<span class="cm">// ✓✓ better still, when the shape allows it</span>
+<span class="ty">string</span> csv3 = <span class="ty">string</span>.Join(<span class="st">','</span>, orders.Select(o =&gt; o.Id));</code></pre>
+
+<p>Two more string features worth having at your fingertips:</p>
+
+<div class="code-head">interpolation and raw literals</div>
+<pre><code><span class="ty">var</span> total = 1234.5m;
+
+<span class="cm">// interpolation — compiles to an efficient handler, not string.Concat</span>
+<span class="ty">string</span> line = $<span class="st">"Order {order.Id} totals {total:C} on {DateTime.UtcNow:yyyy-MM-dd}"</span>;
+
+<span class="cm">// raw string literal (C# 11+) — no escaping, keeps the layout</span>
+<span class="ty">string</span> sql = <span class="st">"""</span>
+<span class="st">    SELECT o.Id, o.Total
+    FROM   dbo.Orders AS o
+    WHERE  o.CustomerId = @customerId</span>
+<span class="st">    """</span>;</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Culture &mdash; and this one is about Italy</div>
+  <p>
+    <code>{total:C}</code> formats using the <em>current culture</em>. On your Italian colleague's
+    machine that is <code>1.234,50&nbsp;&euro;</code>; on the Linux build agent it is
+    <code>&#164;1,234.50</code>. The rule: <strong>use the current culture for anything a human
+    reads, and <code>InvariantCulture</code> for anything a machine reads</strong> &mdash; files,
+    URLs, JSON, SQL. <code>decimal.Parse("1,5")</code> giving you fifteen is a real bug that has
+    shipped in real Italian software.
+  </p>
+</div>
+
+<h2 id="var-const-readonly">var, const and readonly</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Keyword</th><th>What it fixes</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><code>var</code></td><td>Nothing &mdash; the type is still static, just inferred by the compiler</td><td>Compile time</td></tr>
+    <tr><td><code>const</code></td><td>The value, baked into every call site that uses it</td><td>Compile time</td></tr>
+    <tr><td><code>readonly</code></td><td>The field, after the constructor finishes</td><td>Run time</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The <code>const</code> across-assemblies trap</div>
+  <p>
+    A <code>public const</code> is copied into the <em>consuming</em> assembly at compile time. Ship
+    a new library with a changed constant and every caller keeps the old value until it is
+    recompiled. For anything public that might ever change, use
+    <code>public static readonly</code> instead.
+  </p>
+</div>
+
+<h2 id="records-and-patterns">Records and pattern matching</h2>
+
+<p>
+  Two modern features that appear constantly in current C# and that an interviewer will expect you
+  to recognise.
+</p>
+
+<div class="code-head">records — value-like classes, written once</div>
+<pre><code><span class="cm">// One line. You get: constructor, properties, Equals, GetHashCode,</span>
+<span class="cm">// ToString, deconstruction and a `with` expression.</span>
+<span class="kw">public record</span> <span class="ty">Address</span>(<span class="ty">string</span> Street, <span class="ty">string</span> City, <span class="ty">string</span> Cap);
+
+<span class="kw">var</span> a = <span class="kw">new</span> <span class="ty">Address</span>(<span class="st">"Via Emilia 1"</span>, <span class="st">"Modena"</span>, <span class="st">"41121"</span>);
+<span class="kw">var</span> b = <span class="kw">new</span> <span class="ty">Address</span>(<span class="st">"Via Emilia 1"</span>, <span class="st">"Modena"</span>, <span class="st">"41121"</span>);
+
+<span class="ty">Console</span>.WriteLine(a == b);            <span class="cm">// <span class="out">True</span>  — value equality, not reference</span>
+<span class="kw">var</span> moved = a <span class="kw">with</span> { City = <span class="st">"Bologna"</span> };  <span class="cm">// copy, one field changed</span></code></pre>
+
+<p class="subtle">
+  A <code>record</code> is still a reference type &mdash; it just <em>compares</em> like a value.
+  <code>record struct</code> gives you the value type. Records are the natural choice for DTOs
+  (<a href="14-web-api.html">chapter 14</a>), for query results, and for anything you want to be
+  immutable.
+</p>
+
+<div class="code-head">pattern matching — the switch that replaced if-chains</div>
+<pre><code><span class="ty">decimal</span> Shipping(<span class="ty">Order</span> o) =&gt; o <span class="kw">switch</span>
+{
+    { Total: &gt; 100 }                        =&gt; 0m,          <span class="cm">// property pattern</span>
+    { Country: <span class="st">"IT"</span>, Weight: &lt; 2 }          =&gt; 4.90m,
+    { Country: <span class="st">"IT"</span> }                        =&gt; 7.90m,
+    { Country: <span class="st">"FR"</span> <span class="kw">or</span> <span class="st">"DE"</span> <span class="kw">or</span> <span class="st">"ES"</span> }        =&gt; 12.00m,   <span class="cm">// or-pattern</span>
+    <span class="kw">null</span>                                    =&gt; <span class="kw">throw new</span> <span class="ty">ArgumentNullException</span>(<span class="kw">nameof</span>(o)),
+    _                                       =&gt; 19.00m       <span class="cm">// discard: everything else</span>
+};</code></pre>
+
+<p>
+  The compiler checks that a <code>switch</code> expression is exhaustive and warns if it is not
+  &mdash; a real advantage over an <code>if</code>/<code>else if</code> chain, which fails silently
+  when a new case appears.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Predict each line before you run it. Getting all four right means you understand this chapter.</p>
+  <pre><code><span class="kw">record struct</span> <span class="ty">Point</span>(<span class="ty">int</span> X, <span class="ty">int</span> Y);
+<span class="kw">class</span> <span class="ty">Box</span> { <span class="kw">public int</span> Value; }
+
+<span class="kw">var</span> p1 = <span class="kw">new</span> <span class="ty">Point</span>(1, 2);
+<span class="kw">var</span> p2 = p1;
+<span class="kw">var</span> b1 = <span class="kw">new</span> <span class="ty">Box</span> { Value = 1 };
+<span class="kw">var</span> b2 = b1;
+
+p2 = p2 <span class="kw">with</span> { X = 99 };
+b2.Value = 99;
+
+<span class="ty">Console</span>.WriteLine(p1.X);          <span class="cm">// ?</span>
+<span class="ty">Console</span>.WriteLine(b1.Value);      <span class="cm">// ?</span>
+<span class="ty">Console</span>.WriteLine(p1 == <span class="kw">new</span> <span class="ty">Point</span>(1, 2));  <span class="cm">// ?</span>
+<span class="ty">Console</span>.WriteLine(b1 == <span class="kw">new</span> <span class="ty">Box</span> { Value = 1 });  <span class="cm">// ?</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Answers: <code>1</code>, <code>99</code>, <code>True</code>, <code>False</code>. The last one is
+    the whole chapter in one line &mdash; two different <code>Box</code> objects are never equal by
+    default, however identical their contents.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-01-csharp-advanced/README.md">Module 01</a> for the language in
+    depth, <a href="../../course/module-19-memory-and-gc/README.md">Module 19</a> for what the heap
+    really does, and <a href="../../course/module-20-equality-and-collections/README.md">Module
+    20</a> for the equality rules that the last <code>Console.WriteLine</code> above depends on.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Assignment copies what is in the variable: the <em>data</em> for a value type, the
+        <em>reference</em> for a reference type. Every aliasing bug is this rule, forgotten.</li>
+    <li>"Value types live on the stack" is a useful lie. Reason about <strong>copy
+        semantics</strong>, not storage location.</li>
+    <li>Use a <code>class</code> unless you have measured a reason for a <code>struct</code>.
+        Never write a large mutable struct.</li>
+    <li>Turn nullable reference types <strong>on</strong>. It is compile-time only, so keep
+        validating data that arrives from outside.</li>
+    <li><code>!</code> is a promise to the compiler, not a check. Rare, local, commented.</li>
+    <li>Strings are immutable. Concatenation in a loop is a bug at scale; use
+        <code>StringBuilder</code> or <code>string.Join</code>.</li>
+    <li>Current culture for humans, <code>InvariantCulture</code> for machines. In Italy this is
+        not a theoretical concern.</li>
+    <li>Never make a <code>public const</code> out of something that might change &mdash; it is
+        baked into every caller until they recompile.</li>
+    <li><code>record</code> for data you want compared by value; <code>class</code> for things with
+        identity.</li>
+    <li>Prefer a <code>switch</code> expression to an <code>if</code>/<code>else if</code> chain:
+        the compiler tells you when you have missed a case.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between a value type and a reference type?"</p>
+  <p class="a">
+    Copy semantics: a value type copies its data on assignment, a reference type copies the
+    reference so both names denote one object. Then mention the consequences &mdash; default
+    equality, nullability, and the aliasing bug &mdash; because that is what separates a memorised
+    answer from an understood one.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is <code>string</code> immutable?"</p>
+  <p class="a">
+    Thread safety without locking, safe use as dictionary keys, and interning. The cost is that
+    every apparent mutation allocates, which is why <code>StringBuilder</code> exists.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Does enabling nullable reference types stop NullReferenceException?"</p>
+  <p class="a">
+    No &mdash; it is compile-time analysis with no runtime representation, so anything crossing a
+    boundary (JSON, database, reflection, an older library) can still hand you a null. It removes a
+    large class of internal bugs and shifts the remainder to the edges, where validation belongs.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you use a record?"</p>
+  <p class="a">
+    When identity does not matter but contents do: DTOs, query results, value objects, messages.
+    You get value equality, <code>with</code> expressions and a readable <code>ToString</code> for
+    free. Not for entities &mdash; an <code>Order</code> with the same values as another
+    <code>Order</code> is still a different order.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"<code>const</code> or <code>static readonly</code>?"</p>
+  <p class="a">
+    <code>const</code> for things that are true by definition and will never change &mdash;
+    <code>Math.PI</code>, the number of days in a week. <code>static readonly</code> for everything
+    else public, because a <code>const</code> is inlined into callers and changing it silently
+    fails to reach them until they rebuild.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

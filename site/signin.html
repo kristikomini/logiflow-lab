@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — LogiFlow Academy</title>
+<meta name="description" content="Sign in to carry your LogiFlow Academy progress between machines, or to share one deployment with other people. Everything keeps working signed out.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="signin">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main auth-main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Sign in</p>
+    <h1>Sign in</h1>
+    <p class="lede">
+      You do not need an account to use this site &mdash; every chapter, every test and every
+      note already works, saved in this browser. Signing in does exactly two things:
+      it carries that progress from a laptop to a phone, and it lets more than one person
+      share a machine or a deployment without overwriting each other.
+    </p>
+
+    <div id="auth-host"></div>
+
+    <div class="box kid">
+      <div class="box-title">🧒 What a login really is</div>
+      <p>
+        The server does not remember you. Every request has to prove who it is on its own,
+        the way a wristband at a theme park does &mdash; nobody at the ride remembers you
+        buying a ticket, they just look at your wrist.
+      </p>
+      <p>
+        When you sign in, the server gives you two things. A <strong>wristband</strong> that
+        works for fifteen minutes, and a <strong>ticket stub</strong> you keep in your pocket
+        to swap for a fresh wristband when the old one runs out. If somebody steals the
+        wristband it stops working almost immediately; the stub can only be used once, so if
+        it is used twice the server knows something is wrong and cancels everything.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 What this form actually does</div>
+      <p>
+        It <code>POST</code>s to <code>/api/auth/login</code> on
+        <code>LogiFlow.Academy.Api</code> and gets back an <strong>access token</strong> (a
+        short-lived JWT, sent on every later request as
+        <code>Authorization: Bearer &hellip;</code>) and a <strong>refresh token</strong>
+        (long-lived, stored only as a SHA-256 hash server-side, single-use, and rotated on
+        every exchange). Presenting an already-exchanged refresh token revokes the whole
+        family, because the server cannot tell a replay attack from a client that lost the
+        response to its own refresh &mdash; and of those two, only one is safe to guess wrong.
+      </p>
+      <p>
+        Your password is never stored. It is run through PBKDF2 with a per-user salt, and the
+        iteration count is upgraded transparently on your next successful sign-in &mdash; that
+        moment is the only time the plaintext is legitimately available to re-hash.
+        Read it: <a href="chapters/15-api-security.html">15 &middot; Securing an API</a>,
+        then <code>src/LogiFlow.Academy.Api/Endpoints/AuthEndpoints.cs</code>.
+      </p>
+    </div>
+
+    <div class="box trap">
+      <div class="box-title">⚠ Why the error message is deliberately unhelpful</div>
+      <p>
+        A wrong password and a username with no account here produce the <em>identical</em>
+        message and take the <em>identical</em> amount of time. That is not laziness.
+        &ldquo;No account with that username&rdquo; turns a login form into an
+        account-enumeration oracle: anybody can test a list of names and learn which ones are
+        registered, which is half of credential stuffing.
+      </p>
+      <p>
+        Constant message and constant work &mdash; the server burns the same CPU verifying a
+        password that does not exist, so response time gives nothing away either. Eight failed
+        attempts lock the account for fifteen minutes, and that lock <em>is</em> reported,
+        because by then the caller already knows the account exists.
+      </p>
+      <p>
+        The <a href="reset.html">recovery page</a> is careful in exactly the same way, and for
+        a sharper reason: it is the one form that can be probed with a username and no password
+        at all. Registration is the deliberate exception &mdash; it tells you plainly that a
+        username is taken, because a username is printed on the leaderboard and hiding it would
+        only leave people guessing why signing up failed.
+      </p>
+    </div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/auth-page.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  if (window.LFAuthPage) window.LFAuthPage.mountSignIn(document.getElementById("auth-host"));
+})();
+</script>
+</body>
+</html>

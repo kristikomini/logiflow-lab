@@ -1,0 +1,70 @@
+// =============================================================================
+// orders.proto — the internal, service-to-service view of an order.
+//
+// This file is the contract. Not the C# class, not the OpenAPI document — this
+// file, and it is compiled into both ends. That is the first real difference
+// from REST: with JSON the contract is documentation everyone agrees to follow,
+// and here it is code neither end can disagree with.
+//
+// Covered in: course/module-25-distributed-systems/07-grpc.md
+// =============================================================================
+
+syntax = "proto3";
+
+option csharp_namespace = "LogiFlow.Api.Grpc";
+
+package logiflow.orders.v1;   // versioned in the package name, like the URL is
+
+service OrderLookup {
+  // One order by id. The obvious unary call, and the one that maps cleanly onto
+  // GET /api/v1/orders/{id}.
+  rpc GetOrder (GetOrderRequest) returns (OrderReply);
+
+  // A SERVER STREAM, which is the shape REST has no answer to. The caller gets
+  // rows as they are produced instead of waiting for the whole set to be built,
+  // serialized and sent — so a ten-thousand-order export starts arriving
+  // immediately and never needs ten thousand orders in memory at either end.
+  // Over HTTP you would reach for pagination, chunked encoding or SSE, and get
+  // a worse version of this with more code.
+  rpc StreamOrders (StreamOrdersRequest) returns (stream OrderReply);
+}
+
+message GetOrderRequest {
+  string order_id = 1;   // a UUID as a string: proto3 has no native UUID type
+}
+
+message StreamOrdersRequest {
+  int32 max = 1;
+}
+
+message OrderReply {
+  // FIELD NUMBERS ARE THE WIRE FORMAT, not the names. `1` is what is actually
+  // transmitted; `order_id` exists only for humans and code generators. So a
+  // field can be renamed freely and can NEVER be renumbered or reused — doing
+  // so silently reinterprets old bytes as a different field, which is the
+  // worst class of bug this format can produce. Numbers 1–15 take one byte,
+  // 16+ take two, so the fields on every message go first.
+  string order_id = 1;
+  string order_number = 2;
+  string customer_id = 3;
+  string customer_name = 4;
+  string status = 5;
+
+  // Money as a STRING, deliberately, and this is the trade-off worth arguing
+  // about in an interview. proto3 has no decimal: double loses precision on
+  // exactly the values money cares about, and int64-of-cents needs both ends to
+  // agree on the scale forever. A string round-trips C#'s decimal exactly and
+  // costs a parse. See Money.cs for the same argument in the domain.
+  string total_amount = 6;
+  string currency = 7;
+
+  int32 line_count = 8;
+
+  // No `optional` on the timestamps: in proto3 a missing string is "" and a
+  // missing number is 0, and there is no way to tell "absent" from "empty"
+  // without wrapping. An unsubmitted order therefore sends an empty string
+  // here — which is a real limitation, not a design choice, and the reason
+  // google.protobuf.Timestamp exists for the cases where it matters.
+  string created_at_utc = 9;
+  string submitted_at_utc = 10;
+}

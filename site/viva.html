@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viva — LogiFlow Academy</title>
+<meta name="description" content="Say it, do not pick it. A free-recall drill over the 362 Golden rules of the course: the claim is shown, you produce the justification in your own words, and only then does the written one appear.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="viva">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Viva</p>
+    <h1>Viva</h1>
+    <p class="lede">
+      Everything else on this site gives you four options. This does not. You get the rule,
+      you produce the reason it is true, and only then do you see the written one &mdash;
+      because &ldquo;spiegami perch&eacute;&rdquo; has no options underneath it, and the gap
+      between recognising an answer and being able to say one is where interviews are lost.
+    </p>
+
+    <div id="stats"></div>
+    <div id="start"></div>
+    <div id="drill"></div>
+
+    <h2 id="why">Why this exists</h2>
+
+    <div class="box kid">
+      <div class="box-title">🧒 Simple</div>
+      <p>
+        Picking the right answer out of four is like recognising a face. Explaining the rule
+        out loud is like drawing that face from memory. Both feel like knowing, but only one
+        of them is what somebody asks you to do.
+      </p>
+      <p>
+        So this page hides the answer until you have said yours. That is the entire trick.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 Professional</div>
+      <p>
+        Multiple choice measures <strong>recognition</strong>; an interview measures
+        <strong>free recall</strong>, and the two come apart badly. Recognition is supported
+        by the options on the page &mdash; remove them and a chunk of what felt like knowledge
+        goes with them. Everything on this site until now has been the supported kind.
+      </p>
+      <p>
+        Free recall is also the harder practice, and harder practice is the point: the effort
+        of producing an answer is what consolidates it. That is the same finding the
+        <a href="review.html#why">review deck</a> is built on, one step further along.
+      </p>
+      <p>
+        The weak spot is honest to name: <strong>you mark yourself</strong>, and people mark
+        themselves generously. Two things push back. Your own answer stays on screen beside
+        the written one, so you compare texts rather than feelings. And the terms the rule
+        itself uses &mdash; <code>rowversion</code>, <code>IQueryable</code>, 409 &mdash; are
+        checked against what you wrote and shown as hit or missed. That check is literal and
+        cannot tell whether you were right, but &ldquo;your answer never mentioned
+        <code>rowversion</code>&rdquo; is a fact, and facts are harder to wave away.
+      </p>
+      <p>
+        Marks feed the same SM-2 schedule as the quiz deck, in a separate pile: a rule you
+        hedged comes back tomorrow, one you said cleanly comes back in four days, then in
+        eleven. The deck is generated from
+        <code>course/GOLDEN-RULES.md</code>, so every rule you drill here is a rule the course
+        actually taught.
+      </p>
+    </div>
+
+    <h2 id="deck">What is in the deck</h2>
+    <div id="deck-state"></div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/rules.js"></script>
+<script src="assets/viva.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var LF = window.LF, V = window.LFViva;
+  if (!LF || !V) return;
+
+  var esc = window.LFLearn.esc;
+  var statsHost = document.getElementById("stats");
+  var startHost = document.getElementById("start");
+  var drillHost = document.getElementById("drill");
+
+  /* ---------------------------------------------------------------- stats */
+
+  function paintStats() {
+    var s = LF.vivaStats(V.rules.length);
+    var twelve = V.eighteen().filter(function (r) { return r.tier === "twelve"; });
+    var twelveClean = twelve.filter(function (r) {
+      var k = LF.profile.viva[r.id];
+      return k && k.grade === 2;
+    }).length;
+
+    statsHost.className = "viva-stats";
+    statsHost.innerHTML =
+      tile(s.seen + " / " + s.total, "rules attempted") +
+      tile(String(s.due), "due today") +
+      tile(String(s.strong), "held", "Answered twice, next review four days out or more") +
+      tile(twelveClean + " / 12", "of the twelve, cleanly");
+  }
+
+  function tile(value, label, title) {
+    return '<div class="viva-tile"' + (title ? ' title="' + esc(title) + '"' : "") + ">" +
+      '<div class="viva-tile-n">' + esc(value) + "</div>" +
+      '<div class="viva-tile-l">' + esc(label) + "</div></div>";
+  }
+
+  /* ---------------------------------------------------------------- start */
+
+  function paintStart() {
+    var s = LF.vivaStats(V.rules.length);
+    var missed = V.lapsed().length;
+    var fresh = V.unseen().length;
+
+    var html = '<div class="quiz-intro">';
+
+    html += "<p>" +
+      (s.due
+        ? "<strong>" + s.due + " rule" + (s.due === 1 ? "" : "s") + " due.</strong> "
+        : "<strong>Nothing is overdue.</strong> ") +
+      (fresh
+        ? "A session is fifteen rules — the ones you are closest to forgetting first, then " +
+          "new ones from the " + fresh + " you have not attempted yet."
+        : "You have attempted every rule in the course at least once.") +
+      "</p>";
+
+    html +=
+      '<div class="viva-modes">' +
+        '<button type="button" class="btn primary big" data-act="today">Start a session</button> ' +
+        '<button type="button" class="btn big" data-act="eighteen">The eighteen that decide interviews</button> ' +
+        (missed
+          ? '<button type="button" class="btn big" data-act="lapsed">The ' + missed +
+            " you keep missing</button> "
+          : "") +
+        '<button type="button" class="btn big" data-act="module">One module&hellip;</button>' +
+      "</div>";
+
+    // Two settings, both of which change what the practice actually is, so they
+    // sit next to the start button rather than in a preferences page nobody opens.
+    html +=
+      '<div class="viva-prefs">' +
+        '<label><input type="checkbox" id="speakMode"' + (V.pref("mode", "type") === "speak" ? " checked" : "") + "> " +
+        "Speak the answers instead of typing them <span class=\"subtle\">— closer to the real thing, " +
+        "but nothing gets compared for you</span></label>" +
+        '<label><input type="checkbox" id="italianMode"' + (V.pref("lang", "en") === "it" ? " checked" : "") + "> " +
+        "Rispondi in italiano <span class=\"subtle\">— the interview in Modena is in Italian; " +
+        "the technical terms stay English either way</span></label>" +
+      "</div>";
+
+    html += "</div>";
+    startHost.innerHTML = html;
+
+    startHost.querySelector("#speakMode").addEventListener("change", function () {
+      V.savePref("mode", this.checked ? "speak" : "type");
+    });
+    startHost.querySelector("#italianMode").addEventListener("change", function () {
+      V.savePref("lang", this.checked ? "it" : "en");
+    });
+  }
+
+  startHost.addEventListener("click", function (e) {
+    var act = e.target.getAttribute && e.target.getAttribute("data-act");
+    if (!act) return;
+    if (act === "today")    run(V.today(15), "Today's rules");
+    if (act === "eighteen") run(V.eighteen(), "The eighteen that decide interviews");
+    if (act === "lapsed")   run(V.lapsed(), "The ones you keep missing");
+    if (act === "module")   pickModule();
+  });
+
+  function pickModule() {
+    var list = V.modules();
+    var options = list.map(function (m) { return m.n + " · " + m.part.replace(/^Module \d+ — /, ""); }).join("\n");
+    var answer = window.prompt("Which module? Type its number.\n\n" + options, "07");
+    if (answer === null) return;
+    var want = String(answer).trim().replace(/^0+/, "");
+    var found = list.filter(function (m) { return String(m.n).replace(/^0+/, "") === want; })[0];
+    if (!found) { window.alert("No module with that number."); return; }
+    run(V.rules.filter(function (r) { return r.module === found.n; }), found.part);
+  }
+
+  /* ---------------------------------------------------------------- drill */
+
+  function run(rules, title) {
+    if (!rules || !rules.length) return;
+    startHost.innerHTML = "";
+    V.mount(drillHost, {
+      rules: rules,
+      title: title,
+      onAgain: function () { drillHost.innerHTML = ""; paintAll(); },
+      onFinish: function () { setTimeout(paintDeck, 50); },
+    });
+    drillHost.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* ----------------------------------------------------------- deck state */
+
+  function paintDeck() {
+    var host = document.getElementById("deck-state");
+    var groups = [
+      { name: "The twelve that decide interviews", rules: V.rules.filter(function (r) { return r.tier === "twelve"; }) },
+      { name: "The six that separate a senior candidate", rules: V.rules.filter(function (r) { return r.tier === "senior"; }) },
+    ];
+    V.modules().forEach(function (m) {
+      groups.push({ name: m.part, rules: V.rules.filter(function (r) { return r.module === m.n; }) });
+    });
+
+    var rows = groups.map(function (g) {
+      var held = g.rules.filter(function (r) {
+        var k = LF.profile.viva[r.id];
+        return k && k.reps >= 2 && k.interval >= 4;
+      }).length;
+      var pct = Math.round((held / g.rules.length) * 100);
+      return '<div class="part-row"><span class="part-name">' + esc(g.name) + "</span>" +
+        '<span class="part-track"><span style="width:' + pct + '%"></span></span>' +
+        '<span class="part-pct">' + held + "/" + g.rules.length + "</span></div>";
+    }).join("");
+
+    host.innerHTML = '<div class="part-list">' + rows + "</div>" +
+      '<p class="subtle">' + V.rules.length + " rules, generated from <code>course/GOLDEN-RULES.md</code>. " +
+      "A rule counts as held once you have said it correctly twice and it is not due again for " +
+      "at least four days. Regenerate the deck with <code>dotnet run tools/viva-deck.cs</code> " +
+      "after editing the course.</p>";
+  }
+
+  /* ------------------------------------------------------------------ go */
+
+  function paintAll() { paintStats(); paintStart(); paintDeck(); }
+  paintAll();
+  LF.on("viva", paintStats);
+})();
+</script>
+</body>
+</html>

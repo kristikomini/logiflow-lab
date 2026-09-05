@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    THE DOMAIN LAYER HAS NO DEPENDENCIES. NONE. ON PURPOSE.
+
+    Notice there is not a single <PackageReference> or <ProjectReference> below.
+    That emptiness is the single most important architectural fact in this solution:
+    the business rules cannot accidentally depend on EF Core, ASP.NET Core, or a
+    JSON library, because those types are not even reachable from here.
+
+    tests/LogiFlow.ArchitectureTests enforces this with an automated test so it
+    stays true after the 50th pull request.
+
+    Covered in: course/module-05-clean-architecture/
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>LogiFlow.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

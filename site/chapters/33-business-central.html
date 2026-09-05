@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>33 · Dynamics 365 Business Central and AL — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="33-business-central">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 7 &mdash; What the region actually runs <span>&rsaquo;</span> Chapter 33</p>
+<h1>Dynamics 365 Business Central and AL</h1>
+<p class="lede">
+  Every company in the region runs a <em>gestionale</em> — the ERP that holds customers, orders,
+  stock, invoices and the accounts. A large share of them run Microsoft's, and somebody has to
+  extend it. That somebody writes AL, works in VS Code, uses Git, and is much harder to find than
+  another generic backend developer.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Business Central roles are open in Reggio Emilia and Bologna, with around 85 Dynamics NAV /
+    Business Central listings live across Italy, and established partners recruiting juniors
+    directly. It is a parallel .NET-adjacent career with a fraction of the competition for a
+    generic <em>.NET developer</em> post. This chapter is not enough to get the job — it is enough
+    to decide whether you want it, and to not be lost in the first interview.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what">What it is, and what NAV has to do with it</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a huge board game that comes with all the rules already written: how to sell things,
+    how to count what is in the warehouse, how to send a bill. Thousands of companies play it.
+  </p>
+  <p>
+    Your job is not to write the game. Your job is to add the one extra rule this company needs —
+    without tearing a page out of the rulebook, because next year the makers will send everyone an
+    updated rulebook and yours has to still work.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Business Central is Microsoft's ERP for small and mid-sized companies, descended directly from
+    Dynamics NAV (and before that, Navision — you will hear all three names in the same
+    conversation, often from the same person).
+  </p>
+  <p>
+    The lineage matters because of one change. Old NAV was customised by <strong>editing the base
+    application</strong> in C/AL: your changes and Microsoft's lived in the same objects, and every
+    upgrade was a code-merge project measured in weeks. Modern Business Central forbids that. You
+    write <strong>extensions</strong> in <strong>AL</strong>: separate, versioned packages that
+    hang off the standard application and are re-applied cleanly when Microsoft ships.
+  </p>
+  <p>
+    Two flavours: <strong>Business Central Online</strong> (SaaS, Microsoft-hosted, updated on
+    Microsoft's cadence — two major waves a year plus monthly minor updates) and
+    <strong>on-premises</strong>, which many Italian manufacturers still run, often because it has
+    to sit next to a machine or an MES from <a href="32-industrial-and-mes.html">chapter 32</a>.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 290" role="img" aria-labelledby="bc-title">
+    <title id="bc-title">Old C/AL edited the base application in place; AL extensions sit alongside it and survive upgrades</title>
+    <defs>
+      <marker id="a30" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">Old NAV / C/AL — customise in place</text>
+    <rect x="20" y="40" width="330" height="96" rx="8" class="d-panel d-stroke"/>
+    <text x="185" y="66" class="d-text" text-anchor="middle" style="font-size:11.5px">Base application</text>
+    <rect x="44"  y="80" width="130" height="38" rx="6" class="d-brand"/>
+    <text x="109" y="104" class="d-white" text-anchor="middle" style="font-size:10.5px">your code, inside</text>
+    <rect x="196" y="80" width="130" height="38" rx="6" class="d-panel d-stroke"/>
+    <text x="261" y="104" class="d-small" text-anchor="middle">Microsoft's code</text>
+    <text x="20" y="164" class="d-small">Upgrade = merge two versions of the same objects,</text>
+    <text x="20" y="182" class="d-small">by hand, for weeks. Companies skipped upgrades</text>
+    <text x="20" y="200" class="d-small">for years because of it.</text>
+
+    <line x1="400" y1="100" x2="452" y2="100" class="d-arrow" marker-end="url(#a30)"/>
+
+    <text x="470" y="26" class="d-small">Business Central / AL — extend from outside</text>
+    <rect x="470" y="40" width="200" height="96" rx="8" class="d-panel d-stroke"/>
+    <text x="570" y="66"  class="d-text" text-anchor="middle" style="font-size:11.5px">Base application</text>
+    <text x="570" y="88"  class="d-small" text-anchor="middle">untouched, sealed,</text>
+    <text x="570" y="106" class="d-small" text-anchor="middle">publishes events</text>
+
+    <rect x="700" y="40" width="120" height="42" rx="8" class="d-brand"/>
+    <text x="760" y="58"  class="d-white" text-anchor="middle" style="font-size:10.5px">your extension</text>
+    <text x="760" y="74"  class="d-white" text-anchor="middle" style="font-size:10px">tableextension</text>
+    <rect x="700" y="90" width="120" height="46" rx="8" class="d-brand"/>
+    <text x="760" y="108" class="d-white" text-anchor="middle" style="font-size:10px">codeunit with</text>
+    <text x="760" y="124" class="d-white" text-anchor="middle" style="font-size:10px">event subscribers</text>
+
+    <line x1="696" y1="61"  x2="676" y2="70"  class="d-arrow" marker-end="url(#a30)"/>
+    <line x1="696" y1="113" x2="676" y2="104" class="d-arrow" marker-end="url(#a30)"/>
+
+    <text x="470" y="164" class="d-small">Upgrade = Microsoft replaces the base app and your</text>
+    <text x="470" y="182" class="d-small">extension is re-applied. It either still compiles</text>
+    <text x="470" y="200" class="d-small">against the events, or it fails loudly and early.</text>
+
+    <text x="20" y="246" class="d-small">This one architectural decision is why Business Central development became a normal software job with Git, CI and</text>
+    <text x="20" y="266" class="d-small">semantic versioning, instead of a merge ritual. Everything else in this chapter follows from it.</text>
+  </svg>
+  <figcaption>
+    "Never modify, always extend" is not style advice here — in the cloud version, modifying the
+    base application is simply not possible.
+  </figcaption>
+</figure>
+
+<h2 id="al">AL, for a C# developer</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    In C# you build things out of <em>classes</em>, and a class can be a copy of another class with
+    a bit changed. AL does not work like that. Instead there is a fixed set of box types &mdash;
+    a box for data, a box for a screen, a box for code &mdash; and you pick the right box.
+  </p>
+  <p>
+    And there is a special kind of box that means "the same as that existing one, plus my bit".
+    That is how you add your field to Microsoft's customer screen without ever opening it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    AL is strongly typed, object-based and event-driven — but it is not C#, and the differences
+    are the part that trips people up. There are no classes and no inheritance. There is no
+    <code>async</code>. Instead there are <strong>object types</strong>, each a numbered, named
+    thing in a shared application:
+  </p>
+  <ul>
+    <li><strong>table</strong> — data. It <em>is</em> the schema; there is no separate migration step.</li>
+    <li><strong>page</strong> — a screen (list, card, document). Bound to a table.</li>
+    <li><strong>codeunit</strong> — reusable procedures. The nearest thing to a class, without state or inheritance.</li>
+    <li><strong>report</strong> — printed or exported output, and also batch processing.</li>
+    <li><strong>query</strong>, <strong>xmlport</strong>, <strong>enum</strong>, <strong>interface</strong>, <strong>permissionset</strong>.</li>
+    <li><strong>tableextension / pageextension / codeunitextension / enumextension</strong> — the
+        four that make an extension possible: add a field, add a control, add behaviour, without
+        touching the original.</li>
+  </ul>
+</div>
+
+<div class="code-head">a complete, realistic extension in about 40 lines</div>
+<pre><code><span class="cm">// 1. Add a field to the standard Customer table.</span>
+tableextension <span class="nu">50100</span> <span class="st">"LOGI Customer Ext"</span> <span class="kw">extends</span> Customer
+{
+    fields
+    {
+        field(<span class="nu">50100</span>; <span class="st">"LOGI Delivery Window"</span>; <span class="ty">Text</span>[<span class="nu">30</span>])
+        {
+            Caption = <span class="st">'Finestra di consegna'</span>;
+            DataClassification = CustomerContent;   <span class="cm">// GDPR classification: required</span>
+        }
+    }
+}
+
+<span class="cm">// 2. Show it on the standard Customer Card.</span>
+pageextension <span class="nu">50100</span> <span class="st">"LOGI Customer Card Ext"</span> <span class="kw">extends</span> <span class="st">"Customer Card"</span>
+{
+    layout
+    {
+        addlast(General)
+        {
+            field(<span class="st">"LOGI Delivery Window"</span>; Rec.<span class="st">"LOGI Delivery Window"</span>)
+            {
+                ApplicationArea = All;              <span class="cm">// omit it and the field is invisible</span>
+                ToolTip = <span class="st">'Orario in cui il cliente accetta consegne.'</span>;
+            }
+        }
+    }
+}
+
+<span class="cm">// 3. React to standard behaviour — do NOT override it.</span>
+codeunit <span class="nu">50100</span> <span class="st">"LOGI Sales Subscribers"</span>
+{
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::<span class="st">"Sales-Post"</span>,
+                     <span class="st">'OnBeforePostSalesDoc'</span>, <span class="st">''</span>, <span class="kw">false</span>, <span class="kw">false</span>)]
+    <span class="kw">local procedure</span> BlockPostingWithoutWindow(<span class="kw">var</span> SalesHeader: Record <span class="st">"Sales Header"</span>)
+    <span class="kw">var</span>
+        Customer: Record Customer;
+    <span class="kw">begin</span>
+        <span class="kw">if not</span> Customer.Get(SalesHeader.<span class="st">"Sell-to Customer No."</span>) <span class="kw">then</span>
+            <span class="kw">exit</span>;
+        <span class="kw">if</span> Customer.<span class="st">"LOGI Delivery Window"</span> = <span class="st">''</span> <span class="kw">then</span>
+            Error(<span class="st">'Il cliente %1 non ha una finestra di consegna.'</span>, Customer.<span class="st">"No."</span>);
+    <span class="kw">end</span>;
+}</code></pre>
+
+<p class="subtle">
+  Read the third object again, because it is the entire philosophy. Microsoft's posting routine
+  publishes an event; you subscribe. You never edit <code>Sales-Post</code>. When Microsoft ships a
+  new version, either the event is still there and your code runs, or the publisher changed and
+  your extension fails to compile — early, in your pipeline, not silently in production.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>In C#</th><th>In AL</th></tr></thead>
+  <tbody>
+    <tr><td>class with state and inheritance</td><td>codeunit with procedures; no inheritance</td></tr>
+    <tr><td>EF Core entity + migration</td><td><code>table</code> object — the schema <em>is</em> the code</td></tr>
+    <tr><td>Razor page / Blazor component</td><td><code>page</code> object, declaratively bound</td></tr>
+    <tr><td>event / delegate / <code>IObserver</code></td><td><code>[EventSubscriber]</code> on a procedure</td></tr>
+    <tr><td>NuGet package</td><td>an extension (<code>.app</code>), with <code>app.json</code> dependencies</td></tr>
+    <tr><td><code>async</code>/<code>await</code></td><td>nothing — it is synchronous; long work goes to a job queue</td></tr>
+    <tr><td><code>try/catch</code></td><td><code>Error()</code> rolls the transaction back; <code>if Codeunit.Run()</code> to trap</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="bridge">Where it meets your .NET</h2>
+
+<p>
+  This is the part that makes the track appealing rather than a total career change: Business
+  Central speaks HTTP, and everything in <a href="13-rest-principles.html">Part 3</a> applies.
+</p>
+
+<ul>
+  <li><strong>API pages</strong> — you write a <code>page</code> of type <code>API</code> and get a
+      REST/OData v4 endpoint over your data, with standard paging and filtering.</li>
+  <li><strong>OData and SOAP web services</strong> — expose an existing page or codeunit for
+      integration. SOAP is still very much alive in this world.</li>
+  <li><strong>Outbound</strong> — AL can call HTTP itself, so BC can consume your ASP.NET Core API,
+      which is a common shape: BC owns the commercial documents, your service owns something it
+      was never designed for.</li>
+  <li><strong>Not available in the cloud:</strong> .NET interop. On-premises AL could declare
+      <code>DotNet</code> variables and call framework types; Business Central Online cannot. Any
+      "we'll just call a .NET library" plan has to become a web service instead. Knowing this is a
+      good sign in an interview.</li>
+</ul>
+
+<div class="box trap">
+  <div class="box-title">⚠ Four things that catch newcomers</div>
+  <ul>
+    <li><strong>Object ID ranges and the affix.</strong> Objects are numbered, ranges are assigned,
+        and every field and object name in an AppSource app needs a registered prefix or suffix
+        (<code>LOGI</code> above). Ignore this and you collide with another partner's extension on
+        the same tenant.</li>
+    <li><strong>Deleting a field is a breaking change.</strong> The data belongs to the customer.
+        You mark fields obsolete with <code>ObsoleteState</code> and remove them a version later,
+        after a data upgrade codeunit has moved anything that mattered.</li>
+    <li><strong>Two major releases a year, monthly minors.</strong> Your extension must keep
+        compiling against a base application that moves without asking you. Automated build against
+        the next version is not optional at any serious partner.</li>
+    <li><strong><code>ApplicationArea</code>.</strong> Forget it on a control and the field simply
+        does not appear, with no error. Everyone loses an afternoon to this exactly once.</li>
+  </ul>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    You need no licence and no customer. Get a free Business Central <strong>sandbox</strong> from
+    a Microsoft 365 developer tenant, then:
+  </p>
+  <pre><code><span class="cm"># VS Code → Extensions → install "AL Language" (Microsoft)</span>
+<span class="cm"># Ctrl+Shift+P → "AL: Go!" → pick Microsoft cloud sandbox</span>
+<span class="cm"># it scaffolds app.json + launch.json + a HelloWorld pageextension</span>
+<span class="cm"># F5 → downloads symbols, compiles, publishes, opens the browser</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then do the thing that teaches the model: take the <code>tableextension</code> and
+    <code>pageextension</code> above, change the ids to your assigned range, and press F5. A new
+    field appears on the standard Customer Card of a full ERP you did not write and cannot break.
+    Now add the event subscriber and try to post a sales order for a customer without a delivery
+    window. Watching your own validation stop Microsoft's posting routine — from outside it — is
+    the moment the whole extension model makes sense.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Never modify the base application. In the cloud you cannot; on-premises you should not.</li>
+    <li>Subscribe to events; do not override behaviour.</li>
+    <li>Use your assigned object ID range and your registered affix on every object and field.</li>
+    <li>Deleting or renaming a field is a breaking change. Obsolete it, then remove it later.</li>
+    <li>Ship a data upgrade codeunit whenever the shape of stored data changes.</li>
+    <li><code>ApplicationArea</code> on every control, or the user never sees it.</li>
+    <li><code>DataClassification</code> on every field — it is a GDPR obligation, not paperwork.</li>
+    <li>Extensions are versioned packages with dependencies. Treat <code>app.json</code> like a <code>.csproj</code>.</li>
+    <li>Build against the next major version before it ships, in CI.</li>
+    <li>No <code>async</code>: long-running work belongs in a job queue entry.</li>
+    <li>No .NET interop in the cloud. Integrations go over HTTP.</li>
+    <li>Learn the standard application's data model. Knowing where the ledger entries live is worth more than knowing the language.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Why extensions instead of modifying the base app?"</p>
+  <p class="a">
+    Upgradeability. In C/AL your code and Microsoft's lived in the same objects, so every upgrade
+    was a manual merge and companies skipped versions for years. Extensions are separate versioned
+    packages re-applied on top, so an upgrade either works or fails loudly at compile time.
+    Mention that in Business Central Online modifying the base app is not even possible.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you change standard behaviour you disagree with?"</p>
+  <p class="a">
+    You subscribe to a published event — <code>OnBefore…</code> to block or adjust,
+    <code>OnAfter…</code> to react. If no suitable event exists, you request one from Microsoft
+    rather than forking. Then be honest about the constraint that follows: you can only extend
+    where an event was published, and that genuinely limits what is possible.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A customer wants a field removed. What do you do?"</p>
+  <p class="a">
+    Not delete it. Mark it <code>ObsoleteState = Pending</code> with a reason and a version, ship
+    that, then remove it in a later release once a data upgrade codeunit has handled anything
+    stored in it. Frame it as the point they are testing: the data is the customer's, and an
+    extension must never destroy it on install.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You come from C#. Is that a problem?"</p>
+  <p class="a">
+    Turn it into the answer they want to hear. The tooling is identical — VS Code, Git, JSON
+    project files, CI, semantic versioning — and the REST integration work is the same skill. What
+    is genuinely different is the mindset: no inheritance, the schema is the code, and the base
+    application is a large existing system you extend rather than a blank page. Then say what you
+    have actually built in a sandbox.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you integrate Business Central with an external system?"</p>
+  <p class="a">
+    Outward: an API page giving a REST/OData endpoint, or a published web service. Inward: AL
+    calling HTTP directly, or a middleware service. Add the constraint that shows you know the
+    platform — no .NET interop in the cloud, so anything that would have been a library reference
+    becomes a service call, and integrations need to be idempotent because retries happen.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Is this track for you?</div>
+  <p>
+    Honest summary. <strong>For:</strong> far less competition, strong regional demand, established
+    partners who hire and train juniors, and the tooling transfers directly. <strong>Against:</strong>
+    you specialise — AL experience does not read as generic .NET experience on a CV, most of the
+    work is consultancy for customers rather than product engineering, and you must learn a very
+    large standard application, not just a language. If <a href="19-blazor.html">Blazor</a> and the
+    Web API track appeal more, that is a perfectly good answer too — but it is worth making the
+    choice deliberately rather than never having heard of the alternative.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

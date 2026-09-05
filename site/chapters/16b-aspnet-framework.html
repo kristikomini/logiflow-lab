@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16b · The .NET Framework app you will inherit — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="16b-aspnet-framework">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 16b</p>
+<h1>The .NET Framework app you will inherit</h1>
+<p class="lede">
+  Everything up to here taught you ASP.NET Core. Your first ticket will probably be against
+  something else: a web application on .NET Framework 4.8, written before middleware existed, still
+  earning the company money. This chapter is how to open it, be useful in it, and eventually move
+  it &mdash; without the panic that makes juniors avoid the legacy repository.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Read the adverts again. One lists <em>"ASP.NET"</em> and <em>"ASP.NET Core"</em> as two separate
+    required skills. Another names <strong>.NET Framework 4.8</strong> by version, in the duties,
+    next to .NET Core, and adds <em>"aggiornamento e migrazione tecnologica su framework .NET"</em>.
+    Chapter 00 read the slash in <em>"framework .NET / .NET Core"</em> the same way: they have both.
+  </p>
+  <p>
+    That is not a wish list, it is a description of their repository. And it is good news &mdash;
+    every bootcamp graduate you are competing against can do the Core half. Almost none of them can
+    read a <code>Global.asax</code> without flinching.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="two-frameworks">Two frameworks, one team</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A company has two buildings. The old one was built in 1998: thick walls, a doorman who greets
+    every visitor personally, and wiring you are not allowed to move. The new one is glass and open
+    plan, and everything is on wheels.
+  </p>
+  <p>
+    Both buildings are full of people doing real work. Nobody is going to demolish the old one this
+    year, because the accounts department is inside it. Your job is to be someone who can walk into
+    either building and find the light switch.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>.NET Framework 4.8 is the end of a line.</strong> It is the final version, it ships as
+    part of Windows, and it receives security and reliability fixes for as long as the operating
+    system does &mdash; but no new features, ever. That is precisely why so much code still sits on
+    it: it is not deprecated, it is finished. There is no forcing function, only a business case.
+  </p>
+  <p>
+    "ASP.NET" and "ASP.NET Core" share a name and almost no code. Chapter 01 gave you the table;
+    the practical version is that the two stacks disagree about the four things you touch every
+    day &mdash; how a request is handled, how configuration is read, how dependencies are supplied,
+    and how <code>async</code> behaves.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>The thing you want to do</th><th>ASP.NET (Framework 4.x)</th><th>ASP.NET Core</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Run code on every request</td>
+      <td><code>IHttpModule</code>, or an event in <code>Global.asax</code></td>
+      <td>Middleware</td>
+    </tr>
+    <tr>
+      <td>Handle one endpoint</td>
+      <td><code>IHttpHandler</code> / <code>.ashx</code></td>
+      <td>Endpoint, controller action, minimal API</td>
+    </tr>
+    <tr>
+      <td>Start-up code</td>
+      <td><code>Application_Start</code> in <code>Global.asax</code></td>
+      <td><code>Program.cs</code></td>
+    </tr>
+    <tr>
+      <td>Read configuration</td>
+      <td><code>web.config</code> + <code>ConfigurationManager</code></td>
+      <td><code>IConfiguration</code>, layered providers, Options</td>
+    </tr>
+    <tr>
+      <td>Get a dependency</td>
+      <td>A third-party container wired in by hand, or <code>new</code></td>
+      <td>Built in: constructor injection everywhere</td>
+    </tr>
+    <tr>
+      <td>Reach the current request anywhere</td>
+      <td><code>HttpContext.Current</code> &mdash; a static</td>
+      <td><code>IHttpContextAccessor</code>, injected</td>
+    </tr>
+    <tr>
+      <td>Host it</td>
+      <td>IIS, Windows only</td>
+      <td>Kestrel, self-hosted, anywhere</td>
+    </tr>
+    <tr>
+      <td>Web UI</td>
+      <td>WebForms, MVC 5, Web API 2 &mdash; three stacks</td>
+      <td>MVC, Razor Pages, Blazor &mdash; one pipeline</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="pipeline">The pipeline that is not middleware</h2>
+
+<p>
+  ASP.NET Core taught you one mental model: a chain of middleware, each one calling the next, built
+  in <code>Program.cs</code> in the order you wrote it. Framework has a pipeline too, but it is
+  <em>event-based</em> rather than nested &mdash; a fixed sequence of stages that your code
+  subscribes to, and the order comes from the stage, not from your file.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="pipe-title">
+    <title id="pipe-title">The ASP.NET Framework request pipeline compared with ASP.NET Core middleware</title>
+    <defs>
+      <marker id="a16b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" class="d-fill"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">ASP.NET Framework &mdash; events on a fixed pipeline</text>
+    <rect x="20" y="36" width="796" height="96" rx="9" class="d-panel"/>
+    <rect x="20" y="36" width="796" height="96" rx="9" class="d-stroke"/>
+
+    <rect x="38" y="56" width="118" height="30" rx="5" class="d-brand" opacity=".92"/>
+    <text x="97" y="76" class="d-white" text-anchor="middle" style="font-size:11px">BeginRequest</text>
+    <rect x="176" y="56" width="132" height="30" rx="5" class="d-brand" opacity=".92"/>
+    <text x="242" y="76" class="d-white" text-anchor="middle" style="font-size:11px">AuthenticateRequest</text>
+    <rect x="328" y="56" width="126" height="30" rx="5" class="d-brand" opacity=".92"/>
+    <text x="391" y="76" class="d-white" text-anchor="middle" style="font-size:11px">AuthorizeRequest</text>
+    <rect x="474" y="56" width="150" height="30" rx="5" class="d-brand" opacity=".92"/>
+    <text x="549" y="76" class="d-white" text-anchor="middle" style="font-size:11px">the HANDLER runs</text>
+    <rect x="644" y="56" width="154" height="30" rx="5" class="d-brand" opacity=".92"/>
+    <text x="721" y="76" class="d-white" text-anchor="middle" style="font-size:11px">EndRequest</text>
+
+    <path d="M160,71 L172,71" class="d-arrow" marker-end="url(#a16b)"/>
+    <path d="M312,71 L324,71" class="d-arrow" marker-end="url(#a16b)"/>
+    <path d="M458,71 L470,71" class="d-arrow" marker-end="url(#a16b)"/>
+    <path d="M628,71 L640,71" class="d-arrow" marker-end="url(#a16b)"/>
+
+    <text x="38" y="110" class="d-small">Modules subscribe to the stages they care about. One pass, left to right. The handler is the destination, not a link in the chain.</text>
+
+    <text x="20" y="176" class="d-text" style="font-weight:700">ASP.NET Core &mdash; nested middleware</text>
+    <rect x="20" y="188" width="796" height="96" rx="9" class="d-panel"/>
+    <rect x="20" y="188" width="796" height="96" rx="9" class="d-stroke"/>
+
+    <rect x="38" y="206" width="760" height="60" rx="6" class="d-stroke"/>
+    <text x="52" y="224" class="d-mono" style="font-size:11px">UseExceptionHandler</text>
+    <rect x="176" y="216" width="484" height="40" rx="6" class="d-stroke"/>
+    <text x="190" y="234" class="d-mono" style="font-size:11px">UseAuthentication</text>
+    <rect x="314" y="226" width="208" height="20" rx="6" class="d-brand" opacity=".92"/>
+    <text x="418" y="240" class="d-white" text-anchor="middle" style="font-size:11px">the endpoint</text>
+    <text x="678" y="258" class="d-small">…and back out again</text>
+  </svg>
+  <figcaption>Framework runs each stage once, in a fixed order. Core wraps each layer around the next, so every middleware sees the request on the way in <em>and</em> the response on the way out.</figcaption>
+</figure>
+
+<p>
+  That difference has a consequence worth saying out loud: in Framework, <strong>there is no "on the
+  way back"</strong>. A module that wants to touch the response subscribes to a late event such as
+  <code>EndRequest</code>. In Core, the same code is whatever you write after <code>await
+  next()</code>. When you port a module and it stops working, this is usually why.
+</p>
+
+<div class="code-head">Global.asax.cs — the Program.cs of 2010</div>
+<pre><code><span class="kw">public class</span> <span class="ty">MvcApplication</span> : <span class="ty">System</span>.<span class="ty">Web</span>.<span class="ty">HttpApplication</span>
+{
+    <span class="cm">// Runs once, when the application pool starts the app. Everything that
+    // Program.cs does at start-up used to live here.</span>
+    <span class="kw">protected void</span> Application_Start()
+    {
+        AreaRegistration.RegisterAllAreas();
+        GlobalConfiguration.Configure(WebApiConfig.Register);   <span class="cm">// Web API 2 routes</span>
+        FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
+        RouteConfig.RegisterRoutes(RouteTable.Routes);          <span class="cm">// MVC 5 routes — a SECOND table</span>
+        BundleConfig.RegisterBundles(BundleTable.Bundles);
+    }
+
+    <span class="cm">// Runs on every request. This is the module pipeline, inlined.</span>
+    <span class="kw">protected void</span> Application_BeginRequest()
+    {
+        <span class="ty">HttpContext</span>.Current.Items[<span class="st">"CorrelationId"</span>] = <span class="ty">Guid</span>.NewGuid().ToString(<span class="st">"n"</span>);
+    }
+
+    <span class="cm">// The last-chance handler. The ancestor of UseExceptionHandler.</span>
+    <span class="kw">protected void</span> Application_Error()
+    {
+        <span class="kw">var</span> ex = Server.GetLastError();
+        <span class="ty">Log</span>.Error(ex, <span class="st">"Unhandled"</span>);
+        Server.ClearError();
+        Response.Redirect(<span class="st">"~/Error"</span>);
+    }
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The trap</div>
+  <p>
+    <code>Application_Start</code> runs <em>again</em> every time the application pool recycles, and
+    a pool recycles far more often than a server reboots &mdash; on a memory threshold, on a
+    <code>web.config</code> edit, on a schedule, or after an idle timeout. Any state you put in a
+    static field is therefore not "for the lifetime of the server", it is "until the next recycle".
+    That is the mechanism behind the classic report: <em>"the first person in after lunch waits
+    fifteen seconds"</em>.
+  </p>
+</div>
+
+<h2 id="webconfig">web.config, and configuration before IConfiguration</h2>
+
+<p>
+  Core taught you layered configuration: appsettings, then environment-specific overrides, then
+  environment variables, then secrets, with the later ones winning. Framework has one XML file that
+  is simultaneously the application's settings, its dependency wiring, its IIS configuration and
+  part of its security policy.
+</p>
+
+<div class="code-head">web.config — four different concerns in one file</div>
+<pre><code><span class="kw">&lt;configuration&gt;</span>
+  <span class="kw">&lt;connectionStrings&gt;</span>
+    <span class="kw">&lt;add</span> name=<span class="st">"LogiFlow"</span>
+         connectionString=<span class="st">"Server=.;Database=LogiFlow;Integrated Security=true"</span> <span class="kw">/&gt;</span>
+  <span class="kw">&lt;/connectionStrings&gt;</span>
+
+  <span class="kw">&lt;appSettings&gt;</span>
+    <span class="kw">&lt;add</span> key=<span class="st">"Smtp:Host"</span> value=<span class="st">"localhost"</span> <span class="kw">/&gt;</span>
+  <span class="kw">&lt;/appSettings&gt;</span>
+
+  <span class="kw">&lt;system.web&gt;</span>
+    <span class="cm">&lt;!-- targetFramework here changes RUNTIME BEHAVIOUR, not just the compiler --&gt;</span>
+    <span class="kw">&lt;httpRuntime</span> targetFramework=<span class="st">"4.8"</span> <span class="kw">/&gt;</span>
+    <span class="kw">&lt;compilation</span> debug=<span class="st">"false"</span> <span class="kw">/&gt;</span>
+  <span class="kw">&lt;/system.web&gt;</span>
+
+  <span class="kw">&lt;system.webServer&gt;</span>
+    <span class="kw">&lt;modules&gt;</span>
+      <span class="kw">&lt;add</span> name=<span class="st">"Correlation"</span> type=<span class="st">"LogiFlow.Web.CorrelationModule"</span> <span class="kw">/&gt;</span>
+    <span class="kw">&lt;/modules&gt;</span>
+  <span class="kw">&lt;/system.webServer&gt;</span>
+
+  <span class="kw">&lt;runtime&gt;</span>
+    <span class="cm">&lt;!-- binding redirects: the reason "it builds but won't run" happens --&gt;</span>
+    <span class="kw">&lt;assemblyBinding</span> xmlns=<span class="st">"urn:schemas-microsoft-com:asm.v1"</span><span class="kw">&gt;</span>
+      <span class="kw">&lt;dependentAssembly&gt;</span>
+        <span class="kw">&lt;assemblyIdentity</span> name=<span class="st">"Newtonsoft.Json"</span> publicKeyToken=<span class="st">"30ad4fe6b2a6aeed"</span> <span class="kw">/&gt;</span>
+        <span class="kw">&lt;bindingRedirect</span> oldVersion=<span class="st">"0.0.0.0-13.0.0.0"</span> newVersion=<span class="st">"13.0.0.0"</span> <span class="kw">/&gt;</span>
+      <span class="kw">&lt;/dependentAssembly&gt;</span>
+    <span class="kw">&lt;/assemblyBinding&gt;</span>
+  <span class="kw">&lt;/runtime&gt;</span>
+<span class="kw">&lt;/configuration&gt;</span></code></pre>
+
+<div class="code-head">reading it — and the Core equivalent, for comparison</div>
+<pre><code><span class="cm">// Framework: a static, string-keyed, untyped lookup. Returns null when the key
+// is missing — no exception, no validation, no binding to a class.</span>
+<span class="kw">var</span> host = <span class="ty">ConfigurationManager</span>.AppSettings[<span class="st">"Smtp:Host"</span>];
+<span class="kw">var</span> cs   = <span class="ty">ConfigurationManager</span>.ConnectionStrings[<span class="st">"LogiFlow"</span>].ConnectionString;
+
+<span class="cm">// Core: injected, typed, validated at start-up. Chapter 14 covered this.</span>
+<span class="kw">public</span> <span class="ty">MailSender</span>(<span class="ty">IOptions</span>&lt;<span class="ty">SmtpOptions</span>&gt; options) =&gt; _o = options.Value;</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>Transforms.</strong> Environment-specific values come from
+    <code>Web.Release.config</code> and friends, applied at <em>publish</em> time by XDT:
+  </p>
+  <pre><code><span class="kw">&lt;add</span> name=<span class="st">"LogiFlow"</span> connectionString=<span class="st">"…prod…"</span>
+     xdt:Transform=<span class="st">"SetAttributes"</span> xdt:Locator=<span class="st">"Match(name)"</span> <span class="kw">/&gt;</span></code></pre>
+  <p>
+    Two things follow. First, the transform is applied by the build, so what runs on the server is a
+    file nobody has in source control &mdash; when production disagrees with your machine, read the
+    <em>deployed</em> <code>web.config</code>, not the one in the repository. Second, this is why
+    connection strings with passwords end up committed. If you find one, chapter 26 has the drill:
+    rotate first, clean history second.
+  </p>
+</div>
+
+<h2 id="webforms">WebForms, in survival terms</h2>
+
+<p>
+  You will not be asked to write new WebForms. You may well be asked to fix one. The goal here is
+  to read an <code>.aspx</code> page without being surprised by it.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    WebForms pretends the web is a desktop application. You drag a button onto a page, you
+    double-click it, you write <code>SaveButton_Click</code>, and it feels exactly like WinForms.
+  </p>
+  <p>
+    The illusion is maintained by a trick: every time you click anything, the entire page is posted
+    back to the server, and the server sends the whole page back. To make the boxes still contain
+    what you typed, the page smuggles its own state along in a hidden field. That hidden field is
+    <strong>ViewState</strong>, and when someone complains the page is slow, it is usually the
+    reason.
+  </p>
+</div>
+
+<div class="code-head">Orders.aspx — markup with server controls</div>
+<pre><code><span class="kw">&lt;%@ Page</span> Language=<span class="st">"C#"</span> CodeBehind=<span class="st">"Orders.aspx.cs"</span>
+    Inherits=<span class="st">"LogiFlow.Web.Orders"</span> <span class="kw">%&gt;</span>
+
+<span class="kw">&lt;asp:GridView</span> ID=<span class="st">"OrdersGrid"</span> runat=<span class="st">"server"</span> AutoGenerateColumns=<span class="st">"false"</span>
+    <span class="cm">&lt;!-- turn this OFF on a read-only grid and the page gets dramatically smaller --&gt;</span>
+    EnableViewState=<span class="st">"false"</span><span class="kw">&gt;</span>
+  <span class="kw">&lt;Columns&gt;</span>
+    <span class="kw">&lt;asp:BoundField</span> DataField=<span class="st">"OrderNumber"</span> HeaderText=<span class="st">"Order"</span> <span class="kw">/&gt;</span>
+  <span class="kw">&lt;/Columns&gt;</span>
+<span class="kw">&lt;/asp:GridView&gt;</span>
+
+<span class="kw">&lt;asp:Button</span> ID=<span class="st">"Refresh"</span> runat=<span class="st">"server"</span> Text=<span class="st">"Refresh"</span>
+    OnClick=<span class="st">"Refresh_Click"</span> <span class="kw">/&gt;</span></code></pre>
+
+<div class="code-head">Orders.aspx.cs — the code-behind</div>
+<pre><code><span class="kw">public partial class</span> <span class="ty">Orders</span> : <span class="ty">System</span>.<span class="ty">Web</span>.<span class="ty">UI</span>.<span class="ty">Page</span>
+{
+    <span class="kw">protected void</span> Page_Load(<span class="kw">object</span> sender, <span class="ty">EventArgs</span> e)
+    {
+        <span class="cm">// THE line that matters. Page_Load runs on the first visit AND on every
+        // postback. Without this guard you re-bind the grid before the click
+        // event fires, and the click appears to do nothing.</span>
+        <span class="kw">if</span> (!IsPostBack)
+        {
+            BindGrid();
+        }
+    }
+
+    <span class="kw">protected void</span> Refresh_Click(<span class="kw">object</span> sender, <span class="ty">EventArgs</span> e) =&gt; BindGrid();
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ The two bugs that are always this</div>
+  <ol>
+    <li>
+      <strong>"The button does nothing."</strong> Almost always a missing
+      <code>if (!IsPostBack)</code>. The lifecycle runs <code>Page_Load</code> <em>before</em> the
+      control event, so an unguarded re-bind throws away the state the click was about to act on.
+    </li>
+    <li>
+      <strong>"The page takes eight seconds and the HTML is two megabytes."</strong> ViewState on a
+      large <code>GridView</code>. The whole grid is serialised into
+      <code>__VIEWSTATE</code> and round-tripped on every postback. Set
+      <code>EnableViewState="false"</code> on anything the user does not edit.
+    </li>
+  </ol>
+</div>
+
+<p>
+  The lifecycle order is worth carrying: <code>Init</code> &rarr; <code>LoadViewState</code> &rarr;
+  <code>Load</code> &rarr; <em>control events</em> &rarr; <code>PreRender</code> &rarr;
+  <code>SaveViewState</code> &rarr; <code>Render</code> &rarr; <code>Unload</code>. Control events
+  run <em>after</em> <code>Page_Load</code>; changes you want rendered must happen by
+  <code>PreRender</code>.
+</p>
+
+<h2 id="mvc5">MVC 5 and Web API 2, versus the Core versions</h2>
+
+<p>
+  Framework had <em>two</em> controller stacks that look almost identical and share nothing: MVC 5
+  for HTML, Web API 2 for JSON. Core merged them. Most porting confusion is a symptom of that merge.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th></th><th>MVC 5</th><th>Web API 2</th><th>ASP.NET Core</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Namespace</td>
+      <td><code>System.Web.Mvc</code></td>
+      <td><code>System.Web.Http</code></td>
+      <td><code>Microsoft.AspNetCore.Mvc</code></td>
+    </tr>
+    <tr>
+      <td>Base class</td>
+      <td><code>Controller</code></td>
+      <td><code>ApiController</code></td>
+      <td><code>Controller</code> / <code>ControllerBase</code></td>
+    </tr>
+    <tr>
+      <td>Return type</td>
+      <td><code>ActionResult</code></td>
+      <td><code>IHttpActionResult</code></td>
+      <td><code>IActionResult</code> / <code>ActionResult&lt;T&gt;</code></td>
+    </tr>
+    <tr>
+      <td>Routes registered in</td>
+      <td><code>RouteConfig</code></td>
+      <td><code>WebApiConfig</code></td>
+      <td>One endpoint table</td>
+    </tr>
+    <tr>
+      <td>Filters</td>
+      <td><code>System.Web.Mvc.ActionFilterAttribute</code></td>
+      <td><code>System.Web.Http.Filters.ActionFilterAttribute</code></td>
+      <td>One filter pipeline</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Same name, different type</div>
+  <p>
+    Look at the filters row again. Both are called <code>ActionFilterAttribute</code>. Put the
+    <code>System.Web.Mvc</code> one on a Web API controller and it compiles, deploys, and
+    <strong>never runs</strong> &mdash; no error, no warning, just a filter that silently does
+    nothing. When a legacy authorisation or logging filter "isn't firing", check the
+    <code>using</code> first. This is the single most common wasted afternoon in a mixed codebase.
+  </p>
+</div>
+
+<h3 id="httpcontext-current"><code>HttpContext.Current</code>, and why it cannot exist in Core</h3>
+
+<p>
+  Framework code reaches the current request from anywhere &mdash; a service, a static helper, a
+  data-access class &mdash; through a static property:
+</p>
+
+<div class="code-head">the thing you must un-learn</div>
+<pre><code><span class="cm">// Framework: works anywhere, needs nothing injected, and is a hidden dependency
+// on "there is a request in flight on this thread".</span>
+<span class="kw">var</span> user = <span class="ty">HttpContext</span>.Current.User.Identity.Name;
+
+<span class="cm">// …and this is why it is dangerous. Off the request thread, Current is null.</span>
+<span class="ty">Task</span>.Run(() =&gt; <span class="ty">Log</span>.Info(<span class="ty">HttpContext</span>.Current.User.Identity.Name));  <span class="cm">// NullReferenceException</span>
+
+<span class="cm">// Core: the dependency is declared, so it can be supplied — and tested.</span>
+<span class="kw">public</span> <span class="ty">AuditService</span>(<span class="ty">IHttpContextAccessor</span> accessor) =&gt; _accessor = accessor;</code></pre>
+
+<p>
+  The ambient static is also what makes Framework code hard to unit test: there is no seam. When you
+  port a class and discover it cannot be constructed in a test, <code>HttpContext.Current</code> is
+  usually the reason, and the fix is to pass the two values it actually wanted as parameters.
+</p>
+
+<h2 id="async-trap">The async trap &mdash; why the old app deadlocks and the new one does not</h2>
+
+<p>
+  Chapter 07 taught you never to block on an async call. On ASP.NET Core, breaking that rule costs
+  you a thread. <strong>On ASP.NET Framework, it hangs the request permanently.</strong> Same code,
+  different outcome &mdash; and this is the highest-value thing in this chapter, because it is both
+  a real production bug and a favourite interview question.
+</p>
+
+<div class="code-head">the classic deadlock</div>
+<pre><code><span class="kw">public</span> <span class="ty">ActionResult</span> Index()
+{
+    <span class="cm">// On ASP.NET Framework this NEVER RETURNS.</span>
+    <span class="kw">var</span> data = _service.GetAsync().Result;
+    <span class="kw">return</span> View(data);
+}
+
+<span class="kw">private async</span> <span class="ty">Task</span>&lt;<span class="ty">Data</span>&gt; GetAsync()
+{
+    <span class="kw">await</span> _http.GetStringAsync(url);
+    <span class="cm">// ↑ the continuation below is posted back to the request's
+    //   SynchronizationContext, which allows only ONE thread at a time —
+    //   and that one thread is blocked on .Result, waiting for this method.</span>
+    <span class="kw">return</span> Parse();
+}</code></pre>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 210" role="img" aria-labelledby="dead-title">
+    <title id="dead-title">Why blocking on an async call deadlocks on ASP.NET Framework</title>
+    <rect x="20" y="30" width="380" height="160" rx="9" class="d-panel"/>
+    <rect x="20" y="30" width="380" height="160" rx="9" class="d-stroke"/>
+    <text x="40" y="54" class="d-text" style="font-weight:700">ASP.NET Framework</text>
+    <text x="40" y="80" class="d-small">Request thread calls .Result and blocks.</text>
+    <text x="40" y="102" class="d-small">The await completes on the thread pool.</text>
+    <text x="40" y="124" class="d-small">Its continuation must resume on the request</text>
+    <text x="40" y="142" class="d-small">context — which permits one thread at a time.</text>
+    <text x="40" y="170" class="d-mono" style="font-size:12px">↺ each waits for the other. Forever.</text>
+
+    <rect x="440" y="30" width="380" height="160" rx="9" class="d-panel"/>
+    <rect x="440" y="30" width="380" height="160" rx="9" class="d-stroke"/>
+    <text x="460" y="54" class="d-text" style="font-weight:700">ASP.NET Core</text>
+    <text x="460" y="80" class="d-small">There is no SynchronizationContext at all.</text>
+    <text x="460" y="102" class="d-small">The continuation runs on any pool thread,</text>
+    <text x="460" y="124" class="d-small">so .Result returns — it just wasted a thread.</text>
+    <text x="460" y="170" class="d-mono" style="font-size:12px">✓ no deadlock, but starvation under load.</text>
+  </svg>
+  <figcaption>The same line of code. One framework hangs, the other degrades quietly under load — which is why the bug survives a migration in the opposite direction.</figcaption>
+</figure>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    This is what <code>ConfigureAwait(false)</code> was <em>for</em>. It says "I do not need to
+    resume on the captured context", which breaks the cycle. Hence the old advice, still correct on
+    Framework: <strong>use it on every await in library code</strong>.
+  </p>
+  <p>
+    And hence the modern confusion. On ASP.NET Core there is no context to capture, so
+    <code>ConfigureAwait(false)</code> in application code does nothing. Both pieces of advice are
+    right; they are about different runtimes. Being able to say <em>that</em> sentence is what
+    separates a memorised answer from an understood one.
+  </p>
+  <p class="subtle">
+    Note the direction of danger. Blocking code ported <em>from</em> Framework <em>to</em> Core
+    stops deadlocking and starts silently starving the thread pool instead &mdash; the bug does not
+    announce that it was fixed, it changes disguise. Fix it properly: make the whole path async.
+  </p>
+</div>
+
+<h2 id="iis">IIS: pools, recycles, and the first request after lunch</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    IIS is a building manager. Your application lives in a room called an <em>application pool</em>.
+    The manager will, without asking, occasionally clear the room out and set it up again &mdash;
+    because it is using too much memory, because someone changed a config file, or just because it
+    is Tuesday. Everything you left lying around in there is gone, and the next visitor waits while
+    the room is re-made.
+  </p>
+</div>
+
+<p>What that means concretely:</p>
+
+<ul>
+  <li>
+    <strong>In-process session and cache are per-pool and per-recycle.</strong> Anything in
+    <code>Session</code> or a static dictionary disappears on recycle, and does not exist at all on
+    the other server if the app is load-balanced. That is the bug behind "users get logged out at
+    random". The fix is an out-of-process store &mdash; SQL Server or Redis (chapter 20).
+  </li>
+  <li>
+    <strong>Editing <code>web.config</code> restarts the application.</strong> Immediately, in
+    production, for everyone. It is not a configuration reload, it is a restart.
+  </li>
+  <li>
+    <strong>The first request after a recycle is slow</strong> &mdash; JIT, start-up wiring, warming
+    caches. Idle-timeout recycling is what makes this land on a real user rather than a health
+    check. Set the pool's idle timeout to 0 and enable Always On / preload, or point a health check
+    at it (chapter 25).
+  </li>
+  <li>
+    <strong>32-bit pools still exist.</strong> An old pool with <em>Enable 32-Bit Applications</em>
+    set is capped near 2&nbsp;GB no matter how much RAM the server has, and reports itself as
+    out-of-memory on a machine with 60&nbsp;GB free.
+  </li>
+</ul>
+
+<div class="box note">
+  <div class="box-title">Core on IIS is a different arrangement</div>
+  <p>
+    When the new services are also behind IIS, IIS is not hosting them &mdash; the ASP.NET Core
+    Module is reverse-proxying to Kestrel, either <em>in-process</em> (default, faster) or
+    <em>out-of-process</em>. So "it is on IIS" tells you nothing about which stack it is. Look for
+    <code>web.config</code> with an <code>aspNetCore</code> element: that is Core.
+  </p>
+</div>
+
+<h2 id="migration">Moving it: the migration they will ask you about</h2>
+
+<p>
+  "Aggiornamento e migrazione tecnologica" is a listed duty in one of these adverts. The interview
+  version of this question is not "how do you do it" &mdash; it is "how do you do it without
+  stopping delivery for eight months", and there is a wrong answer that sounds confident.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ The answer that loses you the job</div>
+  <p>
+    "I would rewrite it in .NET 8." A rewrite means no new features for however long it takes, a
+    hard cutover with no rollback, and re-discovering ten years of undocumented business rules that
+    exist only as bug fixes in that code. Companies that try it usually stop halfway and end up
+    maintaining <em>two</em> systems. Say the incremental answer instead, and say why.
+  </p>
+</div>
+
+<h3 id="assess">Step 1 &mdash; find out what genuinely cannot move</h3>
+
+<p>Most code ports. These do not, and knowing the list makes you sound like you have done it:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Does not port</th><th>What you do instead</th></tr></thead>
+  <tbody>
+    <tr><td><strong>WebForms</strong></td><td>No equivalent. Rewrite those screens (Razor Pages is the closest shape) or leave them behind the proxy.</td></tr>
+    <tr><td><strong>WCF hosting</strong> (server side)</td><td>CoreWCF, or re-expose as a REST API (chapters 13&ndash;14).</td></tr>
+    <tr><td><strong><code>System.Web</code></strong> anywhere</td><td>The adapters below, or rewrite against <code>HttpContext</code>.</td></tr>
+    <tr><td><strong>AppDomains</strong></td><td>Processes, or <code>AssemblyLoadContext</code>.</td></tr>
+    <tr><td><strong>ASMX web services</strong>, .NET Remoting</td><td>REST. There is no port.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="code-head">the tooling that does the mechanical part</div>
+<pre><code><span class="cm"># Analyse first — it reports what will not port before you change anything</span>
+dotnet tool install -g upgrade-assistant
+upgrade-assistant analyze .\LogiFlow.Web.csproj
+
+<span class="cm"># packages.config → PackageReference, and old .csproj → SDK-style.
+# Do this FIRST, on .NET Framework, and ship it. It is a safe, reviewable,
+# self-contained change that makes every later step smaller.</span>
+upgrade-assistant upgrade .\LogiFlow.Web.csproj</code></pre>
+
+<h3 id="strangler">Step 2 &mdash; the incremental route</h3>
+
+<p>
+  Put a reverse proxy in front of the old application. Move one route at a time to a new ASP.NET
+  Core app behind the same proxy. Anything not yet moved falls through to the old app. Both run in
+  production, together, for as long as it takes &mdash; and every step is independently
+  releasable and independently revertable. This is the <em>strangler fig</em> pattern; chapter 31
+  applies the same idea to desktop.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 250" role="img" aria-labelledby="strangler-title">
+    <title id="strangler-title">Incremental migration with a reverse proxy in front of both applications</title>
+    <defs>
+      <marker id="a16c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" class="d-fill"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="100" width="110" height="50" rx="8" class="d-panel"/>
+    <rect x="20" y="100" width="110" height="50" rx="8" class="d-stroke"/>
+    <text x="75" y="130" class="d-text" text-anchor="middle">browser</text>
+
+    <rect x="190" y="96" width="150" height="58" rx="8" class="d-brand" opacity=".92"/>
+    <text x="265" y="120" class="d-white" text-anchor="middle" style="font-size:13px">YARP</text>
+    <text x="265" y="140" class="d-white" text-anchor="middle" style="font-size:11px">route by route</text>
+
+    <rect x="440" y="30" width="360" height="76" rx="8" class="d-panel"/>
+    <rect x="440" y="30" width="360" height="76" rx="8" class="d-stroke"/>
+    <text x="460" y="56" class="d-text" style="font-weight:700">new — ASP.NET Core</text>
+    <text x="460" y="80" class="d-mono" style="font-size:11px">/orders/*   /api/*   (moved so far)</text>
+
+    <rect x="440" y="146" width="360" height="76" rx="8" class="d-panel"/>
+    <rect x="440" y="146" width="360" height="76" rx="8" class="d-stroke"/>
+    <text x="460" y="172" class="d-text" style="font-weight:700">old — .NET Framework 4.8</text>
+    <text x="460" y="196" class="d-mono" style="font-size:11px">everything else, still earning money</text>
+
+    <path d="M134,125 L184,125" class="d-arrow" marker-end="url(#a16c)"/>
+    <path d="M344,116 L436,74" class="d-arrow" marker-end="url(#a16c)"/>
+    <path d="M344,134 L436,180" class="d-arrow" marker-end="url(#a16c)"/>
+  </svg>
+  <figcaption>One URL prefix moves at a time. If a moved route misbehaves, you point it back at the old app — a config change, not a rollback.</figcaption>
+</figure>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>Two pieces make this practical, and naming them is what shows you have read past a blog post:</p>
+  <ul>
+    <li>
+      <strong><code>Microsoft.AspNetCore.SystemWebAdapters</code></strong> &mdash; lets code that
+      still calls <code>HttpContext.Current</code> compile and run on ASP.NET Core, and can share
+      session state between the two apps during the transition. It is a bridge, not a destination:
+      it buys you the right to move a class before you have finished rewriting it.
+    </li>
+    <li>
+      <strong><code>netstandard2.0</code></strong> &mdash; retarget shared class libraries to it and
+      <em>both</em> applications can reference the same assembly. Do this to your domain and
+      business-logic projects early; it is usually where most of the value is, and it is low risk.
+    </li>
+  </ul>
+</div>
+
+<h3 id="breaks">Step 3 &mdash; what breaks at run time, not at compile time</h3>
+
+<p>The compiler catches the easy half. These are the ones that reach production:</p>
+
+<ul>
+  <li>
+    <strong>Configuration.</strong> <code>ConfigurationManager</code> returns <code>null</code> for
+    a missing key; <code>IConfiguration</code> binding may silently leave a default. A setting that
+    quietly stops arriving is worse than one that throws &mdash; validate options at start-up.
+  </li>
+  <li>
+    <strong>The synchronisation context.</strong> Covered above. Blocking code stops deadlocking and
+    starts starving.
+  </li>
+  <li>
+    <strong>Culture and encoding.</strong> Framework leaned on the machine's locale;
+    modern .NET uses ICU, and on Linux the defaults differ again. An Italian machine formatting a
+    decimal is chapter 23's territory, and a migration is exactly when it bites.
+  </li>
+  <li>
+    <strong>Case-sensitive paths</strong>, if the new app lands on Linux. <code>Views/Order.cshtml</code>
+    and <code>views/order.cshtml</code> were the same file on Windows and are not any more.
+  </li>
+  <li>
+    <strong>Cookies and auth.</strong> Different default <code>SameSite</code>, different protection
+    of the auth cookie. Users get logged out on the first deploy unless key material is shared.
+  </li>
+</ul>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>No legacy application to hand? Build the interesting half of one in ten minutes:</p>
+  <ol>
+    <li>
+      In Visual Studio, create an <strong>ASP.NET Web Application (.NET Framework)</strong>, MVC
+      template, targeting 4.8. Read <code>Global.asax.cs</code>,
+      <code>App_Start/RouteConfig.cs</code> and <code>web.config</code>. Everything in this chapter
+      is in those three files.
+    </li>
+    <li>
+      Add an action that does <code>Task.Delay(1000).Result</code> and request it. Watch it hang.
+      Add <code>ConfigureAwait(false)</code> to the awaited call inside and watch it stop hanging.
+      You have now reproduced the deadlock that costs teams days.
+    </li>
+    <li>
+      Put the same action in a new ASP.NET Core project. It returns. Explain, out loud, why.
+    </li>
+    <li>
+      Run <code>upgrade-assistant analyze</code> on the Framework project and read the report. Note
+      how much of it is "this will be fine" &mdash; the fear is bigger than the work.
+    </li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>ASP.NET and ASP.NET Core share a name and almost no code.</strong> Ask which one before you answer any question about "the ASP.NET app".</li>
+    <li><strong>Framework's pipeline is events on a fixed sequence; Core's is nested middleware.</strong> There is no "on the way back" in Framework &mdash; a late event is the substitute.</li>
+    <li><strong><code>Application_Start</code> runs again on every pool recycle.</strong> Static state lasts until then, not until reboot.</li>
+    <li><strong>Blocking on async deadlocks on Framework and starves the pool on Core.</strong> Same bug, two disguises. Make the whole path async instead.</li>
+    <li><strong><code>ConfigureAwait(false)</code> matters on Framework and is a no-op in Core application code.</strong> Both pieces of advice are correct, for different runtimes.</li>
+    <li><strong><code>if (!IsPostBack)</code> is the WebForms bug.</strong> Control events run after <code>Page_Load</code>.</li>
+    <li><strong>ViewState is a hidden field carrying your grid.</strong> Turn it off on anything read-only.</li>
+    <li><strong>The two <code>ActionFilterAttribute</code> types are different classes.</strong> The wrong <code>using</code> gives you a filter that silently never runs.</li>
+    <li><strong><code>HttpContext.Current</code> is a hidden dependency and null off the request thread.</strong> In Core, inject <code>IHttpContextAccessor</code> &mdash; or better, pass the value.</li>
+    <li><strong>Editing <code>web.config</code> restarts the application.</strong> In production. For everyone.</li>
+    <li><strong>Migrate incrementally behind a proxy, never by rewrite.</strong> Retarget shared libraries to <code>netstandard2.0</code> first; it is the cheapest real progress.</li>
+    <li><strong>Legacy competence is a hiring advantage here.</strong> Everyone can do greenfield Core. Far fewer will willingly open the 2011 solution.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between ASP.NET and ASP.NET Core?"</p>
+  <p class="a">
+    Not "one is newer". They share a name and almost no code: Framework is Windows and IIS only,
+    built on <code>System.Web</code>, with an event-based pipeline, <code>web.config</code>, and no
+    built-in DI. Core is cross-platform, self-hosted on Kestrel, with nested middleware, layered
+    configuration and DI as a first-class concern. Then the sentence that shows real experience:
+    <em>and there is no synchronization context in Core, which changes how async behaves.</em>
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why does <code>.Result</code> deadlock on ASP.NET but not on ASP.NET Core?"</p>
+  <p class="a">
+    Framework installs a synchronization context that allows one thread on the request at a time.
+    Blocking on <code>.Result</code> holds that thread while the continuation waits to re-enter the
+    same context &mdash; mutual wait, forever. Core has no synchronization context, so the
+    continuation resumes on any pool thread. Finish honestly: it still wastes a thread, so it is a
+    scalability bug rather than a hang. That is what <code>ConfigureAwait(false)</code> was for, and
+    why the advice sounds outdated on Core.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you migrate a .NET Framework web app to .NET 8?"</p>
+  <p class="a">
+    Analyse first with Upgrade Assistant and identify what genuinely cannot port &mdash; WebForms,
+    WCF hosting, <code>System.Web</code>, AppDomains. Then do the safe mechanical step on Framework
+    and ship it: <code>packages.config</code> to PackageReference, SDK-style projects. Retarget
+    shared libraries to <code>netstandard2.0</code> so both apps can use them. Then put YARP in
+    front and move route by route, using the System.Web adapters for code that is not ready, with
+    both applications live. Explicitly reject the big-bang rewrite and say why: no rollback, no
+    delivery, and ten years of undocumented rules living only in that code.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is ViewState?"</p>
+  <p class="a">
+    A base64 hidden field (<code>__VIEWSTATE</code>) that carries server-control state across a
+    postback, so WebForms can pretend the page is stateful. It is also the usual reason a WebForms
+    page is enormous and slow &mdash; a data-bound grid serialises its whole contents into it.
+    Disable it on read-only controls. It is integrity-protected by a MAC, so it is tamper-evident,
+    but treating it as a secure store is still a mistake.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"A filter on a legacy controller isn't running. Where do you look?"</p>
+  <p class="a">
+    First at the <code>using</code>. MVC 5 and Web API 2 each define an
+    <code>ActionFilterAttribute</code> with the same name in different namespaces, and the MVC one
+    on an <code>ApiController</code> compiles and silently never fires. After that: whether it is
+    registered globally in the right table &mdash; <code>RouteConfig</code> and
+    <code>WebApiConfig</code> are two separate worlds.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Users are randomly logged out. The app is on two IIS servers."</p>
+  <p class="a">
+    In-process session state. It lives in one application pool's memory, so it is lost when the pool
+    recycles and is invisible to the other server, meaning every request that lands on the wrong
+    node looks logged out. Fix by moving session out of process &mdash; SQL Server or Redis &mdash;
+    and by sharing the key material that protects the auth cookie across both machines. Mention
+    sticky sessions as the stopgap, not the fix.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is the first request after a quiet period slow?"</p>
+  <p class="a">
+    The application pool recycled &mdash; idle timeout, memory limit, schedule, or a
+    <code>web.config</code> edit &mdash; so <code>Application_Start</code> is running again, code is
+    being JIT-compiled again, and caches are cold. Set the idle timeout to zero with Always On or
+    preload, and keep it warm with the health check you needed anyway.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

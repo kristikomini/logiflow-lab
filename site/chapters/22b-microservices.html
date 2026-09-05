@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>22b · Microservices, honestly — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="22b-microservices">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 4 &mdash; Fast at scale <span>&rsaquo;</span> Chapter 22b</p>
+<h1>Microservices, honestly</h1>
+<p class="lede">
+  The word is in the adverts, so you need to be able to talk about it. What follows is the version
+  that survives contact with a fifty-person company: what the architecture actually buys, what it
+  costs, why the answer for most teams here is <em>not yet</em> &mdash; and how to say that without
+  sounding like you are avoiding the question.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the adverts</div>
+  <p>
+    <em>"Partecipazione a progetti legati ad AI, automazione, database, integrazioni e
+    microservizi"</em>, and again in the nice-to-haves as <em>"interesse per architetture a
+    microservizi"</em>. Note the register: <em>interesse</em>. Nobody is asking a junior to design
+    a service mesh.
+  </p>
+  <p>
+    You already have the hard parts &mdash; chapter 22 for messaging, chapter 23 for boundaries,
+    chapter 14b for calling things you do not own. This chapter is the vocabulary and the judgement
+    that sit on top.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what-it-buys">What it actually buys, and what it costs</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    One big kitchen: everyone cooks in the same room. It is easy to pass the salt. But when someone
+    drops a pan, everybody stops, and you can only redecorate when everyone agrees to stop cooking.
+  </p>
+  <p>
+    Many small kitchens: each team has their own. A dropped pan bothers one room. But now the salt
+    has to be carried down a corridor, sometimes it does not arrive, and someone has to maintain the
+    corridors. If your restaurant has four cooks, the corridors are the whole problem and there was
+    never anything wrong with the room.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 The honest ledger</div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>You gain</th><th>You pay</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Independent deployment.</strong> One team ships without coordinating with four others. This is the real benefit and almost the only one that survives scrutiny.</td>
+        <td><strong>Every call can now fail.</strong> A method call became a network call: timeouts, retries, partial failure. Chapter 14b, everywhere.</td>
+      </tr>
+      <tr>
+        <td><strong>Independent scaling.</strong> The one component under load scales alone.</td>
+        <td><strong>No more transactions across the boundary.</strong> Sagas and compensation replace <code>COMMIT</code>.</td>
+      </tr>
+      <tr>
+        <td><strong>Fault isolation</strong> &mdash; if you did the work to make it true.</td>
+        <td><strong>No more joins.</strong> Data you used to join is now in someone else's database.</td>
+      </tr>
+      <tr>
+        <td><strong>Technology choice per service.</strong> Rarely worth much, frequently cited.</td>
+        <td><strong>Operational tax:</strong> deployment, discovery, config, distributed tracing, and local development that no longer means pressing F5.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p>
+    Read the left column again. Every entry is about <strong>teams</strong>, not code. Microservices
+    are an organisational solution &mdash; they let independent groups ship independently. That is
+    why they pay off at fifteen teams and hurt at two: with one team you have bought every cost and
+    none of the benefit.
+  </p>
+</div>
+
+<h2 id="spectrum">The spectrum, and where a company here actually sits</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 240" role="img" aria-labelledby="spec-title">
+    <title id="spec-title">Big ball of mud, modular monolith and microservices compared</title>
+
+    <rect x="16" y="30" width="256" height="170" rx="9" class="d-panel"/>
+    <rect x="16" y="30" width="256" height="170" rx="9" class="d-stroke"/>
+    <text x="36" y="56" class="d-text" style="font-weight:700">Big ball of mud</text>
+    <text x="36" y="82" class="d-small">One deployable, no internal</text>
+    <text x="36" y="100" class="d-small">boundaries. Everything reaches</text>
+    <text x="36" y="118" class="d-small">into everything.</text>
+    <text x="36" y="148" class="d-mono" style="font-size:12px">✗ the actual problem</text>
+    <text x="36" y="172" class="d-small">…and what people are usually</text>
+    <text x="36" y="188" class="d-small">escaping when they say "micro".</text>
+
+    <rect x="292" y="30" width="256" height="170" rx="9" class="d-brand" opacity=".14"/>
+    <rect x="292" y="30" width="256" height="170" rx="9" class="d-stroke"/>
+    <text x="312" y="56" class="d-text" style="font-weight:700">Modular monolith</text>
+    <text x="312" y="82" class="d-small">One deployable, enforced</text>
+    <text x="312" y="100" class="d-small">module boundaries, one</text>
+    <text x="312" y="118" class="d-small">database, real transactions.</text>
+    <text x="312" y="148" class="d-mono" style="font-size:12px">✓ the right default</text>
+    <text x="312" y="172" class="d-small">Most of the benefit, almost</text>
+    <text x="312" y="188" class="d-small">none of the tax.</text>
+
+    <rect x="568" y="30" width="256" height="170" rx="9" class="d-panel"/>
+    <rect x="568" y="30" width="256" height="170" rx="9" class="d-stroke"/>
+    <text x="588" y="56" class="d-text" style="font-weight:700">Microservices</text>
+    <text x="588" y="82" class="d-small">Many deployables, a database</text>
+    <text x="588" y="100" class="d-small">each, network between them,</text>
+    <text x="588" y="118" class="d-small">eventual consistency.</text>
+    <text x="588" y="148" class="d-mono" style="font-size:12px">~ when teams need it</text>
+    <text x="588" y="172" class="d-small">Buy it with an organisation</text>
+    <text x="588" y="188" class="d-small">problem, not a code problem.</text>
+  </svg>
+  <figcaption>The middle option is the one missing from most conversations, and it is usually the answer.</figcaption>
+</figure>
+
+<p>
+  A modular monolith is what this repository is (chapter 23). The boundaries are real and
+  enforced &mdash; the architecture tests fail the build if Domain references Infrastructure &mdash;
+  but it deploys as one thing and commits as one transaction. If those modules later need to become
+  services, the seams already exist, which is precisely what makes the split possible.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ The distributed monolith</div>
+  <p>
+    The common failure: services split by <em>layer</em> or by <em>table</em> rather than by
+    business capability, so every user action touches four of them and they must be released
+    together. You now have network calls, eventual consistency, four pipelines and four sets of
+    logs &mdash; and still cannot deploy anything independently.
+  </p>
+  <p>
+    <strong>The test:</strong> can you deploy one service on a Tuesday afternoon without telling
+    anyone? If not, they are not microservices, whatever the diagram says.
+  </p>
+</div>
+
+<h2 id="cutting">How you cut: by capability, never by layer</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>✗ Wrong seams</th><th>✓ Right seams</th></tr></thead>
+  <tbody>
+    <tr><td>A "database service", an "API service", a "UI service"</td><td>Ordering, Shipping, Invoicing, Catalogue</td></tr>
+    <tr><td>One service per table &mdash; a Customer service, an Order service</td><td>One service per <em>thing the business does</em></td></tr>
+    <tr><td>Whatever fits the current team's skills</td><td>Where the language changes: a "shipment" means something different to the warehouse than to finance</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 The seam is where the vocabulary changes</div>
+  <p>
+    This is the DDD idea of a <em>bounded context</em>, and it is more practical than it sounds. If
+    the warehouse says "order" and means a picking list, and finance says "order" and means an
+    invoiceable event, you have found a boundary &mdash; the two need different models of the same
+    word, and forcing them to share one produces a class with forty properties that nobody
+    understands.
+  </p>
+  <p>
+    The corollary that surprises people: <strong>duplicating data across that boundary is correct,
+    not a normalisation failure.</strong> Shipping keeps its own copy of the customer address it
+    needs. It is not a cache to be invalidated; it is Shipping's own record of where it was told to
+    deliver.
+  </p>
+</div>
+
+<h2 id="communication">Synchronous or asynchronous?</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th></th><th>Synchronous — HTTP, gRPC</th><th>Asynchronous — queue or event</th></tr></thead>
+  <tbody>
+    <tr><td>Use when</td><td>The caller cannot continue without the answer</td><td>The caller only needs it to happen eventually</td></tr>
+    <tr><td>Coupling</td><td>Temporal: they must be up right now</td><td>Only to the message shape</td></tr>
+    <tr><td>Failure</td><td>Yours becomes theirs, immediately</td><td>Absorbed by the queue</td></tr>
+    <tr><td>Cost</td><td>Latency adds up along the chain</td><td>Eventual consistency, and a UI that must show it</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The synchronous chain is how one outage becomes four</div>
+  <p>
+    If A calls B calls C calls D, then A's availability is the <em>product</em> of all four, and its
+    latency is the sum. Four services at 99.9% give you 99.6% &mdash; roughly three hours a month of
+    downtime that no single team caused.
+  </p>
+  <p>
+    So the default for anything that is not "I need the answer to render this page" is an event.
+    <em>"Order placed"</em> published once, and Shipping and Invoicing react in their own time
+    &mdash; which is the outbox pattern from chapter 22, and the reason this repository has one.
+  </p>
+</div>
+
+<h2 id="tax">The tax: what you need before you can run them</h2>
+
+<p>
+  This is the list that decides whether a company is ready, and being able to recite it is what
+  makes the "not yet" answer credible rather than lazy:
+</p>
+
+<ul>
+  <li><strong>Automated deployment per service.</strong> If releasing takes a person and a
+      checklist, ten services means ten times the ceremony &mdash; and independent deployment was
+      the entire point.</li>
+  <li><strong>Distributed tracing.</strong> Without a correlation id crossing every boundary, a
+      slow request becomes unattributable. Chapter 25, now mandatory rather than nice.</li>
+  <li><strong>Centralised logging.</strong> Nobody can SSH into six containers.</li>
+  <li><strong>A local development story.</strong> If a developer needs six services running to fix
+      one bug, productivity falls off a cliff. .NET Aspire exists largely to answer this.</li>
+  <li><strong>Contract discipline.</strong> Someone else depends on your JSON. Additive changes
+      only, versioned endpoints, and consumer-driven tests.</li>
+  <li><strong>A way to answer "where is order 4711 stuck?"</strong> across services. Design that in
+      before you need it at 09:00 on a Monday.</li>
+</ul>
+
+<h2 id="plumbing">The pieces with names</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Piece</th><th>What it is for</th><th>In .NET</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>API gateway</strong></td>
+      <td>One address for the outside world; routing, auth, rate limiting in one place instead of six</td>
+      <td>YARP &mdash; also the migration proxy from chapter 16b</td>
+    </tr>
+    <tr>
+      <td><strong>BFF</strong> (backend for frontend)</td>
+      <td>A gateway shaped for one client, so the mobile app is not making nine calls</td>
+      <td>An ordinary ASP.NET Core project</td>
+    </tr>
+    <tr>
+      <td><strong>Service discovery</strong></td>
+      <td>Finding an instance without hard-coding a host</td>
+      <td>DNS in Kubernetes; <code>Microsoft.Extensions.ServiceDiscovery</code></td>
+    </tr>
+    <tr>
+      <td><strong>Saga</strong></td>
+      <td>A business transaction across services, with compensation instead of rollback</td>
+      <td>A state machine you own; module 25 has a chapter</td>
+    </tr>
+    <tr>
+      <td><strong>Outbox</strong></td>
+      <td>Making "save it and publish it" atomic</td>
+      <td>Already in this repository</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="scheduled">Scheduled work, and the second instance</h2>
+
+<p>
+  Automation and background jobs travel with this territory &mdash; and the moment there is more
+  than one instance of your service, a scheduled job becomes a distributed-systems problem.
+</p>
+
+<div class="code-head">the job that runs twice</div>
+<pre><code><span class="cm">// This is correct, simple, and the right default for scheduled work in .NET —
+// no extra dependency, hosted by the same process, cancelled cleanly on
+// shutdown. Chapter 22's outbox dispatcher is exactly this.</span>
+<span class="kw">public sealed class</span> <span class="ty">NightlyReconciliation</span>(<span class="ty">IServiceScopeFactory</span> scopes)
+    : <span class="ty">BackgroundService</span>
+{
+    <span class="kw">protected override async</span> <span class="ty">Task</span> ExecuteAsync(<span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">using var</span> timer = <span class="kw">new</span> <span class="ty">PeriodicTimer</span>(<span class="ty">TimeSpan</span>.FromMinutes(<span class="nu">5</span>));
+        <span class="kw">while</span> (<span class="kw">await</span> timer.WaitForNextTickAsync(ct))
+        {
+            <span class="cm">// ⚠ Scale to three replicas and this runs three times, concurrently.
+            //   Nobody notices until the day it sends three emails, or
+            //   double-posts a ledger entry.</span>
+            <span class="kw">using var</span> scope = scopes.CreateScope();
+            <span class="kw">await</span> Reconcile(scope, ct);
+        }
+    }
+}</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 The three answers, in order of preference</div>
+  <ol>
+    <li>
+      <strong>Make the work idempotent and let it run twice.</strong> The cheapest fix, and it is
+      the one that keeps working when a lock expires at the wrong moment. Claim rows with an
+      <code>UPDATE … WHERE Status = 'Pending'</code> and act only on the rows you claimed &mdash;
+      the same trick the outbox dispatcher uses.
+    </li>
+    <li>
+      <strong>Take a distributed lock</strong> &mdash; a row in SQL Server with an expiry, or a
+      Redis key (chapter 20). Workable, but remember that a lock with a timeout is a
+      <em>lease</em>: your process can pause for a garbage collection and wake up believing it still
+      holds a lock that has expired. Which is why point 1 is still true underneath.
+    </li>
+    <li>
+      <strong>Take it out of the service.</strong> A scheduler that runs the job once &mdash;
+      Hangfire or Quartz.NET with a shared store, a Kubernetes CronJob, an Azure Function on a timer.
+      The right answer when the schedule is complex, needs a UI, or must survive the web app being
+      scaled to zero.
+    </li>
+  </ol>
+  <p class="subtle">
+    Hangfire and Quartz both add a dependency, a database schema and an operational surface. Reach
+    for them when <code>BackgroundService</code> genuinely stops being enough &mdash; retry history,
+    an admin dashboard, cron expressions maintained by someone who is not you &mdash; and not
+    before.
+  </p>
+</div>
+
+<h2 id="the-conversation">"We're moving to microservices"</h2>
+
+<p>
+  You will hear this in an interview. It is a chance to show judgement, and the useful response is
+  two questions rather than an opinion:
+</p>
+
+<ol>
+  <li>
+    <strong>"Which contexts have you identified?"</strong> If there is an answer &mdash; ordering,
+    shipping, invoicing &mdash; they have done the thinking. If the answer is "we're splitting the
+    API from the database", they have not, and you have learned the most important thing about the
+    role.
+  </li>
+  <li>
+    <strong>"What does deploying one of them look like today?"</strong> This is the readiness
+    question in disguise. If the answer involves a person and a checklist, the split will make
+    everything harder, and saying so gently is exactly the seniority the advert is asking for.
+  </li>
+</ol>
+
+<p>
+  And when asked how you would split an existing monolith: <strong>the same strangler answer as
+  chapter 16b.</strong> Put a gateway in front, extract the least-coupled context first &mdash;
+  something on the edge, with its own data and few callers, like notifications or reporting &mdash;
+  prove the whole path works end to end, and only then take on something that shares data with the
+  core. Never extract the domain core first; it is the hardest and it is where a failed migration
+  strands you.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <ol>
+    <li>Look at this repository's projects and name three bounded contexts inside it. For each, ask
+        what data it would need its own copy of &mdash; that answer is the real cost of splitting.</li>
+    <li>Take one existing use case and write down every network call it would need if the modules
+        were services. Multiply four availabilities of 99.9% together and look at the number.</li>
+    <li>Find the outbox dispatcher and work out what breaks if two instances run it at once. Then
+        find the line that already prevents it.</li>
+    <li>Write a <code>BackgroundService</code> with a <code>PeriodicTimer</code> that appends to a
+        file, run two copies, and watch the duplicates. Then make the work idempotent and run two
+        copies again.</li>
+    <li>Argue the opposite case out loud: you have four developers and one deployment that takes
+        twenty minutes. What would splitting into six services actually improve?</li>
+  </ol>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Microservices are an organisational solution.</strong> They buy independent deployment for independent teams; with one team you pay every cost and get none of it.</li>
+    <li><strong>The default is a modular monolith.</strong> Real enforced boundaries, one deployable, one transaction — most of the benefit, almost none of the tax.</li>
+    <li><strong>Cut by business capability, never by layer or by table.</strong> The seam is where the vocabulary changes.</li>
+    <li><strong>If they must be released together, they are a distributed monolith.</strong> The test is deploying one on a Tuesday without telling anyone.</li>
+    <li><strong>Duplicating data across a boundary is correct.</strong> It is that service's own record, not a cache.</li>
+    <li><strong>Prefer events to synchronous calls.</strong> A chain multiplies availability downwards and sums latency upwards.</li>
+    <li><strong>Every network call can fail, and a timeout means unknown.</strong> Chapter 14b applies inside your own system now.</li>
+    <li><strong>You lose transactions and joins at the boundary.</strong> Sagas with compensation replace rollback; that is the real cost.</li>
+    <li><strong>You need deployment automation, tracing, central logs and a local dev story <em>first</em>.</strong> Without them the split makes everything worse.</li>
+    <li><strong>More than one instance means a scheduled job runs more than once.</strong> Make it idempotent first; a lock is a lease and can expire under you.</li>
+    <li><strong>Reach for Hangfire or Quartz when <code>BackgroundService</code> stops being enough</strong> — not before.</li>
+    <li><strong>Extract the least-coupled context first.</strong> Never start with the domain core.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What are the advantages of microservices?"</p>
+  <p class="a">
+    Independent deployment and independent scaling, plus fault isolation if you do the work to make
+    it real. But the honest framing is that these are <em>organisational</em> benefits: they let
+    separate teams ship without coordinating. The costs are technical and land on everyone &mdash;
+    every call can fail, transactions and joins stop working across boundaries, and you take on
+    deployment, tracing and local-development problems you did not have. Worth it at fifteen teams,
+    usually not at two.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Should we split our monolith into microservices?"</p>
+  <p class="a">
+    I would ask what problem we are solving. If it is that teams block each other on releases, then
+    yes, and the split should follow team boundaries. If it is that the code is tangled, a modular
+    monolith fixes that far more cheaply &mdash; you get enforced boundaries without the network in
+    between, and the seams you create are exactly what makes a later split possible. And before
+    splitting anything I would want automated per-service deployment, distributed tracing and
+    central logging, because without them the split makes every problem harder to diagnose.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you decide where the service boundaries go?"</p>
+  <p class="a">
+    By business capability, using bounded contexts &mdash; ordering, shipping, invoicing &mdash; not
+    by technical layer and not one per table. The practical signal is where the vocabulary changes:
+    if "order" means a picking list to the warehouse and an invoiceable event to finance, that is a
+    boundary. And each side keeps its own copy of the data it needs, which is not a normalisation
+    failure but that service's own record.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a distributed monolith?"</p>
+  <p class="a">
+    Services that were split badly &mdash; usually by layer or by table &mdash; so every change
+    touches several of them and they have to be released together. You have paid for the network,
+    the eventual consistency, the extra pipelines and the extra logs, and you still cannot deploy
+    independently, which was the only real benefit. The test is whether you could deploy one on a
+    Tuesday afternoon without telling anyone.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do services communicate?"</p>
+  <p class="a">
+    Synchronously over HTTP or gRPC when the caller cannot proceed without the answer, and
+    asynchronously through events when it only needs to happen eventually. I would default to events
+    for anything that is not needed to render the current response, because a synchronous chain
+    multiplies availabilities and sums latencies &mdash; four services at 99.9% is 99.6%. The
+    reliable way to publish is the outbox: write the event in the same transaction as the data, and
+    let a dispatcher publish it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You have a nightly job in a service that now runs three replicas. What happens?"</p>
+  <p class="a">
+    It runs three times, concurrently, and nobody notices until it sends three emails or
+    double-posts a ledger entry. The best fix is to make the work idempotent &mdash; claim rows with
+    a conditional update and act only on what you claimed &mdash; because that keeps working even
+    when a lock expires at the wrong moment. A distributed lock in SQL Server or Redis is the next
+    option, remembering it is really a lease. And if the schedule needs history, retries or a
+    dashboard, move it out to Hangfire, Quartz or a platform scheduler.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

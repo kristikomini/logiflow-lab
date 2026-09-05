@@ -1,0 +1,365 @@
+### LogiFlow API — the whole flow, top to bottom.
+###
+### Works in VS Code (REST Client extension), Visual Studio 2022+, and Rider.
+### Click "Send Request" above each block, in order.
+###
+### Start the stack first:
+###   docker compose up -d
+###   cd src/LogiFlow.Api && dotnet run
+###
+### No Docker? If SQL Server or LocalDB is installed locally:
+###   cd src/LogiFlow.Api && dotnet run --launch-profile no-docker
+
+@host = http://localhost:5199
+@contentType = application/json
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 1. Health — no auth required
+### ─────────────────────────────────────────────────────────────────────────────
+
+### Liveness: is the process up? Deliberately checks NO dependencies.
+GET {{host}}/health/live
+
+### Readiness: can it serve traffic? Checks SQL Server.
+GET {{host}}/health/ready
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 2. Authentication
+### ─────────────────────────────────────────────────────────────────────────────
+
+### A protected endpoint with no token. Expect 401.
+GET {{host}}/api/orders
+
+### Mint a development token. NOT a login system — no password check, no user store.
+### A real deployment delegates this to Entra ID / Auth0 / Keycloak and deletes this endpoint.
+# @name token
+POST {{host}}/api/dev/token
+Content-Type: {{contentType}}
+
+{
+  "email": "kristi@logiflow.dev",
+  "roles": ["Admin"]
+}
+
+###
+@auth = Bearer {{token.response.body.accessToken}}
+
+### Now it works. Expect 200 with an empty first page.
+GET {{host}}/api/orders
+Authorization: {{auth}}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 3. Catalogue — public reads, protected writes
+### ─────────────────────────────────────────────────────────────────────────────
+
+### Anonymous: the catalogue is public. Cached for 5 minutes at the HTTP layer.
+# @name product
+GET {{host}}/api/products/ELE-100001
+
+###
+@productId = {{product.response.body.id}}
+
+### Create a product. Requires the CatalogManager policy.
+POST {{host}}/api/products
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "sku": "ELE-777001",
+  "name": "Handheld RFID Scanner",
+  "description": "Bluetooth, 12h battery",
+  "unitPrice": 249.00,
+  "currencyCode": "EUR",
+  "weightGrams": 410
+}
+
+### Send that again — the unique index rejects it. Expect 409 with code Product.DuplicateSku.
+POST {{host}}/api/products
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "sku": "ELE-777001",
+  "name": "Handheld RFID Scanner",
+  "description": null,
+  "unitPrice": 249.00,
+  "currencyCode": "EUR",
+  "weightGrams": 410
+}
+
+### Invalid SKU format. Expect 400 with a per-field `errors` object.
+POST {{host}}/api/products
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "sku": "nope",
+  "name": "Bad SKU",
+  "description": null,
+  "unitPrice": 10.00,
+  "currencyCode": "EUR",
+  "weightGrams": 100
+}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 4. The order lifecycle
+### ─────────────────────────────────────────────────────────────────────────────
+###
+### You need a customer id. Grab one from the seeded data:
+###   docker exec logiflow-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa \
+###     -P 'Str0ng!Passw0rd' -C -d LogiFlow -Q "SELECT TOP 3 Id, CompanyName, Tier FROM logiflow.Customers"
+###
+### Paste it below. Tier 1 = Standard (0% off), Tier 4 = Platinum (15% off) —
+### try both and compare the totals.
+
+@customerId = PASTE-A-CUSTOMER-ID-HERE
+
+### Open a draft order. Expect 201 with a Location header.
+# @name order
+POST {{host}}/api/orders
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "customerId": "{{customerId}}",
+  "currencyCode": "EUR",
+  "shippingAddress": {
+    "line1": "Via Roma 10",
+    "line2": null,
+    "city": "Milano",
+    "region": null,
+    "postalCode": "20100",
+    "countryCode": "IT"
+  }
+}
+
+###
+@orderId = {{order.response.body.$}}
+
+### Add 3 units.
+POST {{host}}/api/orders/{{orderId}}/lines
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "productId": "{{productId}}",
+  "quantity": 3
+}
+
+### Add 2 MORE of the same product. This MERGES into one line of 5 — it does not
+### create a second line. That is a business decision, documented in Order.AddLine.
+POST {{host}}/api/orders/{{orderId}}/lines
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "productId": "{{productId}}",
+  "quantity": 2
+}
+
+### Read it back. Check: lines.length == 1, quantity == 5.
+### Also note `allowedTransitions` — the API tells the client what it may do next, so the
+### UI never has to reimplement the state machine in TypeScript and get it subtly wrong.
+GET {{host}}/api/orders/{{orderId}}
+Authorization: {{auth}}
+
+### Validation failure: quantity 0. Expect 400 with errors.Quantity.
+POST {{host}}/api/orders/{{orderId}}/lines
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "productId": "{{productId}}",
+  "quantity": 0
+}
+
+### Submit. This is the interesting one: Order.Submit() raises OrderSubmittedDomainEvent,
+### which reserves warehouse stock IN THE SAME TRANSACTION, which itself raises
+### StockReservedDomainEvent, and writes outbox rows for all of them.
+POST {{host}}/api/orders/{{orderId}}/submit
+Authorization: {{auth}}
+
+### Now try to edit it. Expect 409 — the state machine refuses. Note `code`:
+### "Order.NotEditable", which is what a client should branch on.
+POST {{host}}/api/orders/{{orderId}}/lines
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "productId": "{{productId}}",
+  "quantity": 1
+}
+
+### Cancel it. Releases the reserved stock back to the warehouse that holds it —
+### which the order recorded in FulfillingWarehouseId when it reserved.
+POST {{host}}/api/orders/{{orderId}}/cancel
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "reason": "Customer changed their mind"
+}
+
+### Cancel it again. Expect 409 — Cancelled is a terminal state.
+POST {{host}}/api/orders/{{orderId}}/cancel
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "reason": "Trying twice"
+}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 5. Search — composable filters, stable pagination
+### ─────────────────────────────────────────────────────────────────────────────
+
+### No parameters: every filter is optional and the defaults are applied server-side.
+GET {{host}}/api/orders
+Authorization: {{auth}}
+
+### Filtered and sorted. Only the predicates you supply appear in the SQL.
+GET {{host}}/api/orders?status=Submitted&sortBy=Total&sortDirection=Descending&pageSize=5
+Authorization: {{auth}}
+
+### The DoS guard: ask for a million rows, get 100. PageSize is clamped server-side.
+GET {{host}}/api/orders?pageSize=1000000
+Authorization: {{auth}}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 6. Inventory
+### ─────────────────────────────────────────────────────────────────────────────
+###
+### Get a warehouse id:
+###   ... -Q "SELECT Id, Code FROM logiflow.Warehouses"
+
+@warehouseId = PASTE-A-WAREHOUSE-ID-HERE
+
+### Live stock levels. DELIBERATELY never cached — a stale stock figure produces
+### orders that cannot be fulfilled.
+GET {{host}}/api/inventory/warehouses/{{warehouseId}}/products/{{productId}}
+Authorization: {{auth}}
+
+### Book in a supplier delivery.
+POST {{host}}/api/inventory/receipts
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "warehouseId": "{{warehouseId}}",
+  "productId": "{{productId}}",
+  "quantity": 250
+}
+
+### Apply a stock take. A reason is REQUIRED — stock adjustments are financially
+### material and a common vector for internal theft, so they are always audited.
+POST {{host}}/api/inventory/adjustments
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "warehouseId": "{{warehouseId}}",
+  "productId": "{{productId}}",
+  "actualQuantity": 240,
+  "reason": "Quarterly stock take — 10 units damaged in transit"
+}
+
+### Adjust below what is already reserved. Expect 409 — the model refuses to promise
+### units that do not exist.
+POST {{host}}/api/inventory/adjustments
+Authorization: {{auth}}
+Content-Type: {{contentType}}
+
+{
+  "warehouseId": "{{warehouseId}}",
+  "productId": "{{productId}}",
+  "actualQuantity": 0,
+  "reason": "Testing the guard"
+}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 7. Reporting — the advanced LINQ from module 09
+### ─────────────────────────────────────────────────────────────────────────────
+###
+### NOTE: dates must be URL-encoded. A raw '+' in a query string means a SPACE,
+### so a '+02:00' offset arrives mangled. Use Z (UTC) or encode '+' as %2B.
+### Getting this wrong returns 400, not 500 — see the BadHttpRequestException arm
+### in GlobalExceptionHandler.
+
+### Revenue bucketed by month. GROUP BY + SUM + COUNT, all in SQL.
+### Cancelled and draft orders are excluded from revenue.
+GET {{host}}/api/reports/sales?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&period=Monthly
+Authorization: {{auth}}
+
+### Also try period=Daily, Weekly, Quarterly.
+GET {{host}}/api/reports/sales?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&period=Quarterly
+Authorization: {{auth}}
+
+### Best sellers. JOIN + GROUP BY + COUNT(DISTINCT OrderId) + ranking.
+GET {{host}}/api/reports/top-products?from=2026-01-01T00:00:00Z&to=2027-01-01T00:00:00Z&take=5
+Authorization: {{auth}}
+
+### Customer lifetime value. Count/Sum/Average/Max/Min over ONE grouping,
+### then HAVING COUNT(*) >= @minimumOrders.
+GET {{host}}/api/reports/customers?minimumOrders=1
+Authorization: {{auth}}
+
+### Products at or below their reorder threshold, worst shortfall first.
+GET {{host}}/api/reports/low-stock
+Authorization: {{auth}}
+
+### A malformed date. Expect 400 (NOT 500) with a helpful message.
+GET {{host}}/api/reports/sales?from=not-a-date&to=2027-01-01T00:00:00Z&period=Monthly
+Authorization: {{auth}}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 8. Authorization policies
+### ─────────────────────────────────────────────────────────────────────────────
+
+### Get a token with ONLY the Analyst role.
+# @name analystToken
+POST {{host}}/api/dev/token
+Content-Type: {{contentType}}
+
+{
+  "email": "analyst@logiflow.dev",
+  "roles": ["Analyst"]
+}
+
+###
+@analystAuth = Bearer {{analystToken.response.body.accessToken}}
+
+### An Analyst may read reports. Expect 200.
+GET {{host}}/api/reports/low-stock
+Authorization: {{analystAuth}}
+
+### An Analyst may NOT write to the catalogue. Expect 403 — NOT 401.
+### 401 means "I do not know who you are"; 403 means "I know exactly who you are
+### and you still cannot". Returning 401 here would send clients into a login loop.
+POST {{host}}/api/products
+Authorization: {{analystAuth}}
+Content-Type: {{contentType}}
+
+{
+  "sku": "ELE-888001",
+  "name": "Should be forbidden",
+  "description": null,
+  "unitPrice": 10.00,
+  "currencyCode": "EUR",
+  "weightGrams": 100
+}
+
+### ─────────────────────────────────────────────────────────────────────────────
+### 9. The carrier webhook
+### ─────────────────────────────────────────────────────────────────────────────
+
+### Idempotent by design: carriers retry aggressively, sometimes for days.
+### A duplicate must return success, not 409 — otherwise the carrier retries forever
+### and someone gets paged at 3am for a parcel that arrived fine.
+### Anonymous, because a carrier has never seen your identity provider.
+POST {{host}}/api/shipments/webhooks/delivery
+Content-Type: {{contentType}}
+
+{
+  "trackingNumber": "1Z999AA10123456784",
+  "signedBy": "M. Rossi"
+}

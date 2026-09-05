@@ -1,0 +1,57 @@
+@* A sortable column heading.
+
+   It renders the whole <th>, not just the button inside one. That is the point: `aria-sort`
+   belongs on the header cell, and a component that only rendered the button would leave every
+   call site responsible for remembering it - which is how half the sortable tables on the web end
+   up announcing nothing at all to a screen reader.
+
+   The arrow is a separate element that CSS rotates, rather than two different glyphs swapped in.
+   Swapping ▲ for ▼ is an instant jump; rotating one arrow is a 220ms turn that shows the user
+   their click did something. *@
+
+<th scope="col" class="@(Right ? "right" : null)" aria-sort="@AriaSort">
+    <button type="button"
+            class="sort @(Active ? "sort-active" : null) @(Active && Ascending ? "sort-asc" : null)"
+            @onclick="() => OnSort.InvokeAsync(Field)">
+        @Label
+        @if (Active)
+        {
+            <span class="sort-arrow" aria-hidden="true">▼</span>
+        }
+    </button>
+</th>
+
+@code {
+    /// <summary>The column this header sorts on.</summary>
+    [Parameter]
+    [EditorRequired]
+    public OrderSortField Field { get; set; }
+
+    /// <summary>Visible column name.</summary>
+    [Parameter]
+    [EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The field the list is currently sorted by.</summary>
+    [Parameter]
+    [EditorRequired]
+    public OrderSortField Current { get; set; }
+
+    /// <summary>The direction the list is currently sorted in.</summary>
+    [Parameter]
+    public SortDirection Direction { get; set; }
+
+    /// <summary>Right-aligns the cell, for numeric columns.</summary>
+    [Parameter]
+    public bool Right { get; set; }
+
+    /// <summary>Raised with <see cref="Field"/> when the header is clicked.</summary>
+    [Parameter]
+    public EventCallback<OrderSortField> OnSort { get; set; }
+
+    private bool Active => Current == Field;
+
+    private bool Ascending => Direction == SortDirection.Ascending;
+
+    private string AriaSort => !Active ? "none" : Ascending ? "ascending" : "descending";
+}

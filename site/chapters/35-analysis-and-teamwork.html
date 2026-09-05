@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>35 · Analysis, autonomy and teamwork — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="35-analysis-and-teamwork">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 8 &mdash; The human requirements <span>&rsaquo;</span> Chapter 35</p>
+<h1>Analysis, autonomy and teamwork</h1>
+<p class="lede">
+  Two lines of the advert are not technical, are not optional, and are the reason most people who
+  fail a probation period fail it. They are also entirely learnable &mdash; they just look like
+  personality traits, so nobody teaches them.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p>
+    <em>"Buone capacit&agrave; di analisi e autonomia decisionale nel proprio dominio di
+    riferimento."</em><br>
+    <em>"Spiccato orientamento al team working e buone doti comunicative."</em>
+  </p>
+  <p class="subtle" style="margin-top:.5em">
+    Translated honestly: <strong>we will give you a ticket, not a specification, and you will sit
+    next to the people affected by what you decide.</strong>
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="analysis">Analysis: what to do with an underspecified ticket</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Someone says: <em>"draw me a house."</em>
+  </p>
+  <p>
+    You could start drawing immediately &mdash; and produce a house with a red roof and a garden,
+    when they wanted a block of flats. Or you could refuse to draw anything until they describe
+    every window.
+  </p>
+  <p>
+    Both are wrong. What a good drawer does is ask <strong>two</strong> questions &mdash; "who
+    lives in it?" and "is it a picture or a plan?" &mdash; then draw, and show it early.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Requirements arrive incomplete because the person writing them knows their domain, not yours.
+    <em>Autonomia decisionale</em> does not mean deciding everything alone; it means knowing which
+    decisions are yours and which are not, and not blocking on the ones that are yours.
+  </p>
+  <p>
+    The distinction that makes this practical is <strong>reversibility</strong>. A decision you can
+    undo in an afternoon &mdash; a class name, a folder layout, the internal shape of a service
+    &mdash; is yours; make it and move on. A decision that is expensive to reverse &mdash; a
+    database schema, a public API contract, a third-party dependency, anything visible to users
+    &mdash; deserves a conversation before you write it.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="rev-title">
+    <title id="rev-title">Sorting decisions by how expensive they are to reverse</title>
+    <defs>
+      <marker id="a20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="24" class="d-text" style="font-weight:700">Ask one question about every decision: how expensive is it to undo?</text>
+
+    <!-- axis -->
+    <path d="M60 268 L800 268" class="d-arrow" stroke-width="1.6" marker-end="url(#a20)"/>
+    <text x="60" y="292" class="d-small">cheap to reverse</text>
+    <text x="700" y="292" class="d-small">expensive to reverse</text>
+
+    <!-- left zone -->
+    <rect x="60" y="48" width="330" height="200" rx="10" class="d-panel"/>
+    <rect x="60" y="48" width="330" height="200" rx="10" class="d-stroke"/>
+    <text x="225" y="76" class="d-text" text-anchor="middle" style="font-weight:700">Decide, and move on</text>
+    <text x="225" y="96" class="d-small" text-anchor="middle">this is the &ldquo;autonomia&rdquo; they asked for</text>
+
+    <text x="84" y="128" class="d-small">· a class or method name</text>
+    <text x="84" y="150" class="d-small">· folder and namespace layout</text>
+    <text x="84" y="172" class="d-small">· the internal shape of a service</text>
+    <text x="84" y="194" class="d-small">· which LINQ operator to use</text>
+    <text x="84" y="216" class="d-small">· how you structure your tests</text>
+    <text x="84" y="238" class="d-small">· whether to extract a helper</text>
+
+    <!-- right zone -->
+    <rect x="410" y="48" width="390" height="200" rx="10" class="d-brand" opacity=".92"/>
+    <text x="605" y="76" class="d-white" text-anchor="middle" style="font-weight:700">Ask first — five minutes now, days later</text>
+    <text x="605" y="96" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">and write down what was agreed</text>
+
+    <text x="434" y="128" class="d-white" style="font-weight:400;font-size:12px">· the database schema</text>
+    <text x="434" y="150" class="d-white" style="font-weight:400;font-size:12px">· a public API contract</text>
+    <text x="434" y="172" class="d-white" style="font-weight:400;font-size:12px">· a new third-party dependency</text>
+    <text x="434" y="194" class="d-white" style="font-weight:400;font-size:12px">· anything a user will see</text>
+    <text x="434" y="216" class="d-white" style="font-weight:400;font-size:12px">· anything that touches money or permissions</text>
+    <text x="434" y="238" class="d-white" style="font-weight:400;font-size:12px">· deleting data, ever</text>
+
+    <text x="20" y="318" class="d-small">Blocking on the left-hand list reads as an inability to proceed. Guessing on the right-hand list reads as not caring what was wanted.</text>
+  </svg>
+  <figcaption>The line between "your call" and "ask someone" is reversibility, not seniority.</figcaption>
+</figure>
+
+<h3>The questions that are always worth asking</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Question</th><th>Why it saves days</th></tr></thead>
+  <tbody>
+    <tr><td>"Who is going to use this, and what are they doing just before and just after?"</td>
+        <td>Turns a feature into a workflow. Half of all rework is a feature that technically worked but did not fit what happened next.</td></tr>
+    <tr><td>"What should happen when&hellip; ?" (empty, duplicate, cancelled, expired, thirty thousand of them)</td>
+        <td>Edge cases are where specifications go silent and bugs live.</td></tr>
+    <tr><td>"How will we know it worked?"</td>
+        <td>Extracts the acceptance criteria that were never written down.</td></tr>
+    <tr><td>"Is there an existing screen or endpoint that already does something like this?"</td>
+        <td>Consistency, and often two days of work you do not need to do.</td></tr>
+    <tr><td>"How urgent is this compared with what I am doing now?"</td>
+        <td>Makes prioritisation someone else&rsquo;s decision, which it is.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Two failure modes, equally common</div>
+  <p>
+    <strong>Analysis paralysis</strong> &mdash; asking twenty questions and waiting. It reads as an
+    inability to proceed, and by the third day nobody remembers the ticket.
+  </p>
+  <p>
+    <strong>Silent assumption</strong> &mdash; guessing and building for three days. It reads as
+    not caring what was wanted.
+  </p>
+  <p>
+    The move that beats both: <strong>ask the two questions that would change your approach, state
+    your assumptions about the rest in writing, and start.</strong> "I am assuming an order with no
+    lines cannot be exported and we skip it silently &mdash; shout if that is wrong" is one line,
+    unblocks you immediately, and puts the correction on record.
+  </p>
+</div>
+
+<h2 id="deciding">Deciding, and recording the decision</h2>
+
+<p>
+  When a decision <em>is</em> yours and it is not trivially reversible, write down why. Four
+  sentences is enough, and six months later it is the only thing standing between a colleague and
+  re-litigating it from scratch.
+</p>
+
+<div class="code-head">docs/adr/0007-outbox-for-search-indexing.md</div>
+<pre><code># 7. Use an outbox table to feed the search index
+
+Status: accepted · Date: 2026-09-04
+
+## Context
+Products must appear in Elasticsearch after being saved. Writing to SQL and
+Elasticsearch in the same method leaves them permanently divergent whenever the
+second call fails, and we have seen this happen twice.
+
+## Decision
+Write an event row in the same SQL transaction as the product, and publish it
+from a background worker.
+
+## Consequences
++ Atomic with the business data; retryable; survives an Elasticsearch outage.
+− The index is eventually consistent — typically a second or two behind.
+− One more moving part to monitor (the worker's queue depth).</code></pre>
+
+<p class="subtle">
+  Context, decision, consequences &mdash; including the ones you did not like. An ADR that lists
+  only advantages is marketing, and the reader will not trust it.
+</p>
+
+<h2 id="estimating">Estimating without lying</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    An estimate is a probability distribution, not a promise, and everyone knows it. What
+    distinguishes a useful estimate is that it names the <em>uncertainty</em> rather than hiding it.
+  </p>
+  <ul>
+    <li><strong>Decompose.</strong> Anything you would estimate in weeks, break down. You cannot
+        estimate what you have not decomposed &mdash; that is not pessimism, it is arithmetic.</li>
+    <li><strong>Give a range with a reason.</strong> "Two days if the existing export service can
+        be reused; five if it cannot. I can tell you which by tomorrow morning."</li>
+    <li><strong>Time-box the unknown.</strong> A spike is a legitimate deliverable: "half a day to
+        find out, then a real estimate."</li>
+    <li><strong>Re-estimate out loud, early.</strong> The problem is never that something took
+        longer. It is that nobody was told until the deadline.</li>
+  </ul>
+</div>
+
+<h2 id="code-review">Code review</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    When someone checks your homework, they are not saying you are stupid. They are the second pair
+    of eyes that catches the thing you stopped being able to see two hours ago &mdash; because you
+    wrote it, and now you read what you meant instead of what is there.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>As the author</th><th>As the reviewer</th></tr></thead>
+  <tbody>
+    <tr><td>Keep it small. A 200-line PR gets a real review; a 2,000-line PR gets "LGTM".</td>
+        <td>Review the code, never the person. "This method does two things" &mdash; not "you always do this".</td></tr>
+    <tr><td>Write a description saying <em>why</em>, and what you considered and rejected.</td>
+        <td>Distinguish blocking from optional. Prefix with <strong>nit:</strong> what is preference.</td></tr>
+    <tr><td>Review your own diff first. Half the comments you would have received, you can make yourself.</td>
+        <td>Ask rather than assert: "what happens if <code>lines</code> is empty here?" beats "this is broken".</td></tr>
+    <tr><td>Do not take it personally, and do not defend reflexively. Ask what they saw.</td>
+        <td>Say what is good. A review that is only criticism trains people to fear reviews.</td></tr>
+    <tr><td>Reply to every comment, even if only "done" or "keeping it, because&hellip;".</td>
+        <td>Be quick. A PR waiting two days blocks a person and rots against <code>main</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">Disagreeing well</div>
+  <p>
+    Two rounds of comments, then talk &mdash; in person or on a call. A disagreement that has
+    generated four replies each way is not going to be resolved by a fifth; it is a five-minute
+    conversation being conducted in the worst possible medium. Then write the outcome back into
+    the thread so the next reader knows how it ended.
+  </p>
+</div>
+
+<h2 id="communicating">Communicating while you work</h2>
+
+<p>The three moments that matter, and most people manage none of them:</p>
+
+<ol>
+  <li><strong>When you are blocked.</strong> The rule of thumb: try alone for thirty to sixty
+      minutes, then ask &mdash; and ask <em>well</em>. "I am trying to X, I expected Y, I get Z, I
+      have already checked A and B." That question can be answered in one line. "It does not
+      work" costs the other person twenty minutes of interrogation.</li>
+  <li><strong>When something will be late.</strong> As soon as you know, not when it is due.
+      Late-and-warned is a scheduling problem; late-and-silent is a trust problem.</li>
+  <li><strong>When you have finished.</strong> Say what changed, what you tested, and what you
+      deliberately did not do. The last part prevents the assumption that it was forgotten.</li>
+</ol>
+
+<div class="box pro">
+  <div class="box-title">🎓 Working in an Italian team</div>
+  <p>
+    Some things worth knowing before the first day, particularly in Emilia-Romagna&rsquo;s
+    manufacturing and <em>gestionale</em> software world:
+  </p>
+  <ul>
+    <li><strong>The working language is Italian; the documentation is English.</strong> Standups,
+        reviews and hallway conversation in Italian; NuGet docs, Stack Overflow and error messages
+        in English. Nobody expects perfect Italian from a non-native speaker, and everybody notices
+        effort. Say <em>"scusa, puoi ripetere?"</em> without embarrassment &mdash; it is far better
+        than nodding.</li>
+    <li><strong>Teams are small and physically close.</strong> Five to fifteen people, often in one
+        room, frequently with the domain expert &mdash; someone who knows the <em>logistica</em> or
+        the <em>produzione</em> intimately &mdash; two desks away. That person is the single most
+        valuable resource you have. Ask them things.</li>
+    <li><strong>Relationships are built at lunch.</strong> The <em>pausa pranzo</em> is not
+        optional social decoration; it is where half the informal coordination happens. Eating at
+        your desk every day is read as distance, not diligence.</li>
+    <li><strong>Hierarchy is present but informal.</strong> You will be on first-name terms with
+        almost everyone; <em>Lei</em> is for clients and the first meeting. But do not confuse
+        friendliness with flatness &mdash; who signs off on what is usually clear and worth
+        learning early.</li>
+    <li><strong>August is real.</strong> Much of the country slows to a halt in the middle of the
+        month. Plan releases around it, and do not expect an answer from a supplier during
+        <em>Ferragosto</em>.</li>
+  </ul>
+</div>
+
+<h2 id="agile">The ceremonies, and what they are for</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Ceremony</th><th>Actually for</th><th>Your job in it</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Daily standup</strong></td><td>Surfacing blockers, not reporting to a manager</td>
+        <td>Yesterday, today, blocked-on. Sixty seconds. Take detail offline.</td></tr>
+    <tr><td><strong>Planning / refinement</strong></td><td>Shared understanding, not filling a sprint</td>
+        <td>This is where you ask the analysis questions above. Silence here becomes rework later.</td></tr>
+    <tr><td><strong>Review / demo</strong></td><td>Showing real software to real stakeholders</td>
+        <td>Demo the thing working, not a slide about it.</td></tr>
+    <tr><td><strong>Retrospective</strong></td><td>Changing one thing</td>
+        <td>Raise process problems, not people. One concrete action beats ten observations.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Here is a real ticket, in the register they are actually written in:
+  </p>
+  <div class="box" style="margin:.9em 0">
+    <p style="margin:0"><strong>#812 &mdash; Export ordini</strong></p>
+    <p style="margin:.4em 0 0">
+      <em>"Serve un export degli ordini in Excel per l&rsquo;ufficio amministrazione."</em>
+    </p>
+  </div>
+  <p>Before writing a line of code, produce three lists:</p>
+  <ol>
+    <li><strong>Two questions</strong> you must ask because the answer changes your approach.</li>
+    <li><strong>Four assumptions</strong> you will state and proceed on.</li>
+    <li><strong>Three edge cases</strong> the ticket does not mention.</li>
+  </ol>
+  <p class="subtle" style="margin-top:.6em">
+    Questions worth asking: <em>which</em> orders (a date range? a filter? all of them?), and
+    <em>who</em> triggers it &mdash; because "the accounts office presses a button" and "it arrives
+    by email every Monday" are different features.
+    Assumptions: <code>.xlsx</code> not CSV, Italian column headers, Europe/Rome dates and
+    <code>1.234,50</code> number formatting, only orders the user may already see.
+    Edge cases: 200,000 rows (does it stream, or time out?); an order with no lines; concurrent
+    exports; and cancelled orders &mdash; in or out?
+  </p>
+  <p class="subtle">
+    Notice that number formatting and permissions appear in <em>every</em> such ticket and are
+    written down in almost none of them.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Sort decisions by reversibility. Cheap to undo: decide alone. Expensive: ask first.</li>
+    <li>Ask the two questions that change your approach; state assumptions about the rest and
+        start.</li>
+    <li>Write assumptions where others can see them. An unstated assumption is a bug with a delay
+        fuse.</li>
+    <li>Edge cases are the specification. Empty, duplicate, huge, cancelled, concurrent.</li>
+    <li>Estimate as a range with a reason, and time-box the unknown part.</li>
+    <li>Say it will be late the day you know, not the day it is due.</li>
+    <li>Small pull requests. A big one is not reviewed, it is approved.</li>
+    <li>Review code, not people. Mark what is preference as preference.</li>
+    <li>Two rounds of comments, then talk &mdash; and write the outcome back.</li>
+    <li>Ask for help with what you tried and what you expected. Thirty to sixty minutes, then ask.</li>
+    <li>Record non-obvious decisions in four sentences, consequences included.</li>
+    <li>Go to lunch.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Tell me about a time you disagreed with a colleague."</p>
+  <p class="a">
+    Pick a real technical disagreement, describe both positions <em>fairly</em>, say how it was
+    resolved and what you learned. The trap is telling a story where you were obviously right and
+    they were obviously foolish &mdash; the question is testing whether you can represent someone
+    else&rsquo;s reasoning, and that version fails it.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What do you do when requirements are unclear?"</p>
+  <p class="a">
+    Describe the reversibility rule, then be concrete: two questions, written assumptions, an early
+    slice shown to the requester before it is finished. "I ask the analyst" is a weaker answer than
+    "I ask what would change my approach, and decide the rest myself".
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you handle critical code review feedback?"</p>
+  <p class="a">
+    Say plainly that review is about the code and that you would rather find a problem in review
+    than in production. Then give a real example where a reviewer caught something you had missed,
+    and what you changed as a result &mdash; specifics are what make this believable.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You are two days from a deadline and will not make it. What do you do?"</p>
+  <p class="a">
+    Say so immediately, with three things: what is done, what remains, and options &mdash; ship a
+    reduced scope, move the date, or add help (knowing help rarely speeds up a late task). Never
+    let a deadline arrive unannounced. This question is asked because someone once did.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How is your Italian?"</p>
+  <p class="a">
+    Answer honestly with a level and evidence &mdash; "B1, I follow standups and read tickets, I am
+    slower in long meetings, I am taking a course" &mdash; and say you are happy for the technical
+    interview to be in Italian if they prefer. Overstating gets discovered in the first five
+    minutes; understating an honest B1 costs you nothing.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

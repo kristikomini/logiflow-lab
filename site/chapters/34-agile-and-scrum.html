@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>34 · Agile, Scrum and the daily rhythm — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="34-agile-and-scrum">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 8 &mdash; The human requirements <span>&rsaquo;</span> Chapter 34</p>
+<h1>Agile, Scrum and the daily rhythm</h1>
+<p class="lede">
+  Every advert says <em>metodologie Agile</em>. No course teaches it, so most juniors arrive
+  having read the Wikipedia page and are then quietly bewildered for a month — not by the theory,
+  but by what you are supposed to <em>say</em> at nine o'clock every morning. This chapter is
+  mostly about that.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Conoscenza delle metodologie di sviluppo (Agile, Scrum)"</em> is on nearly every advert
+    from the big consultancies hiring in Italy — NTT Data, Accenture, Reply, Engineering — and on
+    most product-company adverts too. It is never the reason you get hired, and looking lost in
+    your first sprint is absolutely a reason people conclude a junior is not working out. It is
+    also the cheapest chapter here to actually master.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what">What Agile actually claims</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Two ways to draw a picture for your friend.
+  </p>
+  <p>
+    One: they describe it once, you go away for a month, and you show them the finished drawing.
+    If you misheard "cat" as "hat", the whole month is wasted.
+  </p>
+  <p>
+    Two: you sketch for an hour and show them. "No, a cat." You fix it and show them again. You
+    still take a month, but you are never more than an hour away from finding out you are wrong.
+  </p>
+  <p>
+    That is the entire idea. Not "no planning" — just <em>never go a long time without checking</em>.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The 2001 manifesto states four preferences — individuals and interactions over processes and
+    tools, working software over comprehensive documentation, customer collaboration over contract
+    negotiation, responding to change over following a plan — each phrased as
+    <em>"while there is value in the items on the right, we value the items on the left
+    more"</em>. That clause is routinely dropped, which is how "we're agile" came to mean "we don't
+    write anything down".
+  </p>
+  <p>
+    Underneath, the engineering argument is about the cost of being wrong. A long feedback loop
+    means errors are discovered late, when they are expensive. Everything else — short iterations,
+    continuous integration, automated tests, small releases — is machinery for shortening that loop.
+    Which is why <a href="24-testing.html">testing</a> and
+    <a href="30-azure-devops-cicd.html">CI/CD</a> are not separate topics from Agile; they are what
+    make it physically possible.
+  </p>
+</div>
+
+<h2 id="scrum">Scrum, in one diagram</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="scrum-title">
+    <title id="scrum-title">The Scrum sprint loop from product backlog through planning, daily work, review and retrospective</title>
+    <defs>
+      <marker id="a31" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="110" width="130" height="80" rx="8" class="d-panel d-stroke"/>
+    <text x="85" y="140" class="d-text" text-anchor="middle" style="font-size:11.5px">Product</text>
+    <text x="85" y="158" class="d-text" text-anchor="middle" style="font-size:11.5px">backlog</text>
+    <text x="85" y="178" class="d-small" text-anchor="middle">owned by the PO</text>
+
+    <line x1="152" y1="150" x2="206" y2="150" class="d-arrow" marker-end="url(#a31)"/>
+    <text x="179" y="142" class="d-small" text-anchor="middle">refinement</text>
+
+    <rect x="210" y="118" width="130" height="64" rx="8" class="d-panel d-stroke"/>
+    <text x="275" y="144" class="d-text" text-anchor="middle" style="font-size:11.5px">Sprint planning</text>
+    <text x="275" y="164" class="d-small" text-anchor="middle">what, and how much</text>
+
+    <line x1="342" y1="150" x2="396" y2="150" class="d-arrow" marker-end="url(#a31)"/>
+
+    <rect x="400" y="70" width="230" height="160" rx="10" class="d-brand"/>
+    <text x="515" y="98"  class="d-white" text-anchor="middle" style="font-size:12.5px">The sprint</text>
+    <text x="515" y="120" class="d-white" text-anchor="middle" style="font-size:10.5px">1–4 weeks, usually 2</text>
+    <text x="515" y="146" class="d-white" text-anchor="middle" style="font-size:10.5px">daily stand-up, 15 min</text>
+    <text x="515" y="166" class="d-white" text-anchor="middle" style="font-size:10.5px">build · review · test · merge</text>
+    <text x="515" y="192" class="d-white" text-anchor="middle" style="font-size:10.5px">scope is frozen;</text>
+    <text x="515" y="210" class="d-white" text-anchor="middle" style="font-size:10.5px">new work goes to the backlog</text>
+
+    <line x1="632" y1="120" x2="686" y2="120" class="d-arrow" marker-end="url(#a31)"/>
+    <rect x="690" y="92" width="130" height="56" rx="8" class="d-panel d-stroke"/>
+    <text x="755" y="116" class="d-text" text-anchor="middle" style="font-size:11.5px">Review</text>
+    <text x="755" y="134" class="d-small" text-anchor="middle">demo to stakeholders</text>
+
+    <line x1="632" y1="190" x2="686" y2="190" class="d-arrow" marker-end="url(#a31)"/>
+    <rect x="690" y="162" width="130" height="56" rx="8" class="d-panel d-stroke"/>
+    <text x="755" y="186" class="d-text" text-anchor="middle" style="font-size:11.5px">Retrospective</text>
+    <text x="755" y="204" class="d-small" text-anchor="middle">how we work</text>
+
+    <path d="M755 220 L755 262 L85 262 L85 196" class="d-arrow" fill="none" marker-end="url(#a31)"/>
+    <text x="420" y="280" class="d-small" text-anchor="middle">…and round again. The loop is the point; the ceremonies are just where it is made visible.</text>
+
+    <text x="20" y="306" class="d-small">Review is about the product. Retrospective is about the team. Confusing the two is the most common way a retro dies.</text>
+  </svg>
+  <figcaption>
+    Three roles: <strong>Product Owner</strong> decides what and in which order,
+    <strong>Scrum Master</strong> removes obstacles and protects the process, and the
+    <strong>Developers</strong> decide how and how much. You are the third.
+  </figcaption>
+</figure>
+
+<h2 id="standup">The daily stand-up, scripted</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Every morning, everyone stands in a circle for a few minutes and says: what I did, what I am
+    doing, and whether I am stuck. It is short because standing up is uncomfortable — that is
+    genuinely why.
+  </p>
+  <p>
+    It is not the teacher checking your homework. It is the team making sure nobody is quietly
+    stuck on something someone else already solved.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Fifteen minutes, same time, same place, for the developers — not a status report to a manager.
+    The purpose is coordination and surfacing blockers, and the useful contribution is the third
+    part, not the first two.
+  </p>
+  <p>The shape that always works:</p>
+  <pre><code>Ieri  — ho finito la validazione su POST /orders,
+        la PR è aperta e aspetta review.
+Oggi  — prendo il ticket 412, l'export CSV.
+Bloc. — nessuno.
+        (oppure: mi serve l'accesso al DB di collaudo,
+         chi me lo può dare?)</code></pre>
+  <p>
+    Three sentences. Say the <em>ticket number</em>, not a vague area. And if you are blocked, say
+    so on the first day, not the third — a junior sitting silently stuck for two days is the single
+    most damaging thing you can do, and it is entirely avoidable. Nobody has ever been thought less
+    of for asking on day one; plenty have been for asking on day three.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The stand-up anti-patterns you will see</div>
+  <ul>
+    <li><strong>The status report.</strong> Everyone talks to the manager instead of each other.
+        Tell: nobody responds to anybody.</li>
+    <li><strong>The design discussion.</strong> Two people go twenty minutes deep while six wait.
+        The correct move — and it is a good look, even as a junior — is
+        <em>"lo prendiamo offline?"</em></li>
+    <li><strong>"Same as yesterday."</strong> Said three days running. That is a blocker with the
+        word "blocker" removed.</li>
+  </ul>
+</div>
+
+<h2 id="estimation">Story points, velocity, and the trap</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Points measure <strong>relative size</strong> — complexity, uncertainty and volume — not hours.
+    Usually a Fibonacci-ish scale (1, 2, 3, 5, 8, 13) because the gaps encode the fact that big
+    estimates are less precise. A 13 is not a number, it is a message: <em>this is too big, split
+    it.</em>
+  </p>
+  <p>
+    Why not hours? Because humans are bad at absolute duration and reasonably good at comparison —
+    "this is about twice that one" is a judgement people make well. And because an estimate in
+    hours is heard as a commitment, and then defended rather than revised.
+  </p>
+  <p>
+    <strong>Velocity</strong> is points completed per sprint, averaged. It exists to forecast
+    <em>this</em> team's next sprint. It is not a productivity metric, it does not compare teams
+    (a point means something different in each one), and the moment it becomes a target the
+    numbers inflate and the measure stops working — Goodhart's law, live.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Term</th><th>What it actually means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Definition of Ready</strong></td><td>When a ticket may enter a sprint: understood, estimated, acceptance criteria written, dependencies known</td></tr>
+    <tr><td><strong>Definition of Done</strong></td><td>When a ticket may leave: merged, tested, reviewed, documented, deployed to the agreed environment. Agreed once, applies to everything</td></tr>
+    <tr><td><strong>Acceptance criteria</strong></td><td>The checks that decide if it works. Often "Given / When / Then"</td></tr>
+    <tr><td><strong>Refinement</strong> (<em>grooming</em>)</td><td>Mid-sprint session where the team clarifies and estimates upcoming items</td></tr>
+    <tr><td><strong>Spike</strong></td><td>A timeboxed investigation when you cannot estimate because you do not yet know enough</td></tr>
+    <tr><td><strong>Burndown</strong></td><td>Remaining work over time. Flat for a week means the tickets are too big</td></tr>
+    <tr><td><strong>Impediment</strong></td><td>Anything stopping you that you cannot remove yourself. Say it out loud</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="reality">What you will actually find</h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Very few teams run textbook Scrum, and the honest term for what most run is
+    <strong>"Scrum-but"</strong>: sprints and stand-ups, but the Product Owner is the client's
+    project manager, scope changes mid-sprint, and the retrospective is the first thing dropped
+    when things get busy.
+  </p>
+  <p>
+    <strong>Kanban</strong> is the common alternative and often the better fit for support and
+    maintenance work: no sprints, a visible board, and a <em>work-in-progress limit</em> — a column
+    may hold at most N items, so finishing something becomes the only way to start something.
+    Plenty of teams run a hybrid: sprint planning for features, a Kanban lane for incidents.
+  </p>
+  <p>
+    In consultancy — a very large share of the Italian market — there is a second reality on top:
+    you may sit at the client's site, follow the client's process, and be measured on billable
+    hours as well as sprint goals. That is worth asking about in an interview rather than
+    discovering in month two.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Italiano you will hear in these meetings</div>
+  <p>
+    Most technical terms stay in English — <em>sprint, backlog, standup, review, retro, ticket,
+    deploy, release</em>. The connective tissue is Italian:
+  </p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>You will hear</th><th>It means</th></tr></thead>
+    <tbody>
+      <tr><td><em>facciamo il punto</em></td><td>let's take stock / sync up</td></tr>
+      <tr><td><em>prendo in carico il ticket</em></td><td>I'll take that ticket</td></tr>
+      <tr><td><em>è in collaudo / in test</em></td><td>it's in the testing environment</td></tr>
+      <tr><td><em>va in produzione giovedì</em></td><td>it goes live on Thursday</td></tr>
+      <tr><td><em>ci sentiamo offline</em></td><td>let's discuss this separately</td></tr>
+      <tr><td><em>ho una dipendenza da…</em></td><td>I'm blocked by…</td></tr>
+      <tr><td><em>lo stimiamo a 5</em></td><td>we'll estimate it at 5 points</td></tr>
+      <tr><td><em>il cliente ha chiesto…</em></td><td>the client asked for… (in consultancy, this outranks the sprint)</td></tr>
+      <tr><td><em>è bloccante?</em></td><td>is it a blocker?</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Run one two-week sprint on your own study, in the real tooling. Azure DevOps is free for small
+    teams and is what many companies in the region use:
+  </p>
+  <pre><code><span class="cm"># dev.azure.com → new project → Boards</span>
+<span class="cm"># create work items for the chapters you still need, estimate each in points,</span>
+<span class="cm"># pull two weeks' worth into a sprint, and move them across the board</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    At the end, do the part everyone skips: compare what you planned with what you finished, and
+    write three lines — what went well, what did not, one thing to change. That is a retrospective,
+    and having actually run one is worth more in an interview than being able to define it. It also
+    gives you a real number for your own velocity, which will be lower than you expect and is the
+    most useful thing you will learn all fortnight.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Agile is short feedback loops. Every ceremony exists to shorten one.</li>
+    <li>Say the ticket number, not "the API thing".</li>
+    <li>Raise a blocker on day one. Silence is the expensive option.</li>
+    <li>The stand-up is for the team, not for the manager. Fifteen minutes, standing.</li>
+    <li>"Let's take it offline" is a contribution, not an interruption.</li>
+    <li>Points are relative size, not hours. A 13 means "split this".</li>
+    <li>Velocity forecasts your team's next sprint. It never compares teams and is never a target.</li>
+    <li>Definition of Done is agreed once and applies to everything, or it means nothing.</li>
+    <li>Scope frozen inside the sprint; new requests go to the backlog. That is the whole deal.</li>
+    <li>Review is about the product; retrospective is about the team. Keep them apart.</li>
+    <li>A retrospective with no action item was a chat.</li>
+    <li>Agile is not "no documentation". It is less documentation that nobody reads.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Hai lavorato con metodologie Agile?"</p>
+  <p class="a">
+    If you have not worked in a team yet, do not bluff — describe what you have done and what you
+    understand. "I have run my study as two-week sprints on Azure Boards with estimates and a
+    retrospective, so I know the rhythm and the tooling, and I understand the roles. I have not
+    yet done it with a Product Owner and a real client." Concrete, honest, and it beats a recited
+    definition every time.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the point of the daily stand-up?"</p>
+  <p class="a">
+    Coordination and surfacing blockers — not reporting status upward. Then show you know how it
+    goes wrong: it becomes a status round where nobody responds to anybody, or two people design
+    for twenty minutes while six wait. Say that the useful part is the blocker, and that you say it
+    early.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why estimate in points rather than hours?"</p>
+  <p class="a">
+    People compare well and predict absolute duration badly, and an hours estimate is heard as a
+    commitment and then defended instead of revised. Points capture complexity and uncertainty as
+    well as size. Then add the caution about velocity as a target — knowing why a metric is
+    dangerous reads as experience.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You realise mid-sprint that your estimate was badly wrong. What do you do?"</p>
+  <p class="a">
+    Say so immediately, at the next stand-up, with what you now know and what you would propose —
+    split the ticket, drop a sub-case, or ask for help. Explicitly reject the alternative: quietly
+    working late to protect the estimate hides the problem until the review, when it is too late for
+    anyone to act. They are testing whether bad news travels fast with you.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What would you change about how your last team worked?"</p>
+  <p class="a">
+    Answer it as a retrospective, not a complaint: one specific thing, why it cost the team, and
+    what you would propose instead. "Tickets were often too big to finish in a sprint, so the
+    burndown was flat until the last two days — I would push for splitting anything estimated above
+    an 8." Blaming individuals fails this question; naming a process problem passes it.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="35-analysis-and-teamwork.html">The next chapter</a> is the other half of this: reading
+    a ticket properly, deciding alone, and being reviewed without taking it personally. The
+    machinery that makes short iterations possible is in
+    <a href="24-testing.html">chapter 24</a> and <a href="30-azure-devops-cicd.html">chapter 30</a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

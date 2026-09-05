@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary — LogiFlow Academy</title>
+<meta name="description" content="Italian–English vocabulary for a .NET developer in Emilia-Romagna: the advert, the stand-up, the contract, the gestionale, and the interview.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="glossary">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Glossary</p>
+    <h1>Italian &amp; English, side by side</h1>
+    <p class="lede">
+      Technical vocabulary in an Italian office is mostly English &mdash;
+      <em>fare il merge</em>, <em>il deploy</em>, <em>la pipeline</em>. The words that will
+      catch you out are the ones that <strong>are</strong> translated
+      (<em>collaudo</em>, <em>presa in carico</em>, <em>gestionale</em>) and the entire
+      vocabulary of contracts and process, which no technical course teaches and which
+      decides the first phone call.
+    </p>
+
+    <div class="box note">
+      <div class="box-title">The one word to learn first</div>
+      <p>
+        <strong>Gestionale.</strong> A business-management application &mdash; ERP-ish,
+        forms over data, decades of accumulated rules. A very large share of .NET work in
+        Modena, Bologna and Reggio Emilia is building, extending or migrating one. If an
+        advert or a recruiter says <em>gestionale</em>, they are describing the job.
+      </p>
+    </div>
+
+    <p>
+      <input type="search" class="gloss-search" id="q"
+             placeholder="Search in either language&hellip;" autocomplete="off" spellcheck="false">
+    </p>
+    <p id="filters" class="account-row" style="margin-top:6px"></p>
+
+    <div id="list" class="gloss-list"></div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var esc = window.LFLearn.esc;
+  var list = document.getElementById("list");
+  var box  = document.getElementById("q");
+  var cat  = "";
+
+  var byNumber = {};
+  (window.CHAPTERS || []).forEach(function (c) { byNumber[c.n] = c; });
+
+  function filters() {
+    var host = document.getElementById("filters");
+    var html = '<button type="button" class="btn" data-cat="">All</button>';
+    (window.GLOSSARY_CATEGORIES || []).forEach(function (c) {
+      html += ' <button type="button" class="btn" data-cat="' + esc(c) + '">' + esc(c) + "</button>";
+    });
+    host.innerHTML = html;
+    host.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-cat]");
+      if (!b) return;
+      cat = b.getAttribute("data-cat");
+      var all = host.querySelectorAll("[data-cat]");
+      for (var i = 0; i < all.length; i++) {
+        all[i].className = "btn" + (all[i].getAttribute("data-cat") === cat ? " primary" : "");
+      }
+      render();
+    });
+    host.querySelector('[data-cat=""]').className = "btn primary";
+  }
+
+  function render() {
+    var q = (box.value || "").trim().toLowerCase();
+    var rows = (window.GLOSSARY || []).filter(function (t) {
+      if (cat && t.cat !== cat) return false;
+      if (!q) return true;
+      return (t.en + " " + t.it + " " + (t.def || "")).toLowerCase().indexOf(q) !== -1;
+    });
+
+    if (!rows.length) {
+      list.innerHTML = '<p class="subtle">Nothing matches that.</p>';
+      return;
+    }
+
+    var lastCat = null, html = "";
+    rows.forEach(function (t) {
+      if (t.cat !== lastCat) {
+        html += "<h2>" + esc(t.cat) + "</h2>";
+        lastCat = t.cat;
+      }
+      var ch = byNumber[t.where];
+      html +=
+        '<div class="gloss-item">' +
+          '<div><span class="gloss-term">' + esc(t.en) + "</span>" +
+          '<span class="gloss-it">' + esc(t.it) + "</span></div>" +
+          (t.def ? '<p class="gloss-def">' + esc(t.def) + "</p>" : "") +
+          (ch ? '<div class="gloss-where">Explained in <a href="chapters/' + esc(ch.id) +
+                '.html">' + esc(ch.n + " · " + ch.title) + "</a></div>" : "") +
+        "</div>";
+    });
+
+    list.innerHTML = html;
+  }
+
+  box.addEventListener("input", render);
+  filters();
+  render();
+})();
+</script>
+</body>
+</html>

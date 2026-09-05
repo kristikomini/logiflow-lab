@@ -1,0 +1,24 @@
+@* A lifecycle state, rendered as a colour-coded pill.
+
+   Colour alone never carries the meaning - the status text is always present. A pill that says
+   only "green" is unreadable to the ~8% of men with a colour vision deficiency, and invisible
+   to a screen reader.
+
+   Two additions beyond the colour:
+
+     * A tooltip in plain words, so hovering a status you have never seen before answers the
+       question instead of sending you to the documentation.
+     * A slow pulsing dot on the states that are still moving. It is the difference between a
+       list that looks like a photograph and one that looks alive - and it is information, not
+       decoration: the dot marks exactly the rows something outside this screen is about to
+       change. Terminal states do not pulse, because nothing is going to happen to them. *@
+
+<span class="pill pill-@Status.ToString().ToLowerInvariant() @(OrderStatusText.IsMoving(Status) ? "pill-live" : null)"
+      title="@OrderStatusText.Kid(Status)">@Status</span>
+
+@code {
+    /// <summary>The state to render.</summary>
+    [Parameter]
+    [EditorRequired]
+    public OrderStatus Status { get; set; }
+}

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 · Object-oriented programming — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="03-oop">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 03</p>
+<h1>Object-oriented programming</h1>
+<p class="lede">
+  Four words get recited in every interview &mdash; encapsulation, abstraction, inheritance,
+  polymorphism. Reciting them is worth nothing. Knowing which one solves which problem, and
+  knowing that experienced developers use the third one <em>least</em>, is worth a great deal.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"&hellip;e familiarit&agrave; con la programmazione ad oggetti (OOP)."</em> Listed in the
+  same breath as C# itself, which means they expect you to design types, not only call them.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-point">What OOP is actually for</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think about a television remote. It has buttons on the front and a tangle of electronics
+    inside. You press <em>volume up</em> and the sound gets louder. You have no idea how, and that
+    is the entire point &mdash; the tangle is hidden behind the buttons.
+  </p>
+  <p>
+    Now: your friend has a different remote. Different shape, different colour, different
+    electronics. But it also has a <em>volume up</em> button, so you already know how to use it.
+  </p>
+  <p>
+    Hiding the tangle is <strong>encapsulation</strong>. "Every remote has volume up" is
+    <strong>abstraction</strong>. "Any remote you hand me, I can turn it up" is
+    <strong>polymorphism</strong>. And "a TV remote is a kind of remote" is
+    <strong>inheritance</strong>.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    OOP is a strategy for managing change in large systems. Its unit is the <em>type</em>: data
+    and the operations valid on that data, bound together so that invariants can be enforced in
+    one place. The four principles are not decorations &mdash; each one buys a specific freedom:
+  </p>
+  <ul>
+    <li><strong>Encapsulation</strong> &rarr; freedom to change internals without breaking callers.</li>
+    <li><strong>Abstraction</strong> &rarr; freedom to depend on a contract rather than an
+        implementation, which is what makes testing and dependency injection possible.</li>
+    <li><strong>Inheritance</strong> &rarr; freedom to reuse behaviour &hellip; at the cost of a
+        permanent, tight coupling to a base class.</li>
+    <li><strong>Polymorphism</strong> &rarr; freedom to add a new case without editing existing
+        code &mdash; the Open/Closed principle in practice.</li>
+  </ul>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 400" role="img" aria-labelledby="oop-title">
+    <title id="oop-title">The four principles and what each one buys</title>
+    <defs>
+      <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <!-- encapsulation -->
+    <rect x="20" y="24" width="380" height="164" rx="10" class="d-panel"/>
+    <rect x="20" y="24" width="380" height="164" rx="10" class="d-stroke"/>
+    <text x="38" y="48" class="d-text" style="font-weight:700">1 · Encapsulation</text>
+    <text x="38" y="68" class="d-small">the buttons are public, the wiring is not</text>
+
+    <rect x="40" y="82" width="340" height="88" rx="8" class="d-fill"/>
+    <rect x="40" y="82" width="340" height="88" rx="8" class="d-stroke"/>
+    <rect x="52" y="94" width="150" height="26" rx="5" class="d-brand" opacity=".9"/>
+    <text x="127" y="112" class="d-white" text-anchor="middle" style="font-size:11.5px">public Submit()</text>
+    <rect x="52" y="128" width="150" height="26" rx="5" class="d-brand" opacity=".9"/>
+    <text x="127" y="146" class="d-white" text-anchor="middle" style="font-size:11.5px">public Total</text>
+    <text x="222" y="112" class="d-mono">private _lines</text>
+    <text x="222" y="146" class="d-mono">private Recalculate()</text>
+    <path d="M212 100 L212 158" class="d-stroke" stroke-width="1" stroke-dasharray="3 3"/>
+
+    <!-- abstraction -->
+    <rect x="420" y="24" width="400" height="164" rx="10" class="d-panel"/>
+    <rect x="420" y="24" width="400" height="164" rx="10" class="d-stroke"/>
+    <text x="438" y="48" class="d-text" style="font-weight:700">2 · Abstraction</text>
+    <text x="438" y="68" class="d-small">depend on the contract, not the thing</text>
+
+    <rect x="440" y="82" width="150" height="34" rx="6" class="d-brand" opacity=".9"/>
+    <text x="515" y="104" class="d-white" text-anchor="middle" style="font-size:11.5px">OrderService</text>
+    <path d="M592 99 L638 99" class="d-arrow" stroke-width="1.8" marker-end="url(#a3)"/>
+    <rect x="640" y="82" width="160" height="34" rx="6" class="d-fill"/>
+    <rect x="640" y="82" width="160" height="34" rx="6" class="d-stroke" stroke-dasharray="4 3"/>
+    <text x="720" y="104" class="d-mono" text-anchor="middle">IOrderRepository</text>
+
+    <text x="640" y="140" class="d-small">SqlOrderRepository</text>
+    <text x="640" y="160" class="d-small">InMemoryOrderRepository (tests)</text>
+    <path d="M720 118 L720 130" class="d-arrow" stroke-width="1.4" stroke-dasharray="3 3"/>
+
+    <!-- inheritance -->
+    <rect x="20" y="208" width="380" height="172" rx="10" class="d-panel"/>
+    <rect x="20" y="208" width="380" height="172" rx="10" class="d-stroke"/>
+    <text x="38" y="232" class="d-text" style="font-weight:700">3 · Inheritance</text>
+    <text x="38" y="252" class="d-small">&ldquo;is a kind of&rdquo; — use sparingly</text>
+
+    <rect x="140" y="266" width="140" height="30" rx="6" class="d-fill"/>
+    <rect x="140" y="266" width="140" height="30" rx="6" class="d-stroke"/>
+    <text x="210" y="286" class="d-mono" text-anchor="middle">Notification</text>
+    <path d="M170 330 L170 300" class="d-arrow" stroke-width="1.5" marker-end="url(#a3)"/>
+    <path d="M250 330 L250 300" class="d-arrow" stroke-width="1.5" marker-end="url(#a3)"/>
+    <rect x="60" y="332" width="120" height="30" rx="6" class="d-fill"/>
+    <rect x="60" y="332" width="120" height="30" rx="6" class="d-stroke"/>
+    <text x="120" y="352" class="d-mono" text-anchor="middle">EmailNotif.</text>
+    <rect x="216" y="332" width="120" height="30" rx="6" class="d-fill"/>
+    <rect x="216" y="332" width="120" height="30" rx="6" class="d-stroke"/>
+    <text x="276" y="352" class="d-mono" text-anchor="middle">SmsNotif.</text>
+
+    <!-- polymorphism -->
+    <rect x="420" y="208" width="400" height="172" rx="10" class="d-panel"/>
+    <rect x="420" y="208" width="400" height="172" rx="10" class="d-stroke"/>
+    <text x="438" y="232" class="d-text" style="font-weight:700">4 · Polymorphism</text>
+    <text x="438" y="252" class="d-small">one call site, many behaviours</text>
+
+    <rect x="440" y="266" width="360" height="30" rx="6" class="d-brand" opacity=".9"/>
+    <text x="620" y="286" class="d-white" text-anchor="middle" style="font-size:11.5px">foreach (var n in notifications) n.Send();</text>
+    <text x="440" y="322" class="d-small">The loop does not know — and must never learn —</text>
+    <text x="440" y="342" class="d-small">which kind it is holding. Adding a third kind</text>
+    <text x="440" y="362" class="d-small">requires no change to this line.</text>
+  </svg>
+  <figcaption>The four principles, each answering a different question about change.</figcaption>
+</figure>
+
+<h2 id="encapsulation">Encapsulation, done properly</h2>
+
+<p>
+  Most code that <em>claims</em> to be encapsulated is not. A class with fifteen public setters is
+  a struct wearing a costume: any caller can put it into an invalid state, so the rules end up
+  duplicated in every caller.
+</p>
+
+<div class="code-head">✗ not encapsulated — the rules live everywhere</div>
+<pre><code><span class="kw">public class</span> <span class="ty">Order</span>
+{
+    <span class="kw">public</span> <span class="ty">OrderStatus</span> Status { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">OrderLine</span>&gt; Lines { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="kw">new</span>();
+    <span class="kw">public decimal</span> Total { <span class="kw">get</span>; <span class="kw">set</span>; }
+}
+
+<span class="cm">// Every caller must remember all three steps, and eventually one will not:</span>
+order.Lines.Add(line);
+order.Total = order.Lines.Sum(l =&gt; l.Price);   <span class="cm">// forgotten here → wrong invoice</span>
+order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
+
+<div class="code-head">✓ encapsulated — the rules live in one place</div>
+<pre><code><span class="kw">public class</span> <span class="ty">Order</span>
+{
+    <span class="kw">private readonly</span> <span class="ty">List</span>&lt;<span class="ty">OrderLine</span>&gt; _lines = <span class="kw">new</span>();
+
+    <span class="cm">// Read-only to the outside. Callers can look, not reach in.</span>
+    <span class="kw">public</span> <span class="ty">IReadOnlyList</span>&lt;<span class="ty">OrderLine</span>&gt; Lines =&gt; _lines;
+    <span class="kw">public</span> <span class="ty">OrderStatus</span> Status { <span class="kw">get</span>; <span class="kw">private set</span>; } = <span class="ty">OrderStatus</span>.Draft;
+    <span class="kw">public decimal</span> Total =&gt; _lines.Sum(l =&gt; l.Price);   <span class="cm">// cannot drift</span>
+
+    <span class="kw">public void</span> AddLine(<span class="ty">OrderLine</span> line)
+    {
+        <span class="kw">if</span> (Status != <span class="ty">OrderStatus</span>.Draft)
+            <span class="kw">throw new</span> <span class="ty">InvalidOperationException</span>(<span class="st">"Cannot change a submitted order."</span>);
+        _lines.Add(line);
+    }
+
+    <span class="kw">public void</span> Submit()
+    {
+        <span class="kw">if</span> (_lines.Count == 0)
+            <span class="kw">throw new</span> <span class="ty">InvalidOperationException</span>(<span class="st">"An order needs at least one line."</span>);
+        Status = <span class="ty">OrderStatus</span>.Submitted;
+    }
+}</code></pre>
+
+<p>
+  The second version cannot be misused. There is no sequence of public calls that produces an
+  empty submitted order or a total that disagrees with the lines. <strong>That</strong> is
+  encapsulation &mdash; not the mechanical act of writing <code>private</code> on a field.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ The leak most people miss</div>
+  <p>
+    Returning <code>List&lt;T&gt;</code> from a property hands the caller your internal collection.
+    They can <code>Add</code> to it, bypassing every rule in <code>AddLine</code>. Expose
+    <code>IReadOnlyList&lt;T&gt;</code> instead &mdash; and remember it is a <em>view</em>, not a
+    copy: it prevents the caller from mutating, it does not freeze the list.
+  </p>
+</div>
+
+<h3>Access modifiers</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Modifier</th><th>Visible to</th></tr></thead>
+  <tbody>
+    <tr><td><code>public</code></td><td>Everyone.</td></tr>
+    <tr><td><code>private</code></td><td>This type only. The default for members &mdash; and the right starting point.</td></tr>
+    <tr><td><code>protected</code></td><td>This type and anything deriving from it.</td></tr>
+    <tr><td><code>internal</code></td><td>This assembly. The default for types, and underused &mdash; it is how a project keeps a small public surface.</td></tr>
+    <tr><td><code>protected internal</code></td><td>This assembly <em>or</em> any derived type.</td></tr>
+    <tr><td><code>private protected</code></td><td>Derived types <em>within</em> this assembly.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="abstract-vs-interface">abstract class vs interface</h2>
+
+<p>The perennial question. The distinction is about what you are modelling.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>&nbsp;</th><th><code>abstract class</code></th><th><code>interface</code></th></tr></thead>
+  <tbody>
+    <tr><td>Models</td><td>What something <strong>is</strong></td><td>What something <strong>can do</strong></td></tr>
+    <tr><td>How many</td><td>One base class only</td><td>As many as you like</td></tr>
+    <tr><td>State (fields)</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Constructor</td><td>Yes</td><td>No</td></tr>
+    <tr><td>Shared implementation</td><td>Natural</td><td>Possible (default methods) but a last resort</td></tr>
+    <tr><td>Typical use</td><td>A family sharing real code</td><td>A capability, a seam for testing and DI</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Practical rule: <strong>an interface for every dependency that crosses a boundary</strong>
+  (a repository, a mail sender, a clock), because that is what lets you substitute a fake in tests
+  and register the real one in the DI container. An <strong>abstract class only when several
+  types genuinely share implementation</strong>, not merely a name.
+</p>
+
+<div class="code-head">both, in the shape you will meet daily</div>
+<pre><code><span class="cm">// A capability. Anything can claim it. This is the seam.</span>
+<span class="kw">public interface</span> <span class="ty">INotificationSender</span>
+{
+    <span class="ty">Task</span> SendAsync(<span class="ty">Notification</span> n, <span class="ty">CancellationToken</span> ct);
+}
+
+<span class="cm">// Shared machinery for the family that needs retries.</span>
+<span class="kw">public abstract class</span> <span class="ty">RetryingSender</span> : <span class="ty">INotificationSender</span>
+{
+    <span class="kw">public async</span> <span class="ty">Task</span> SendAsync(<span class="ty">Notification</span> n, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">for</span> (<span class="kw">var</span> attempt = 1; ; attempt++)
+        {
+            <span class="kw">try</span> { <span class="kw">await</span> SendCoreAsync(n, ct); <span class="kw">return</span>; }
+            <span class="kw">catch</span> (<span class="ty">TransientException</span>) <span class="kw">when</span> (attempt &lt; 3)
+            {
+                <span class="kw">await</span> <span class="ty">Task</span>.Delay(200 * attempt, ct);
+            }
+        }
+    }
+
+    <span class="cm">// The one thing each subclass must supply.</span>
+    <span class="kw">protected abstract</span> <span class="ty">Task</span> SendCoreAsync(<span class="ty">Notification</span> n, <span class="ty">CancellationToken</span> ct);
+}
+
+<span class="kw">public sealed class</span> <span class="ty">EmailSender</span> : <span class="ty">RetryingSender</span>
+{
+    <span class="kw">protected override</span> <span class="ty">Task</span> SendCoreAsync(<span class="ty">Notification</span> n, <span class="ty">CancellationToken</span> ct)
+        =&gt; _smtp.SendAsync(n.To, n.Body, ct);
+}</code></pre>
+
+<p class="subtle">
+  That structure has a name &mdash; the <strong>Template Method</strong> pattern: the base fixes
+  the algorithm, the subclass fills in one step. It is the case where inheritance genuinely earns
+  its keep.
+</p>
+
+<h2 id="virtual-override-new">virtual, override, new and sealed</h2>
+
+<div class="code-head">the four keywords, and the one that lies</div>
+<pre><code><span class="kw">public class</span> <span class="ty">Base</span>
+{
+    <span class="kw">public virtual string</span> Describe() =&gt; <span class="st">"base"</span>;      <span class="cm">// may be replaced</span>
+}
+
+<span class="kw">public class</span> <span class="ty">Good</span> : <span class="ty">Base</span>
+{
+    <span class="kw">public override string</span> Describe() =&gt; <span class="st">"good"</span>;    <span class="cm">// truly replaces it</span>
+}
+
+<span class="kw">public class</span> <span class="ty">Bad</span> : <span class="ty">Base</span>
+{
+    <span class="kw">public new string</span> Describe() =&gt; <span class="st">"bad"</span>;         <span class="cm">// only HIDES it</span>
+}
+
+<span class="ty">Base</span> a = <span class="kw">new</span> <span class="ty">Good</span>();
+<span class="ty">Base</span> b = <span class="kw">new</span> <span class="ty">Bad</span>();
+
+<span class="ty">Console</span>.WriteLine(a.Describe());     <span class="cm">// <span class="out">good</span>  — dispatched on the real type</span>
+<span class="ty">Console</span>.WriteLine(b.Describe());     <span class="cm">// <span class="out">base</span>  — dispatched on the variable's type ⚠</span>
+<span class="ty">Console</span>.WriteLine(((<span class="ty">Bad</span>)b).Describe()); <span class="cm">// <span class="out">bad</span>   — same object, different answer</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Why <code>new</code> is a trap</div>
+  <p>
+    An object that answers differently depending on which variable you hold it in has broken the
+    fundamental promise of polymorphism. <code>new</code> exists for one narrow case &mdash; a base
+    class you do not control added a member that collides with yours &mdash; and virtually every
+    other use is an accident. This is a favourite interview question precisely because it
+    separates people who have read about OOP from people who have debugged it.
+  </p>
+</div>
+
+<p>
+  <code>sealed</code> is the opposite move: it forbids further inheritance. Making classes
+  <code>sealed</code> by default is a good habit &mdash; it documents intent, prevents a whole
+  category of fragile-base-class problems, and lets the JIT devirtualise calls.
+</p>
+
+<h2 id="composition">Composition over inheritance</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Inheritance is being <em>born into</em> a family: you get your family's nose whether you want
+    it or not, and you can never change families. Composition is <em>hiring</em> people: you pick
+    who helps you, you can swap them, and if one is unavailable you hire someone else for the
+    afternoon. Most of the time, hiring is easier than being born again.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Inheritance is the tightest coupling the language offers: the derived type depends on the
+    base&rsquo;s <em>implementation</em>, not merely its contract, and that dependency is fixed at
+    compile time. Change a base method and every subclass in the codebase may silently change
+    behaviour &mdash; the <em>fragile base class</em> problem. Deep hierarchies also collide with
+    reality quickly, because real domains are rarely trees.
+  </p>
+  <p>
+    Composition &mdash; holding a dependency behind an interface and injecting it &mdash; keeps the
+    coupling at the contract, is swappable at run time, and is testable. This is why modern C#
+    codebases are wide and shallow: many small types, few base classes, and interfaces at every
+    boundary.
+  </p>
+</div>
+
+<div class="code-head">the same requirement, both ways</div>
+<pre><code><span class="cm">// ✗ Inheritance: what happens when an order is BOTH discounted and urgent?</span>
+<span class="kw">class</span> <span class="ty">Order</span> { }
+<span class="kw">class</span> <span class="ty">DiscountedOrder</span> : <span class="ty">Order</span> { }
+<span class="kw">class</span> <span class="ty">UrgentOrder</span> : <span class="ty">Order</span> { }
+<span class="cm">// class UrgentDiscountedOrder : ??? — the combinatorial explosion begins</span>
+
+<span class="cm">// ✓ Composition: rules are a list, and the list can grow</span>
+<span class="kw">public sealed class</span> <span class="ty">PriceCalculator</span>(<span class="ty">IEnumerable</span>&lt;<span class="ty">IPricingRule</span>&gt; rules)
+{
+    <span class="kw">public decimal</span> Price(<span class="ty">Order</span> o) =&gt;
+        rules.Aggregate(o.Subtotal, (total, rule) =&gt; rule.Apply(o, total));
+}</code></pre>
+
+<h2 id="solid">SOLID, in one screen</h2>
+
+<p>
+  Five principles that mostly restate the paragraph above. Know what each letter stands for and be
+  able to give <em>one</em> concrete example &mdash; that is all an interview at this level needs.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th style="width:20%">Letter</th><th>Principle</th><th>In one sentence</th></tr></thead>
+  <tbody>
+    <tr><td><strong>S</strong></td><td>Single Responsibility</td>
+        <td>A class should have one reason to change. If you cannot name it without "and", split it.</td></tr>
+    <tr><td><strong>O</strong></td><td>Open/Closed</td>
+        <td>Adding a new case should mean adding a class, not editing a <code>switch</code> in five files.</td></tr>
+    <tr><td><strong>L</strong></td><td>Liskov Substitution</td>
+        <td>Any subclass must be usable wherever the base is, without surprises. If an override throws
+            <code>NotSupportedException</code>, the hierarchy is wrong.</td></tr>
+    <tr><td><strong>I</strong></td><td>Interface Segregation</td>
+        <td>Many small interfaces beat one large one. Nobody should implement six methods to use one.</td></tr>
+    <tr><td><strong>D</strong></td><td>Dependency Inversion</td>
+        <td>Depend on abstractions. This is literally what the DI container in
+            <a href="14-web-api.html">chapter 14</a> exists to do.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The classic Liskov example</div>
+  <p>
+    <code>Square : Rectangle</code>. Mathematically obvious, and wrong: code that sets
+    <code>Width = 5; Height = 4;</code> and expects an area of 20 gets 16 from a square. A square
+    <em>is</em> a rectangle, but a <em>mutable</em> square is not a substitutable mutable
+    rectangle. "Is a" in English is not "is a" in code.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Take the <code>Order</code> class from the "not encapsulated" example above and, without
+    looking back, rewrite it so that these three things become <em>impossible</em>, not merely
+    discouraged:
+  </p>
+  <ol>
+    <li>submitting an order with no lines;</li>
+    <li>adding a line to an order that is already submitted;</li>
+    <li>a <code>Total</code> that disagrees with the lines.</li>
+  </ol>
+  <p>
+    Then ask the harder question: how would you enforce them if <code>Order</code> had to be
+    reconstructed by EF Core from the database? (Answer in
+    <a href="12-ef-core.html">chapter 12</a> &mdash; a private constructor and a backing field.)
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-26-patterns-and-solid/README.md">Module 26</a> covers the design
+    vocabulary properly, and <a href="../../src/LogiFlow.Domain/">src/LogiFlow.Domain</a> is a
+    worked example of encapsulated entities that still map cleanly to a relational database.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Encapsulation is measured by what callers <em>cannot</em> do. Fifteen public setters is not
+        encapsulation.</li>
+    <li>Never expose <code>List&lt;T&gt;</code>; expose <code>IReadOnlyList&lt;T&gt;</code> and keep
+        the mutation methods.</li>
+    <li>Interface = what it <em>can do</em>. Abstract class = what it <em>is</em>, when real code
+        is shared.</li>
+    <li>Put an interface at every boundary you might need to fake in a test.</li>
+    <li><code>override</code> replaces; <code>new</code> only hides, and produces objects that
+        answer differently depending on the variable holding them. Avoid it.</li>
+    <li><code>sealed</code> by default. Design for inheritance deliberately or forbid it.</li>
+    <li>Prefer composition. Inheritance is the tightest coupling C# has, and it is fixed at compile
+        time.</li>
+    <li>If an override throws <code>NotSupportedException</code>, you have violated Liskov and the
+        hierarchy is wrong.</li>
+    <li>Deep hierarchies are a smell. Wide and shallow, with interfaces at the seams, ages better.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What are the four pillars of OOP?"</p>
+  <p class="a">
+    Name them, then immediately give one concrete consequence each &mdash; the interviewer has
+    heard the list a hundred times and is listening for whether anything follows it. Finish with
+    the honest remark that inheritance is the one you use least.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Abstract class or interface?"</p>
+  <p class="a">
+    Interface for a capability and for anything you need to substitute in tests; abstract class
+    when several types share real implementation and state. Then mention that C# allows only one
+    base class but many interfaces, which often settles it on its own.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>virtual</code> do, and how is <code>new</code> different?"</p>
+  <p class="a">
+    <code>virtual</code> enables runtime dispatch on the object&rsquo;s actual type;
+    <code>override</code> participates in it. <code>new</code> hides the member instead, so the
+    method called depends on the compile-time type of the variable. Offer the three-line
+    demonstration &mdash; it is far more convincing than the definition.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why prefer composition over inheritance?"</p>
+  <p class="a">
+    Inheritance couples you to a base implementation permanently and at compile time; composition
+    couples you to a contract, swappable at run time and fakeable in tests. Add the combinatorial
+    argument: two independent variations already need four classes with inheritance, and two
+    injected rules with composition.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Give me an example of the Single Responsibility Principle from your own code."</p>
+  <p class="a">
+    Have one ready. The usual honest answer is a controller that was doing validation, mapping,
+    business rules and persistence, split into a request model, a handler and a repository. Being
+    able to describe the <em>before</em> is what makes it credible.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

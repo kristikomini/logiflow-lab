@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The application layer orchestrates use cases. It may reference the Domain and
+    pure abstractions (DI, logging, caching contracts) - but NEVER a concrete
+    infrastructure package. There is no EntityFrameworkCore reference here, which is
+    why handlers talk to IOrderRepository / IUnitOfWork instead of a DbContext.
+  -->
+
+  <PropertyGroup>
+    <RootNamespace>LogiFlow.Application</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogiFlow.Domain\LogiFlow.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogiFlow.Application.Tests" />
+  </ItemGroup>
+
+</Project>

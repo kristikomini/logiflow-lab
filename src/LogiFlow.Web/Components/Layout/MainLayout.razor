@@ -1,0 +1,90 @@
+@inherits LayoutComponentBase
+
+<div class="shell">
+    <header class="topbar">
+        <a class="brand" href="/orders">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span class="brand-name">LogiFlow</span>
+        </a>
+
+        <nav class="topnav" aria-label="Main">
+            <NavLink class="topnav-link" href="/orders" Match="NavLinkMatch.Prefix">Orders</NavLink>
+        </nav>
+
+        @*
+            THE EXPLAIN SWITCH.
+
+            aria-pressed, not just a class: a toggle button must announce its state, and a screen
+            reader has no way to see that the knob has slid to the right. The visible label changes
+            too, because "Explain: on" is unambiguous in a way a coloured pill is not.
+        *@
+        <button type="button"
+                class="explain-toggle @(_explain.Enabled ? "is-on" : null)"
+                aria-pressed="@_explain.Enabled"
+                title="Plain-language notes about what this screen is doing"
+                @onclick="ToggleExplain">
+            <span class="switch" aria-hidden="true"></span>
+            <span>Explain @(_explain.Enabled ? "on" : "off")</span>
+        </button>
+
+        <span class="env-tag" title="This UI authenticates with a development token">dev</span>
+    </header>
+
+    <main class="content">
+        @*
+            An ErrorBoundary is not optional in Blazor Server, it is damage control. Without one,
+            an unhandled exception in ANY component kills the SignalR circuit: the whole page goes
+            grey and the user loses whatever they were typing. With one, the failure is contained
+            to this region and the rest of the app keeps working.
+        *@
+        <ErrorBoundary @ref="_errorBoundary">
+            <ChildContent>
+                @*
+                    Everything below can now ask for an ExplainMode. Note where the boundary sits:
+                    the cascade is INSIDE the error boundary, so a component that throws while
+                    rendering an explanation takes out the page region, not the whole layout - the
+                    switch itself stays clickable and the user can turn the thing off.
+
+                    Not IsFixed. A fixed cascading value is the faster one and the right default
+                    for a value that never changes, but this one changes on every click, and fixing
+                    it would mean the toggle does nothing at all.
+                *@
+                <CascadingValue Value="_explain">
+                    @Body
+                </CascadingValue>
+            </ChildContent>
+            <ErrorContent>
+                <div class="banner banner-error" role="alert">
+                    <strong>Something went wrong on this page.</strong>
+                    <p>
+                        The error has been logged. This section was isolated so the rest of the app
+                        kept running.
+                    </p>
+                    <button class="btn" type="button" @onclick="Recover">Try again</button>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </main>
+</div>
+
+@code {
+    private ErrorBoundary? _errorBoundary;
+
+    /// <summary>
+    /// Whether the plain-language notes are showing. Held here because the layout instance
+    /// survives navigation between pages, so the setting does not reset when the user opens an
+    /// order and comes back.
+    /// </summary>
+    private ExplainMode _explain = ExplainMode.Off;
+
+    private void ToggleExplain() => _explain = _explain.Toggled();
+
+    /// <summary>
+    /// Clears the boundary so the child renders again.
+    /// </summary>
+    /// <remarks>
+    /// An ErrorBoundary latches: once it has caught, it keeps showing ErrorContent until
+    /// Recover() is called. Forgetting this is why "the error message never goes away".
+    /// </remarks>
+    private void Recover() => _errorBoundary?.Recover();
+}

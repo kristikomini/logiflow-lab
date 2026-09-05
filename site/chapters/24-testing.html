@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>24 · Testing — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="24-testing">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 5 &mdash; Building it properly <span>&rsaquo;</span> Chapter 24</p>
+<h1>Testing</h1>
+<p class="lede">
+  Tests are not about proving your code works today. They are about being able to change it in
+  eight months without fear, and about the reviewer being able to see what you <em>intended</em>.
+  This chapter is xUnit, test doubles, integration tests against a real database, and — just as
+  important — what not to test.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Test unitari"</em>, <em>xUnit</em> and <em>NUnit</em> are on a large share of .NET
+    adverts in the region, usually under <em>"gradita conoscenza di"</em>. But the real reason is
+    blunter: the most common silent rejection for a junior take-home exercise is <strong>a
+    correct solution submitted with no tests</strong>. Nobody writes back to explain that. Four
+    good tests would have changed the outcome.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="why">What a test is for</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You build a tower of blocks. Every time you add one, you give the table a little shake to
+    check nothing falls. The shake is the test.
+  </p>
+  <p>
+    Now imagine the tower has 400 blocks and your friend adds one while you are at lunch. Without
+    the shake, the only way to know it is still standing is to look at all 400. With the shake,
+    you find out in one second — and you find out <em>which</em> block moved.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Three things a good test suite gives you, in order of value:
+  </p>
+  <ul>
+    <li><strong>Confidence to change.</strong> The cost of a codebase is not writing it, it is
+        modifying it later. Tests are what make refactoring an ordinary Tuesday instead of a
+        gamble.</li>
+    <li><strong>Executable specification.</strong> A test named
+        <code>Submit_fails_when_the_order_has_no_lines</code> tells a new joiner a business rule
+        that no comment would have survived to state.</li>
+    <li><strong>Design pressure.</strong> Code that is hard to test is usually badly coupled. If
+        you need six mocks to construct one class, the test has told you something true about the
+        class.</li>
+  </ul>
+</div>
+
+<h2 id="pyramid">The pyramid, as built here</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="pyr-title">
+    <title id="pyr-title">Test pyramid: many fast domain tests at the base, few slow end-to-end tests at the top</title>
+
+    <polygon points="420,30 520,110 320,110" class="d-brand"/>
+    <text x="560" y="80" class="d-text" style="font-size:12px">Integration &mdash; a few</text>
+    <text x="560" y="98" class="d-small">real HTTP, real SQL Server, seconds each</text>
+
+    <polygon points="320,112 520,112 590,190 250,190" class="d-panel d-stroke"/>
+    <text x="620" y="150" class="d-text" style="font-size:12px">Application &mdash; some</text>
+    <text x="620" y="168" class="d-small">handlers with mocked I/O, milliseconds</text>
+
+    <polygon points="250,192 590,192 670,285 170,285" class="d-panel d-stroke"/>
+    <text x="420" y="235" class="d-text" text-anchor="middle" style="font-size:12.5px">Domain &mdash; many</text>
+    <text x="420" y="256" class="d-small" text-anchor="middle">pure objects, no mocks, no I/O, microseconds</text>
+
+    <text x="20" y="40"  class="d-small">slow, brittle,</text>
+    <text x="20" y="56"  class="d-small">high confidence</text>
+    <text x="20" y="270" class="d-small">fast, stable,</text>
+    <text x="20" y="286" class="d-small">narrow confidence</text>
+
+    <text x="700" y="235" class="d-small">plus architecture</text>
+    <text x="700" y="251" class="d-small">tests, which run</text>
+    <text x="700" y="267" class="d-small">on metadata alone</text>
+  </svg>
+  <figcaption>
+    The shape matters because of feedback speed. A suite that takes fifteen minutes stops being
+    run before every commit, and a suite that is not run is not a safety net.
+  </figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Project</th><th>Tests</th><th>Needs</th></tr></thead>
+  <tbody>
+    <tr><td><code>LogiFlow.Domain.Tests</code></td><td>Invariants: an order with no lines cannot be submitted</td><td>nothing</td></tr>
+    <tr><td><code>LogiFlow.Application.Tests</code></td><td>Handlers: the right rule fired, the right error returned</td><td>substitutes for I/O</td></tr>
+    <tr><td><code>LogiFlow.Api.IntegrationTests</code></td><td>Whole requests: POST an order, GET it back</td><td>Docker + SQL Server</td></tr>
+    <tr><td><code>LogiFlow.ArchitectureTests</code></td><td>Domain references nothing; layering holds</td><td>nothing</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="first-test">Your first xUnit test</h2>
+
+<div class="code-head">arrange, act, assert</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">OrderTests</span>
+{
+    [<span class="ty">Fact</span>]
+    <span class="kw">public void</span> Submit_fails_when_the_order_has_no_lines()
+    {
+        <span class="cm">// Arrange — build the world</span>
+        <span class="ty">Order</span> order = <span class="ty">Order</span>.Create(ACustomer(), <span class="ty">OrderNumber</span>.Create(<span class="nu">2026</span>, <span class="nu">1</span>).Value).Value;
+
+        <span class="cm">// Act — do the one thing under test</span>
+        <span class="ty">Result</span> result = order.Submit();
+
+        <span class="cm">// Assert — state one expectation</span>
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBe(<span class="ty">OrderErrors</span>.CannotSubmitEmptyOrder);
+    }
+
+    [<span class="ty">Theory</span>]                       <span class="cm">// same test, several inputs</span>
+    [<span class="ty">InlineData</span>(<span class="nu">0</span>)]
+    [<span class="ty">InlineData</span>(-<span class="nu">1</span>)]
+    [<span class="ty">InlineData</span>(-<span class="nu">100</span>)]
+    <span class="kw">public void</span> A_line_quantity_must_be_positive(<span class="kw">int</span> quantity)
+    {
+        <span class="kw">var</span> result = <span class="ty">OrderLine</span>.Create(AProduct(), quantity);
+        result.IsFailure.ShouldBeTrue();
+    }
+}</code></pre>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>xUnit</th><th>Means</th><th>NUnit / MSTest equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><code>[Fact]</code></td><td>A test with no parameters</td><td><code>[Test]</code></td></tr>
+    <tr><td><code>[Theory]</code> + <code>[InlineData]</code></td><td>One test, many inputs</td><td><code>[TestCase]</code></td></tr>
+    <tr><td>constructor</td><td>Runs before each test</td><td><code>[SetUp]</code></td></tr>
+    <tr><td><code>IDisposable</code></td><td>Runs after each test</td><td><code>[TearDown]</code></td></tr>
+    <tr><td><code>IClassFixture&lt;T&gt;</code></td><td>Shared expensive setup</td><td><code>[OneTimeSetUp]</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  xUnit creates <strong>a new instance of the test class for every test</strong>. That is not
+  trivia — it is why xUnit tests do not leak state into each other, and it is a good interview
+  answer to "why xUnit rather than NUnit?"
+</p>
+
+<h2 id="doubles">Test doubles: mock what you cannot control</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    When actors rehearse a scene with a bicycle, they do not bring a real bicycle. They use a
+    cardboard one. It is the right shape, it stands where the bicycle stands, and it never gets a
+    puncture halfway through.
+  </p>
+  <p>
+    But they use a <em>real</em> script. You never fake the thing the rehearsal is actually about.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The vocabulary interviewers use loosely, and you should not:
+  </p>
+  <ul>
+    <li><strong>Stub</strong> — returns canned answers. Used for input.</li>
+    <li><strong>Mock</strong> — a stub you also make assertions about. Used for output
+        ("the e-mail was sent").</li>
+    <li><strong>Fake</strong> — a real, working, simplified implementation. An in-memory
+        repository backed by a <code>Dictionary</code>.</li>
+    <li><strong>Spy</strong> — records calls for inspection afterwards.</li>
+  </ul>
+  <p>
+    The rule that matters more than the vocabulary: <strong>mock what you cannot control, use the
+    real thing for what you own.</strong> Databases, clocks, HTTP calls, message brokers,
+    random-number generators — fake those. Your own entities and value objects — never.
+  </p>
+</div>
+
+<div class="code-head">a handler test — I/O substituted, domain real</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">CreateOrderHandlerTests</span>
+{
+    <span class="cm">// This repository uses NSubstitute. Moq is the other common one</span>
+    <span class="cm">// and the concepts map one-to-one: Mock&lt;T&gt;.Object ≈ Substitute.For&lt;T&gt;().</span>
+    <span class="kw">private readonly</span> <span class="ty">ICustomerRepository</span> _customers = <span class="ty">Substitute</span>.For&lt;<span class="ty">ICustomerRepository</span>&gt;();
+    <span class="kw">private readonly</span> <span class="ty">IOrderRepository</span>    _orders    = <span class="ty">Substitute</span>.For&lt;<span class="ty">IOrderRepository</span>&gt;();
+
+    [<span class="ty">Fact</span>]
+    <span class="kw">public async</span> <span class="ty">Task</span> Fails_when_the_customer_is_inactive()
+    {
+        <span class="cm">// A REAL Customer, deactivated. Not a mocked one —</span>
+        <span class="cm">// the rule under test lives inside this object.</span>
+        <span class="ty">Customer</span> customer = ACustomer(active: <span class="kw">false</span>);
+        _customers.GetByIdAsync(customer.Id, <span class="ty">Arg</span>.Any&lt;<span class="ty">CancellationToken</span>&gt;())
+                  .Returns(customer);
+
+        <span class="kw">var</span> result = <span class="kw">await</span> _handler.HandleAsync(ACommandFor(customer), default);
+
+        result.Error.ShouldBe(<span class="ty">OrderErrors</span>.CustomerInactive);
+        <span class="kw">await</span> _orders.DidNotReceive().AddAsync(<span class="ty">Arg</span>.Any&lt;<span class="ty">Order</span>&gt;(), <span class="ty">Arg</span>.Any&lt;<span class="ty">CancellationToken</span>&gt;());
+        <span class="cm">//        ↑ asserting the absence of a side effect is often the real test</span>
+    }
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ Mocking your own domain</div>
+  <p>
+    <code>Substitute.For&lt;Order&gt;()</code> and then asserting <code>order.Received().Submit()</code>
+    tests that your handler called the method you expected it to call. It will pass forever, even
+    when <code>Submit()</code> is completely broken, because the real one never ran. You have
+    tested your own memory of the design, not the behaviour.
+  </p>
+  <p>
+    Same family of mistake: asserting the exact <em>order</em> of calls, or the exact number. Those
+    tests break on every harmless refactor, everyone learns to "just update the test", and the
+    suite stops meaning anything.
+  </p>
+</div>
+
+<h2 id="integration">Integration tests, and the in-memory trap</h2>
+
+<div class="code-head">the real application, a throwaway database</div>
+<pre><code><span class="kw">public sealed class</span> <span class="ty">LogiFlowApiFactory</span> : <span class="ty">WebApplicationFactory</span>&lt;<span class="ty">Program</span>&gt;, <span class="ty">IAsyncLifetime</span>
+{
+    <span class="kw">private readonly</span> <span class="ty">MsSqlContainer</span> _sql = <span class="kw">new</span> <span class="ty">MsSqlBuilder</span>().Build();
+
+    <span class="kw">public</span> <span class="ty">Task</span> InitializeAsync() =&gt; _sql.StartAsync();   <span class="cm">// a real SQL Server, ~10s once</span>
+
+    <span class="kw">protected override void</span> ConfigureWebHost(<span class="ty">IWebHostBuilder</span> builder) =&gt;
+        builder.ConfigureAppConfiguration(c =&gt; c.AddInMemoryCollection(
+            <span class="kw">new</span> <span class="ty">Dictionary</span>&lt;<span class="kw">string</span>, <span class="kw">string</span>?&gt;
+            {
+                [<span class="st">"ConnectionStrings:Default"</span>] = _sql.GetConnectionString()
+            }));
+    <span class="cm">// Everything else is production: the same Program.cs, the same DI,</span>
+    <span class="cm">// the same middleware, the same endpoints. Only the connection string moves.</span>
+}</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>UseInMemoryDatabase</code> is not a database</div>
+  <p>
+    It is a LINQ-to-Objects shim in a <code>DbContext</code> costume. It has no schema, so it
+    accepts a 500-character string in an <code>nvarchar(20)</code> column. It has no constraints,
+    so unique indexes and CHECK constraints silently do nothing. It cannot do real transactions,
+    raw SQL, or <code>rowversion</code> concurrency — all of which are in
+    <a href="11-tsql-performance.html">chapter 11</a> and
+    <a href="12-ef-core.html">chapter 12</a> precisely because they matter.
+  </p>
+  <p>
+    Every one of those gaps is a place where the tests pass and production fails. Microsoft's own
+    documentation now advises against it. Testcontainers starts the genuine article in seconds,
+    and a passing integration test then means something.
+  </p>
+</div>
+
+<h2 id="what-not">What not to test</h2>
+
+<ul>
+  <li><strong>Framework code.</strong> You are not testing that EF Core can save a row or that
+      ASP.NET Core can bind JSON. Microsoft has those tests.</li>
+  <li><strong>Getters and setters.</strong> A test that <code>Name</code> returns what you set is
+      a test of the C# compiler.</li>
+  <li><strong>Private methods.</strong> If a private method needs its own test, it wants to be a
+      public method on its own class. Making it <code>internal</code> plus
+      <code>InternalsVisibleTo</code> just to reach it is a smell.</li>
+  <li><strong>Everything, to reach a coverage number.</strong> Coverage measures which lines ran,
+      not whether anything was verified. 100% coverage with no assertions is achievable and
+      worthless. Use it to <em>find</em> untested areas, never as a target.</li>
+</ul>
+
+<p>
+  The counterweight: <strong>every bug you fix gets a test first.</strong> That one is not
+  negotiable, and it is a strong thing to say in an interview — it turns a bug into permanent
+  knowledge instead of a fix somebody undoes later.
+</p>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>dotnet test                                         <span class="cm"># everything</span>
+dotnet test tests/LogiFlow.Domain.Tests             <span class="cm"># fast, no Docker</span>
+dotnet test --filter <span class="st">"FullyQualifiedName~Order"</span>    <span class="cm"># just the order tests</span>
+dotnet test --collect:<span class="st">"XPlat Code Coverage"</span>        <span class="cm"># coverlet</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Then do the exercise that teaches the most: open
+    <a href="../../src/LogiFlow.Domain/"><code>src/LogiFlow.Domain</code></a>, break one business
+    rule on purpose — invert a comparison, delete a guard clause — and run the domain tests.
+    Watch which test names go red. A good suite tells you what you broke, not just <em>that</em>
+    you broke something. If the failing test name does not explain the bug, the name is wrong.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Test names are sentences: <code>Submit_fails_when_the_order_has_no_lines</code>.</li>
+    <li>Arrange, Act, Assert — and one Act per test.</li>
+    <li>Mock what you cannot control. Never mock your own domain objects.</li>
+    <li>Assert on outcomes and state, not on which methods were called in which order.</li>
+    <li><code>[Theory]</code> with <code>[InlineData]</code> instead of five copy-pasted tests.</li>
+    <li>Many domain tests, some handler tests, a few integration tests. Watch the shape.</li>
+    <li>Integration tests use a real database. <code>UseInMemoryDatabase</code> is not one.</li>
+    <li>A test that needs a comment to explain it needs a better name.</li>
+    <li>Never test private methods; test the behaviour that reaches them.</li>
+    <li>Coverage is a diagnostic, never a target.</li>
+    <li>Every bug gets a failing test before it gets a fix.</li>
+    <li>A flaky test is worse than no test — quarantine or fix it the day it appears.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Che differenza c'è fra unit test e integration test?"</p>
+  <p class="a">
+    A unit test exercises one unit in isolation with its I/O substituted and runs in
+    milliseconds; an integration test exercises real components together — real HTTP, real
+    database — and runs in seconds. Then add the reason the distinction is worth having: speed
+    determines how often the suite gets run, and a suite nobody runs protects nobody.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What do you mock, and what do you not?"</p>
+  <p class="a">
+    Mock what you cannot control: databases, clocks, HTTP, brokers. Use the real thing for what
+    you own. Then give the failure mode, because it shows you have made the mistake: mocking your
+    own aggregate produces a test that asserts you called the method you meant to call, and it
+    passes happily while the business rule is broken.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Do you use the EF Core in-memory provider for tests?"</p>
+  <p class="a">
+    No, and be specific about why: no schema, no constraints, no real transactions, no
+    <code>rowversion</code>. It passes on data a real database would reject. Testcontainers gives
+    a real SQL Server in seconds, which is what this repository does. Microsoft advises against
+    the in-memory provider for the same reasons.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What code coverage do you aim for?"</p>
+  <p class="a">
+    A number is the wrong answer to this question and they usually know it. Say that coverage
+    shows which lines executed, not whether anything was asserted, so it is useful for finding
+    blind spots and destructive as a target — teams asked to hit 90% write tests with no
+    assertions. What you do commit to is that the domain rules are covered and every fixed bug
+    has a test.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Do you practise TDD?"</p>
+  <p class="a">
+    Answer honestly rather than aspirationally; interviewers can tell. A good honest version: not
+    strictly for everything, but always for bug fixes — reproduce with a failing test first — and
+    usually for anything with awkward branching, because writing the test first is what shows the
+    API is awkward before you have built anything on top of it.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-12-testing/README.md">Module 12 — Testing</a> builds the whole
+    pyramid against this repository, including architecture tests and the argument against the
+    in-memory provider in full. The real examples:
+    <a href="../../tests/LogiFlow.Application.Tests/Orders/CreateOrderHandlerTests.cs"><code>CreateOrderHandlerTests.cs</code></a>
+    and
+    <a href="../../tests/LogiFlow.Api.IntegrationTests/LogiFlowApiFactory.cs"><code>LogiFlowApiFactory.cs</code></a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

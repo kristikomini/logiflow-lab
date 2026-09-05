@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18 · Single-page apps: Angular and React — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="18-spa-and-typescript">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 3 &mdash; The web <span>&rsaquo;</span> Chapter 18</p>
+<h1>Single-page apps: Angular and React</h1>
+<p class="lede">
+  <a href="17-frontend-basics.html">Chapter 17</a> gave you the DOM and <code>fetch</code>. This
+  one is what happens when a team decides the browser should stop asking for pages and start
+  asking for data. You are not going to become a front-end specialist here &mdash; the goal is to
+  be the backend developer who can read the front end, fix the screen their own API feeds, and
+  design a contract the other half does not hate.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    Search Bologna job adverts for <em>.NET</em> and you will find <em>Angular</em> beside it more
+    often than Razor. Companies like BIP, Deda and Software Partner Italia advertise Angular,
+    React and TypeScript for enterprise web work, and plenty of "backend" roles in the region are
+    quietly full-stack. Being able to say <em>"I have consumed my own API from an Angular app and
+    I know where the contract breaks"</em> is worth far more than a framework certificate.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what">What a single-page app actually is</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Old way: every time you turn a page in a book, someone takes the whole book away and brings you
+    a new book, printed from scratch, with one page different.
+  </p>
+  <p>
+    New way: you get the book <em>once</em>, and when you want a new page, someone just hands you
+    the words for that page and you write them in. Much faster after the first time &mdash; but
+    getting that first book takes longer, because it is a big book.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A single-page application loads one HTML shell plus a JavaScript bundle. After that, the
+    browser never requests another page: routing happens client-side, and every interaction that
+    needs data calls your API and receives JSON. The framework re-renders the affected part of the
+    DOM.
+  </p>
+  <p>
+    What you gain: an app-like feel, no full-page flash, and a clean separation where the back end
+    serves only data. What you pay: a build step, a larger first load, client-side state
+    management, worse SEO by default, and <strong>two deployables instead of one</strong> — which
+    is the part that surprises .NET developers used to shipping one artefact.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="spa-title">
+    <title id="spa-title">Server-rendered pages return HTML on every click; a single-page app returns JSON after the first load</title>
+    <defs>
+      <marker id="a16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">Server-rendered (chapter 16)</text>
+    <rect x="20" y="40" width="120" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="80" y="67" class="d-text" text-anchor="middle" style="font-size:11.5px">Browser</text>
+    <rect x="250" y="40" width="130" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="315" y="67" class="d-text" text-anchor="middle" style="font-size:11.5px">ASP.NET Core</text>
+
+    <line x1="142" y1="54" x2="246" y2="54" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="194" y="46" class="d-small" text-anchor="middle">GET /orders</text>
+    <line x1="246" y1="74" x2="144" y2="74" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="194" y="94" class="d-small" text-anchor="middle">full HTML page</text>
+
+    <line x1="142" y1="112" x2="246" y2="112" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="194" y="104" class="d-small" text-anchor="middle">GET /orders/42</text>
+    <line x1="246" y1="132" x2="144" y2="132" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="194" y="152" class="d-small" text-anchor="middle">another full HTML page</text>
+    <text x="20" y="182" class="d-small">One deployable. Every click is a round trip</text>
+    <text x="20" y="198" class="d-small">and a repaint. Works with JavaScript off.</text>
+
+    <line x1="415" y1="20" x2="415" y2="280" class="d-stroke" stroke-dasharray="4 4"/>
+
+    <text x="450" y="26" class="d-small">Single-page app</text>
+    <rect x="450" y="40" width="120" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="510" y="67" class="d-text" text-anchor="middle" style="font-size:11.5px">Browser</text>
+    <rect x="690" y="40" width="130" height="44" rx="8" class="d-brand"/>
+    <text x="755" y="60" class="d-white" text-anchor="middle" style="font-size:11px">static host</text>
+    <text x="755" y="76" class="d-white" text-anchor="middle" style="font-size:11px">+ your Web API</text>
+
+    <line x1="572" y1="54" x2="686" y2="54" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="629" y="46" class="d-small" text-anchor="middle">GET / (once)</text>
+    <line x1="686" y1="74" x2="574" y2="74" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="629" y="94" class="d-small" text-anchor="middle">shell + bundle.js</text>
+
+    <line x1="572" y1="112" x2="686" y2="112" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="629" y="104" class="d-small" text-anchor="middle">GET /api/orders/42</text>
+    <line x1="686" y1="132" x2="574" y2="132" class="d-arrow" marker-end="url(#a16)"/>
+    <text x="629" y="152" class="d-small" text-anchor="middle">JSON, ~400 bytes</text>
+    <text x="450" y="182" class="d-small">Two deployables. First load is heavy, everything</text>
+    <text x="450" y="198" class="d-small">after it is small. Needs JavaScript, and CORS.</text>
+
+    <text x="20" y="250" class="d-small">The decision is rarely "which is better". It is: does this screen behave like a document, or like an application?</text>
+    <text x="20" y="270" class="d-small">An internal warehouse console with live filtering is an application. A public product page is a document.</text>
+  </svg>
+  <figcaption>
+    Note what moves: with an SPA the HTML stops coming from .NET, and your server's entire job
+    becomes the JSON contract from <a href="14-web-api.html">chapter 14</a>.
+  </figcaption>
+</figure>
+
+<h2 id="components">Components, the one idea both share</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A component is a Lego brick that knows how to draw itself. You tell it "you are an order row,
+    here is the order", and it produces the little piece of screen for that order. Put fifty of
+    them in a list and you have a table &mdash; but you only ever described <em>one</em> row.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A component is a unit of UI with its own state, its own template and a declared input
+    contract. You describe what the screen should look like <em>for a given state</em>, and the
+    framework works out the DOM operations. That is the shift from
+    <a href="17-frontend-basics.html">chapter 17</a>: you stop writing
+    <code>document.createElement</code> and start describing the result.
+  </p>
+  <p>
+    Angular and React disagree about almost everything except this. Angular is a full framework —
+    TypeScript by default, dependency injection, routing, HTTP and forms in the box, opinionated
+    structure. React is a library — you assemble routing, data fetching and state from the
+    ecosystem yourself. Angular is more common in Italian <em>enterprise</em> and consulting work;
+    React dominates product companies and startups.
+  </p>
+</div>
+
+<div class="code-head">Angular — a class, a template, and typed injection</div>
+<pre><code><span class="kw">export interface</span> <span class="ty">OrderDto</span> {
+  id: <span class="ty">string</span>;
+  orderNumber: <span class="ty">string</span>;
+  total: <span class="ty">number</span>;
+  status: <span class="st">'Draft'</span> | <span class="st">'Submitted'</span> | <span class="st">'Cancelled'</span>;  <span class="cm">// mirrors the C# enum</span>
+}
+
+@<span class="ty">Component</span>({
+  selector: <span class="st">'app-order-list'</span>,
+  standalone: <span class="kw">true</span>,
+  imports: [<span class="ty">CommonModule</span>],
+  template: `
+    @<span class="kw">if</span> (loading()) { &lt;p&gt;Caricamento&hellip;&lt;/p&gt; }
+    @<span class="kw">for</span> (order of orders(); track order.id) {
+      &lt;tr&gt;&lt;td&gt;{{ order.orderNumber }}&lt;/td&gt;&lt;td&gt;{{ order.total | currency:<span class="st">'EUR'</span> }}&lt;/td&gt;&lt;/tr&gt;
+    }
+  `
+})
+<span class="kw">export class</span> <span class="ty">OrderListComponent</span> {
+  orders = signal&lt;<span class="ty">OrderDto</span>[]&gt;([]);
+  loading = signal(<span class="kw">true</span>);
+
+  <span class="cm">// Constructor injection — the same idea as ASP.NET Core's DI.</span>
+  <span class="kw">constructor</span>(<span class="kw">private</span> http: <span class="ty">HttpClient</span>) {
+    <span class="kw">this</span>.http.get&lt;<span class="ty">OrderDto</span>[]&gt;(<span class="st">'/api/orders'</span>)
+      .subscribe(o =&gt; { <span class="kw">this</span>.orders.set(o); <span class="kw">this</span>.loading.set(<span class="kw">false</span>); });
+  }
+}</code></pre>
+
+<div class="code-head">React — a function that returns markup</div>
+<pre><code><span class="kw">export function</span> <span class="ty">OrderList</span>() {
+  <span class="kw">const</span> [orders, setOrders] = useState&lt;<span class="ty">OrderDto</span>[]&gt;([]);
+  <span class="kw">const</span> [loading, setLoading] = useState(<span class="kw">true</span>);
+
+  useEffect(() =&gt; {
+    fetch(<span class="st">'/api/orders'</span>)
+      .then(r =&gt; r.json())
+      .then(o =&gt; { setOrders(o); setLoading(<span class="kw">false</span>); });
+  }, []);                       <span class="cm">// [] = run once. Forget it and you loop forever.</span>
+
+  <span class="kw">if</span> (loading) <span class="kw">return</span> &lt;p&gt;Caricamento&hellip;&lt;/p&gt;;
+  <span class="kw">return</span> &lt;&gt;{orders.map(o =&gt; &lt;tr key={o.id}&gt;&lt;td&gt;{o.orderNumber}&lt;/td&gt;&lt;/tr&gt;)}&lt;/&gt;;
+}</code></pre>
+
+<p class="subtle">
+  Read both. The shape is the same: some state, a fetch, a loop that renders one item. If you can
+  follow this much you can open a ticket in either codebase, which is genuinely all a backend role
+  requires.
+</p>
+
+<h2 id="build">The build step, and why there is a dev server</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Front end</th><th>The .NET equivalent</th></tr></thead>
+  <tbody>
+    <tr><td><code>package.json</code></td><td><code>.csproj</code> + <code>Directory.Packages.props</code></td></tr>
+    <tr><td><code>package-lock.json</code></td><td><code>packages.lock.json</code></td></tr>
+    <tr><td><code>node_modules/</code></td><td>the NuGet cache, except local and enormous</td></tr>
+    <tr><td><code>npm install</code></td><td><code>dotnet restore</code></td></tr>
+    <tr><td><code>npm run build</code> (Vite, webpack)</td><td><code>dotnet publish</code></td></tr>
+    <tr><td><code>npm run dev</code> on :4200 / :5173</td><td><code>dotnet watch run</code></td></tr>
+    <tr><td>TypeScript &rarr; JavaScript</td><td>C# &rarr; IL</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  In development the front end runs on its own port and your API on another, which means the
+  browser sees two origins and applies the same-origin policy. There are two ways out, and only
+  one of them is right:
+</p>
+
+<div class="code-head">development: proxy, do not widen CORS</div>
+<pre><code><span class="cm">// angular.json / proxy.conf.json — the dev server forwards /api to .NET,</span>
+<span class="cm">// so the browser only ever sees ONE origin and CORS never enters the picture.</span>
+{
+  <span class="st">"/api"</span>: { <span class="st">"target"</span>: <span class="st">"https://localhost:7001"</span>, <span class="st">"secure"</span>: <span class="kw">false</span> }
+}</code></pre>
+
+<p class="subtle">
+  The wrong fix is <code>AllowAnyOrigin()</code> on the server so the error goes away in
+  development — and then shipping it. See the CORS trap in
+  <a href="15-api-security.html#mistakes">chapter 15</a>: it is a browser rule about who may read
+  your responses, and widening it protects nothing while exposing everything.
+</p>
+
+<h2 id="contract">The contract, and the trick worth knowing</h2>
+
+<p>
+  The interesting part of this chapter for a .NET developer is not the framework. It is that
+  <strong>your C# DTOs and their TypeScript interfaces are the same types written twice</strong>,
+  and the second copy silently rots. Rename <code>Total</code> to <code>GrandTotal</code> in C#
+  and nothing breaks at compile time; it breaks in the browser, as
+  <code>undefined</code>, in front of a user.
+</p>
+
+<div class="code-head">generate the client from OpenAPI instead of writing it</div>
+<pre><code><span class="cm"># Your API already publishes a schema (chapter 14). Use it.</span>
+npx nswag openapi2tsclient \
+  /input:https://localhost:7001/swagger/v1/swagger.json \
+  /output:src/app/api/logiflow-client.ts \
+  /template:Angular
+
+<span class="cm"># now a C# rename breaks the TypeScript BUILD, not the user's screen</span></code></pre>
+
+<p>
+  Wire that into CI and the contract becomes machine-checked. This is a genuinely strong thing to
+  mention in an interview, because it shows you think about the seam between two teams rather than
+  only about your own side of it.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ Where to put the token</div>
+  <p>
+    The reflex is <code>localStorage.setItem('token', jwt)</code>. It is readable by any script on
+    the page, so a single compromised npm dependency or an XSS hole exfiltrates it. The safer
+    pattern for a first-party SPA is an <strong>httpOnly, Secure, SameSite cookie</strong> issued
+    by your own backend — JavaScript cannot read it at all — with antiforgery protection, because
+    cookies bring CSRF back (<a href="16-aspnet-mvc.html">chapter 16</a>).
+  </p>
+  <p>
+    Know the trade-off rather than a slogan: cookies need same-site or a proper CORS setup and
+    CSRF defence; <code>localStorage</code> needs you to be certain about every script you ship.
+    Say which one you chose and why.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The client-side N+1</div>
+  <p>
+    A list renders fifty rows, and each row component fetches its own customer name. Fifty HTTP
+    calls where one would do. It is exactly the
+    <a href="12-ef-core.html">EF Core N+1</a> problem wearing different clothes, and the fix is the
+    same: shape the response for the screen. Design one endpoint that returns the rows already
+    joined, rather than a "pure" resource per entity.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <pre><code>npm create vite@latest logiflow-ui -- --template react-ts
+<span class="cm"># or: npx @angular/cli new logiflow-ui --standalone --style css</span>
+cd logiflow-ui &amp;&amp; npm install &amp;&amp; npm run dev</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Point it at the running API from <a href="14-web-api.html">chapter 14</a> and render a list of
+    orders. Then do the experiment that teaches the lesson: rename a property on the C# DTO,
+    rebuild the API, refresh the browser. Nothing errors &mdash; a column just goes blank. Now
+    regenerate the TypeScript client from the OpenAPI document and watch the same rename become a
+    red squiggle before you ever open a browser. That difference is the entire argument for
+    generating the client.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>An SPA is one shell plus JSON. The server stops producing HTML.</li>
+    <li>Two deployables, two build pipelines, one contract between them.</li>
+    <li>Components describe the result for a given state; the framework does the DOM.</li>
+    <li>Angular ships batteries and structure; React ships a renderer and choices.</li>
+    <li>In development, proxy <code>/api</code> through the dev server. Never widen CORS to fix a local error.</li>
+    <li>Generate the TypeScript client from OpenAPI. A hand-written copy of your DTOs will drift.</li>
+    <li>Shape endpoints for screens, or you get an N+1 in the browser instead of the database.</li>
+    <li>Prefer an httpOnly cookie to <code>localStorage</code> for tokens — and then handle CSRF.</li>
+    <li><code>node_modules</code> is a supply chain. Commit the lock file and read what you add.</li>
+    <li>An SPA needs JavaScript and is poor for SEO by default. Public content may not want one.</li>
+    <li>Know enough to read the front end and fix your own screen. That is the bar for a backend role.</li>
+    <li>If the screen behaves like a document, server-rendering is not the old way — it is the right way.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Hai esperienza con Angular o React?"</p>
+  <p class="a">
+    Answer at the level that is true and useful: "I have built and consumed my own API from a
+    small Angular front end — components, HTTP, routing. I am not a front-end specialist, but I
+    can read a component, follow where data comes from, and fix a screen that my endpoint feeds."
+    That is exactly the level most .NET adverts in Bologna are actually asking for, and it is much
+    stronger than an overclaim they will test.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you keep the front end and back end in sync?"</p>
+  <p class="a">
+    Generate the client from the OpenAPI document rather than hand-writing interfaces, and run
+    that generation in CI. Then explain the failure it prevents: rename a C# property and the
+    TypeScript build breaks, instead of a column silently rendering as <code>undefined</code> in
+    production. Very few juniors have thought about this.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You get a CORS error in development. What do you do?"</p>
+  <p class="a">
+    Proxy <code>/api</code> through the front-end dev server so the browser sees one origin. Say
+    explicitly what you do <em>not</em> do: add <code>AllowAnyOrigin</code> to make the message go
+    away. Then show you know what CORS is — a browser rule about who may read a response, not a
+    server-side protection — which is the real question underneath.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Where would you store the JWT in a browser app?"</p>
+  <p class="a">
+    Prefer an httpOnly Secure SameSite cookie issued by your own backend, because scripts cannot
+    read it, and pair it with antiforgery since cookies reintroduce CSRF.
+    <code>localStorage</code> is convenient and readable by any script you ship, including
+    dependencies. State the trade-off rather than a rule; that is what they are listening for.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you not build an SPA?"</p>
+  <p class="a">
+    When the screen is a document rather than an application: public content that needs SEO, a
+    form-heavy internal tool, anything where a second build pipeline and a second deployable is
+    cost without benefit. Add the alternatives you would reach for instead — Razor Pages, MVC, or
+    <a href="19-blazor.html">Blazor</a> — since that shows the answer is judgement, not preference.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    The next chapter is the option this region reaches for most: <a href="19-blazor.html">Blazor</a>,
+    which gets you an interactive front end without a JavaScript build chain at all. The JSON
+    contract these front ends consume is designed in
+    <a href="14-web-api.html#dtos">chapter 14</a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

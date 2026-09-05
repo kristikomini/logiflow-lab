@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 · Disposal, memory and shared state — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="08-disposal-and-thread-safety">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 08</p>
+<h1>Disposal, memory and shared state</h1>
+<p class="lede">
+  C# does two enormous favours for you: it manages memory, and single-threaded code behaves the way
+  you read it. This chapter is about the three places where each favour stops &mdash; unmanaged
+  resources, leaks the collector cannot help with, and a second thread. All three are standard
+  interview questions, and all three are where real production bugs come from.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <em>"Mi spiega <code>IDisposable</code>?"</em>, <em>"che cosa fa il garbage collector?"</em> and
+    <em>"come rendi questo codice thread-safe?"</em> are three of the most reliably asked junior
+    questions in .NET, and none of the other thirty-eight chapters answers them directly. They
+    also happen to be the material behind the two worst kinds of production bug: the process that
+    slowly eats memory, and the one that gives a different answer under load.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="gc">What the garbage collector does, and does not</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine your bedroom is tidied for you by someone who follows one rule: <em>if nothing is
+    holding it, it goes.</em> A toy on the floor with nobody playing with it — gone. A toy your
+    little brother is clutching — stays, even if he has forgotten he is holding it.
+  </p>
+  <p>
+    So the tidying is automatic, but it cannot help with two things. It will not close the tap you
+    left running, because a tap is not a toy. And it will not take a toy off your brother, however
+    long he holds it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The GC frees <strong>managed memory</strong> that is no longer <strong>reachable</strong> from
+    a root (a local, a static, a live thread). Two consequences that matter more than the
+    algorithm:
+  </p>
+  <ul>
+    <li>It is <strong>non-deterministic</strong>. You do not know when. So it is useless for
+        anything that must be released promptly — a file lock, a socket, a database connection.</li>
+    <li>It only frees <em>memory</em>. A file handle, a socket, a window handle, a native library
+        allocation are <strong>unmanaged resources</strong>, and the runtime knows nothing about
+        them.</li>
+  </ul>
+  <p>
+    Generations are worth one sentence: objects start in <strong>gen 0</strong>, which is collected
+    very often and very cheaply; survivors are promoted to gen 1, then gen 2, which is collected
+    rarely and expensively. The design bets that most objects die young, which for a web request
+    is exactly right. Objects over 85 KB go straight to the <strong>Large Object Heap</strong>,
+    which is not compacted by default &mdash; a good reason not to allocate huge arrays in a loop.
+  </p>
+</div>
+
+<h2 id="disposable">IDisposable and <code>using</code></h2>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <code>IDisposable</code> is how you say "this holds something the GC cannot clean up, and here
+    is how to release it deterministically". One method, <code>Dispose()</code>, and one keyword
+    that guarantees it is called:
+  </p>
+  <pre><code><span class="cm">// The using STATEMENT — the classic form.</span>
+<span class="kw">using</span> (<span class="kw">var</span> conn = <span class="kw">new</span> <span class="ty">SqlConnection</span>(cs))
+{
+    ...
+}   <span class="cm">// Dispose() runs here — even if the body threw.</span>
+
+<span class="cm">// The using DECLARATION (C# 8+) — same thing, less nesting.</span>
+<span class="kw">using var</span> conn = <span class="kw">new</span> <span class="ty">SqlConnection</span>(cs);
+...     <span class="cm">// Dispose() runs at the end of the enclosing scope.</span>
+
+<span class="cm">// What the compiler actually emits — this is the whole trick:</span>
+<span class="kw">var</span> conn = <span class="kw">new</span> <span class="ty">SqlConnection</span>(cs);
+<span class="kw">try</span>     { ... }
+<span class="kw">finally</span> { conn?.Dispose(); }</code></pre>
+  <p>
+    <code>using</code> is <code>try/finally</code>. That is the answer to "what does
+    <code>using</code> compile to", and it explains why an exception cannot leak the resource.
+  </p>
+  <p>
+    For anything doing I/O on release &mdash; flushing a stream, closing a connection &mdash;
+    there is <code>IAsyncDisposable</code> and <code>await using</code>, so the release does not
+    block a thread. Prefer it when both are offered.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The exception: do not dispose <code>HttpClient</code> per call</div>
+  <pre><code><span class="cm">// ✗ Looks correct. Exhausts sockets under load.</span>
+<span class="kw">using var</span> http = <span class="kw">new</span> <span class="ty">HttpClient</span>();
+<span class="kw">var</span> r = <span class="kw">await</span> http.GetAsync(url);</code></pre>
+  <p>
+    Disposing an <code>HttpClient</code> does not immediately free its socket &mdash; the
+    connection sits in <code>TIME_WAIT</code> for a while. In a loop or a busy endpoint you run out
+    of ports and start getting <code>SocketException</code> from a machine that looks idle. The
+    answer is <code>IHttpClientFactory</code>, which pools and rotates handlers for you. This is a
+    favourite interview question because it is the one case where the obvious application of the
+    rule is wrong.
+  </p>
+</div>
+
+<h2 id="boxing">Boxing, the allocation you did not write</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A number is small and light &mdash; you can carry it in your hand. But some boxes will only
+    accept parcels. So to post a number you have to put it in a little cardboard box first.
+  </p>
+  <p>
+    One parcel is nothing. A million parcels, made and thrown away one after another, is a lorry
+    full of cardboard nobody needed.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>Boxing</strong> is wrapping a value type in an object on the heap so it can be treated
+    as a reference type; unboxing is the cast back. It allocates, and allocation is the thing you
+    are usually trying to avoid.
+  </p>
+  <pre><code><span class="kw">int</span> n = <span class="nu">42</span>;
+<span class="kw">object</span> boxed = n;              <span class="cm">// boxing: a heap allocation</span>
+<span class="kw">int</span> back = (<span class="kw">int</span>)boxed;        <span class="cm">// unboxing: a checked cast</span>
+
+<span class="cm">// Where it happens without you noticing:</span>
+<span class="ty">ArrayList</span> list = [<span class="nu">1</span>, <span class="nu">2</span>, <span class="nu">3</span>];       <span class="cm">// three boxes — use List&lt;int&gt;</span>
+<span class="kw">string</span> s = <span class="st">"total: "</span> + <span class="nu">42</span>;      <span class="cm">// historically boxed; use interpolation</span>
+<span class="ty">IComparable</span> c = <span class="nu">42</span>;             <span class="cm">// a struct assigned to an interface</span></code></pre>
+  <p>
+    This is the third benefit of <a href="04-generics-delegates-events.html#generics">generics</a>
+    and the one candidates forget: <code>List&lt;int&gt;</code> stores the ints inline;
+    <code>ArrayList</code> boxes every single one.
+  </p>
+</div>
+
+<h2 id="leaks">Leaking memory in a language that manages memory</h2>
+
+<p>
+  "Managed" does not mean "leak-proof". It means you cannot leak by <em>forgetting to free</em>
+  &mdash; you leak by <strong>accidentally still holding on</strong>. Four ways, in the order you
+  will meet them:
+</p>
+
+<ol>
+  <li><strong>Event handlers never unsubscribed.</strong> The publisher holds the subscriber. This
+      is number one by a distance &mdash; see
+      <a href="04-generics-delegates-events.html#events">chapter 04</a>.</li>
+  <li><strong>A <code>static</code> collection used as a cache.</strong> A static field is a GC
+      root, so nothing in it is ever collected. Use <code>IMemoryCache</code> with a size limit and
+      an expiry, or <a href="20-redis-caching.html">chapter 20</a>.</li>
+  <li><strong>Timers and background loops</strong> holding a captured object alive forever.</li>
+  <li><strong>Undisposed connections, streams and readers</strong>, which exhaust a pool rather
+      than memory &mdash; and then look like a hang, not a leak.</li>
+</ol>
+
+<p class="subtle">
+  How to find one rather than guess: take two memory snapshots ten minutes apart under load in the
+  Visual Studio diagnostic tools (<a href="27-visual-studio-vscode.html">chapter 27</a>) or
+  dotMemory, and compare instance counts. A type whose count only ever rises is your answer, and
+  the tool will show you what is holding it.
+</p>
+
+<h2 id="threads">Shared state, and why <code>count++</code> is not one thing</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You and your sister are both counting sweets in a jar and writing the total on the same piece
+    of paper. You read "10", she reads "10". You add one and write 11. She adds one and writes 11.
+  </p>
+  <p>
+    Two sweets went in. The paper says one. Nobody made a mistake &mdash; you just both looked
+    before either of you wrote.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <code>count++</code> is three operations: <em>read</em>, <em>add</em>, <em>write</em>. Two
+    threads can interleave between any of them, and one increment vanishes. That is a
+    <strong>race condition</strong>: correctness depending on timing.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 260" role="img" aria-labelledby="race-title">
+    <title id="race-title">Two threads interleaving a read-modify-write on the same counter, losing one increment</title>
+    <line x1="120" y1="46" x2="120" y2="220" class="d-stroke"/>
+    <line x1="470" y1="46" x2="470" y2="220" class="d-stroke"/>
+    <text x="120" y="36" class="d-text" text-anchor="middle" style="font-size:11.5px">Thread A</text>
+    <text x="470" y="36" class="d-text" text-anchor="middle" style="font-size:11.5px">Thread B</text>
+
+    <rect x="640" y="40" width="170" height="180" rx="8" class="d-panel d-stroke"/>
+    <text x="725" y="62" class="d-small" text-anchor="middle">count (shared)</text>
+    <text x="725" y="94"  class="d-mono" text-anchor="middle">10</text>
+    <text x="725" y="134" class="d-mono" text-anchor="middle">10</text>
+    <text x="725" y="176" class="d-mono" text-anchor="middle">11</text>
+    <text x="725" y="206" class="d-small" text-anchor="middle">should be 12</text>
+
+    <rect x="30"  y="60"  width="180" height="26" rx="5" class="d-brand"/>
+    <text x="120" y="78"  class="d-white" text-anchor="middle" style="font-size:10.5px">read count → 10</text>
+    <rect x="380" y="96"  width="180" height="26" rx="5" class="d-panel d-stroke"/>
+    <text x="470" y="114" class="d-small" text-anchor="middle">read count → 10</text>
+    <rect x="30"  y="132" width="180" height="26" rx="5" class="d-brand"/>
+    <text x="120" y="150" class="d-white" text-anchor="middle" style="font-size:10.5px">write 11</text>
+    <rect x="380" y="168" width="180" height="26" rx="5" class="d-panel d-stroke"/>
+    <text x="470" y="186" class="d-small" text-anchor="middle">write 11</text>
+
+    <text x="230" y="78"  class="d-small">↓ time</text>
+
+    <text x="20" y="244" class="d-small">Two increments, one result. It will pass every test on your machine and fail once a week in production — which is</text>
+    <text x="20" y="258" class="d-small">exactly what makes race conditions expensive: they are not reproducible, so they get closed as "cannot reproduce".</text>
+  </svg>
+  <figcaption>
+    Nothing here is a bug in either thread. The bug is that a read-modify-write on shared state was
+    treated as if it were atomic.
+  </figcaption>
+</figure>
+
+<div class="code-head">four fixes, from heaviest to best</div>
+<pre><code><span class="cm">// 1. lock — mutual exclusion. Lock on a PRIVATE, READONLY object you own.</span>
+<span class="kw">private readonly object</span> _gate = <span class="kw">new</span>();
+<span class="kw">lock</span> (_gate) { _count++; }
+<span class="cm">//    ✗ never lock(this), lock(typeof(X)) or lock on a string — anyone else</span>
+<span class="cm">//      can lock the same object and deadlock you from outside your class.</span>
+
+<span class="cm">// 2. Interlocked — atomic, lock-free, far cheaper for a single value.</span>
+<span class="ty">Interlocked</span>.Increment(<span class="kw">ref</span> _count);
+
+<span class="cm">// 3. A concurrent collection — do not wrap Dictionary in a lock yourself.</span>
+<span class="kw">private readonly</span> <span class="ty">ConcurrentDictionary</span>&lt;<span class="kw">int</span>, <span class="ty">Order</span>&gt; _cache = <span class="kw">new</span>();
+_cache.GetOrAdd(id, Load);
+<span class="cm">//    ⚠ the factory may run more than once under contention — it is</span>
+<span class="cm">//      thread-safe, not run-once. Make it cheap and side-effect free.</span>
+
+<span class="cm">// 4. Do not share mutable state at all. Immutability needs no synchronisation,</span>
+<span class="cm">//    which is why records and read-only collections are the real answer.</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ You cannot <code>await</code> inside a <code>lock</code></div>
+  <pre><code><span class="kw">lock</span> (_gate)
+{
+    <span class="kw">await</span> LoadAsync();      <span class="cm">// does not compile — and that is a kindness</span>
+}</code></pre>
+  <p>
+    A <code>lock</code> is owned by a <em>thread</em>, and after an <code>await</code> the
+    continuation may run on a different one, so releasing it would be meaningless. Use
+    <code>SemaphoreSlim</code>, which is thread-agnostic, and release it in a
+    <code>finally</code>:
+  </p>
+  <pre><code><span class="kw">private readonly</span> <span class="ty">SemaphoreSlim</span> _gate = <span class="kw">new</span>(<span class="nu">1</span>, <span class="nu">1</span>);
+
+<span class="kw">await</span> _gate.WaitAsync(ct);
+<span class="kw">try</span>     { <span class="kw">await</span> LoadAsync(ct); }
+<span class="kw">finally</span> { _gate.Release(); }        <span class="cm">// or the lock is held forever</span></code></pre>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ The one that catches web developers</div>
+  <p>
+    In ASP.NET Core every request runs concurrently on the thread pool, so anything you register as
+    a <strong>singleton</strong> is shared by all of them and must be thread-safe. A singleton
+    holding a plain <code>Dictionary</code>, or a singleton holding a
+    <code>DbContext</code> (which is explicitly not thread-safe), gives you corruption under load
+    and nothing at all in testing. That is the captive-dependency trap from
+    <a href="14-web-api.html#di">chapter 14</a>, seen from the memory side.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>Make the race happen on purpose. It takes four lines and it is genuinely convincing:</p>
+  <pre><code><span class="kw">int</span> count = <span class="nu">0</span>;
+<span class="ty">Parallel</span>.For(<span class="nu">0</span>, <span class="nu">1_000_000</span>, _ =&gt; count++);
+<span class="ty">Console</span>.WriteLine(count);          <span class="out">// 862417. Or 91355. Never 1000000.</span></code></pre>
+  <pre><code><span class="kw">int</span> count = <span class="nu">0</span>;
+<span class="ty">Parallel</span>.For(<span class="nu">0</span>, <span class="nu">1_000_000</span>, _ =&gt; <span class="ty">Interlocked</span>.Increment(<span class="kw">ref</span> count));
+<span class="ty">Console</span>.WriteLine(count);          <span class="out">// 1000000, every time</span></code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    Run the first one five times and note that the number is different each time and never right.
+    That irreproducibility <em>is</em> the lesson &mdash; it is why these bugs survive testing and
+    get closed as "cannot reproduce". Then, for disposal: open a
+    <code>StreamWriter</code> without <code>using</code>, write to it, and read the file back
+    immediately. It is empty, because nothing flushed. Add <code>using</code> and it appears.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>The GC frees unreachable managed memory, non-deterministically. Nothing else.</li>
+    <li>Anything holding an unmanaged resource implements <code>IDisposable</code>. Wrap it in <code>using</code>.</li>
+    <li><code>using</code> compiles to <code>try/finally</code>. That is why an exception cannot leak the resource.</li>
+    <li>Prefer <code>await using</code> and <code>IAsyncDisposable</code> when release does I/O.</li>
+    <li>Never dispose <code>HttpClient</code> per call. Use <code>IHttpClientFactory</code>.</li>
+    <li>You rarely need a finalizer. If you write one, you have probably taken on a native handle.</li>
+    <li>Boxing is a hidden allocation. Generic collections exist partly to avoid it.</li>
+    <li>Managed languages leak by holding on: events, statics, timers, undisposed pools.</li>
+    <li>Find leaks with two snapshots and a rising instance count, not by guessing.</li>
+    <li><code>count++</code> is read-modify-write, not one operation.</li>
+    <li>Lock on a private readonly object. Never <code>this</code>, a type, or a string.</li>
+    <li>No <code>await</code> inside a <code>lock</code> &mdash; use <code>SemaphoreSlim</code>, released in a <code>finally</code>.</li>
+    <li>Every singleton in a web app is shared by every concurrent request.</li>
+    <li>The cheapest thread-safety is not sharing mutable state at all.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Mi spiega <code>IDisposable</code> e <code>using</code>?"</p>
+  <p class="a">
+    <code>IDisposable</code> releases unmanaged resources deterministically, because the GC handles
+    memory only and does not tell you when. <code>using</code> guarantees <code>Dispose()</code>
+    runs by compiling to <code>try/finally</code>. Then add the modern half —
+    <code>using</code> declarations and <code>await using</code> for
+    <code>IAsyncDisposable</code> — so the answer sounds current rather than learned from a 2012
+    article.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does the garbage collector do?"</p>
+  <p class="a">
+    Reclaims managed memory that is no longer reachable from a root, using generations because most
+    objects die young. Then volunteer the two limits, which is where the marks are: it is
+    non-deterministic, so it cannot manage a file handle or a connection, and it will not help you
+    if something is still holding a reference — which is how you leak in a managed language.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is boxing?"</p>
+  <p class="a">
+    Wrapping a value type in an object on the heap so it can be used as a reference type — a hidden
+    allocation. Give a place it happens silently, such as putting <code>int</code>s in an
+    <code>ArrayList</code> or assigning a struct to an interface, and connect it to generics:
+    avoiding boxing is one of the three reasons <code>List&lt;int&gt;</code> beats
+    <code>ArrayList</code>.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"This counter is wrong under load. Why, and how do you fix it?"</p>
+  <p class="a">
+    <code>count++</code> is read-modify-write, so two threads can interleave and lose an increment.
+    Rank the fixes rather than naming one: <code>Interlocked.Increment</code> for a single value,
+    <code>lock</code> on a private readonly object for a larger critical section, a concurrent
+    collection instead of locking a dictionary yourself — and best of all, not sharing mutable
+    state.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Can you <code>await</code> inside a <code>lock</code>?"</p>
+  <p class="a">
+    No, and it does not compile. A monitor is owned by a thread, and the continuation after an
+    <code>await</code> may resume on another, so the release would be meaningless.
+    <code>SemaphoreSlim</code> with <code>WaitAsync</code> is the async equivalent — and it must be
+    released in a <code>finally</code>, or one exception holds the gate shut for the life of the
+    process.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    <a href="../../course/module-19-memory-and-gc/README.md">Module 19 — Memory and GC</a> for
+    generations, the LOH and allocation profiling;
+    <a href="../../course/module-21-threading-and-memory-model/README.md">Module 21 — Threading and
+    the memory model</a> for why <code>volatile</code>, memory barriers and reordering exist. Then
+    <a href="07-async-and-errors.html">chapter 07</a> is the concurrency you will use daily, and
+    this one is what it is standing on.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

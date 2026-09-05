@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review — LogiFlow Academy</title>
+<meta name="description" content="Spaced-repetition review of every question you have answered, mixed across chapters, scheduled so that you see each one just before you would have forgotten it.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="review">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> Review</p>
+    <h1>Review</h1>
+    <p class="lede">
+      Every question you have ever answered on this site is scheduled here. Get one right
+      and the gap before you see it again grows; get it wrong and it comes back tomorrow.
+      Twenty minutes here is worth more than an hour of re-reading, and this is the part of
+      the site that decides whether you still know chapter 6 in November.
+    </p>
+
+    <div id="start"></div>
+    <div id="quiz"></div>
+
+    <h2 id="why">Why this works</h2>
+
+    <div class="box kid">
+      <div class="box-title">🧒 Simple</div>
+      <p>
+        Imagine trying to remember a friend's phone number. If you look at it fifty times
+        in one afternoon you will forget it by Friday. If you look at it today, then in two
+        days, then in a week, then in a month &mdash; each time just before you would have
+        forgotten &mdash; it sticks for years.
+      </p>
+      <p>
+        That is all this page does. It remembers which things you nearly forgot, and shows
+        them to you at exactly the right moment.
+      </p>
+    </div>
+
+    <div class="box pro">
+      <div class="box-title">🎓 Professional</div>
+      <p>
+        Two findings from the learning-science literature do most of the work here.
+        The first is the <strong>testing effect</strong>: being asked to retrieve something
+        strengthens the memory far more than reading it again, even when the retrieval
+        fails. The second is <strong>spacing</strong>: the interval between reviews should
+        expand, because recall that requires effort is what consolidates.
+      </p>
+      <p>
+        The scheduler is SM-2, the algorithm behind SuperMemo and Anki, with one change
+        that matters: a right answer you had to work for is graded differently from one you
+        were sure about, so the interval grows more slowly. That is what the
+        <em>&ldquo;I half-guessed&rdquo;</em> button is for, and skipping it honestly is the
+        fastest way to make this page useless.
+      </p>
+      <p>
+        There is a third effect you get for free. Because the schedule is global rather than
+        per chapter, a session mixes async with T-SQL with Docker &mdash; which is
+        <strong>interleaving</strong>. Mixed practice feels harder and measurably
+        outperforms studying one topic at a time, because it forces you to work out
+        <em>which</em> tool applies before applying it. That is also exactly what an
+        interview does.
+      </p>
+    </div>
+
+    <h2 id="other">Other ways to practise</h2>
+    <div id="modes" class="next-grid"></div>
+
+    <h2 id="schedule">What is scheduled</h2>
+    <div id="schedule"></div>
+
+    <div id="pager"></div>
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/quizzes-1.js"></script>
+<script src="assets/quizzes-2.js"></script>
+<script src="assets/quizzes-3.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/quiz.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/notes.js"></script>
+<script src="assets/account.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var LF = window.LF, Q = window.LFQuiz, esc = window.LFLearn.esc;
+
+  var startHost = document.getElementById("start");
+  var quizHost  = document.getElementById("quiz");
+
+  function dueQuestions(limit) {
+    return LF.due(limit)
+      .map(function (d) { return Q.byId(d.id); })
+      .filter(Boolean);
+  }
+
+  function lapsedQuestions() {
+    var p = LF.profile, out = [];
+    Object.keys(p.cards).forEach(function (id) {
+      if (p.cards[id].lapses > 0) { var q = Q.byId(id); if (q) out.push(q); }
+    });
+    return out;
+  }
+
+  /* ---------------------------------------------------------------- start */
+
+  function paintStart() {
+    var due = LF.due();
+    var seen = Object.keys(LF.profile.cards).length;
+    var total = Q.count();
+
+    if (!seen) {
+      startHost.innerHTML =
+        '<div class="quiz-intro">' +
+          "<p><strong>Nothing is scheduled yet.</strong> Questions arrive here automatically the " +
+          "first time you answer them &mdash; take any chapter's end-of-chapter test and come back.</p>" +
+          '<p><a class="btn primary big" href="index.html#chapters">Pick a chapter</a> ' +
+          '<a class="btn big" href="exam.html">Or sit a mixed exam</a></p>' +
+        "</div>";
+      return;
+    }
+
+    if (!due.length) {
+      var next = nextDueDay();
+      startHost.innerHTML =
+        '<div class="quiz-intro">' +
+          "<p><strong>Nothing is due today.</strong> " +
+          esc(seen + " of " + total + " questions") + " are in your schedule" +
+          (next ? ", and the next is due on <strong>" + esc(next) + "</strong>" : "") + ".</p>" +
+          "<p class=\"subtle\">Reviewing early works against the algorithm — the effort of " +
+          "nearly-forgetting is what makes the memory stick. Better uses of the next twenty minutes:</p>" +
+          '<p><a class="btn primary" href="index.html#chapters">Read a new chapter</a> ' +
+          '<a class="btn" href="exam.html">Sit a mock exam</a>' +
+          (lapsedQuestions().length
+            ? ' <button type="button" class="btn" data-act="lapsed">Drill the ' +
+              lapsedQuestions().length + " you keep missing</button>"
+            : "") +
+          "</p>" +
+        "</div>";
+      wireStart();
+      return;
+    }
+
+    startHost.innerHTML =
+      '<div class="quiz-intro">' +
+        "<p><strong>" + due.length + " card" + (due.length === 1 ? "" : "s") + " due.</strong> " +
+        "Drawn from every chapter you have been tested on, in the order you are closest to " +
+        "forgetting them.</p>" +
+        '<p><button type="button" class="btn primary big" data-act="go">Start review</button> ' +
+        (due.length > 20
+          ? '<button type="button" class="btn big" data-act="go20">Just the first 20</button>'
+          : "") +
+        "</p>" +
+      "</div>";
+    wireStart();
+  }
+
+  function wireStart() {
+    startHost.addEventListener("click", function (e) {
+      var act = e.target.getAttribute && e.target.getAttribute("data-act");
+      if (!act) return;
+      if (act === "go")     run(dueQuestions(), "Today's review");
+      if (act === "go20")   run(dueQuestions(20), "Today's review — first 20");
+      if (act === "lapsed") run(Q.shuffle(lapsedQuestions()), "The ones you keep missing");
+    });
+  }
+
+  function nextDueDay() {
+    var best = "";
+    var cards = LF.profile.cards;
+    Object.keys(cards).forEach(function (id) {
+      if (!best || cards[id].due < best) best = cards[id].due;
+    });
+    return best;
+  }
+
+  function run(questions, title) {
+    if (!questions.length) return;
+    startHost.innerHTML = "";
+    Q.mount(quizHost, {
+      questions: questions,
+      mode: "review",
+      title: title,
+      subtitle: "Answer from memory, then say honestly how sure you were.",
+      onFinish: function () {
+        setTimeout(function () { paintSchedule(); paintStart(); }, 100);
+      },
+    });
+    quizHost.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /* ---------------------------------------------------------------- modes */
+
+  function modes() {
+    var lapsed = lapsedQuestions().length;
+    var html = "";
+
+    html += '<a class="next-card" href="exam.html"><span class="next-kind">Mixed exam</span>' +
+      "<strong>Sit a timed paper</strong><span class=\"subtle\">Random questions from the whole course, against a clock.</span></a>";
+
+    if (lapsed) {
+      html += '<a class="next-card urgent" href="#" data-act="lapsed"><span class="next-kind">Drill</span>' +
+        "<strong>" + lapsed + " you keep missing</strong>" +
+        "<span class=\"subtle\">Ignores the schedule. Use it the night before an interview.</span></a>";
+    }
+
+    html += '<a class="next-card" href="#" data-act="chapter"><span class="next-kind">Cram</span>' +
+      "<strong>One chapter, all questions</strong><span class=\"subtle\">Pick a chapter and answer everything in it, scheduled or not.</span></a>";
+
+    var host = document.getElementById("modes");
+    host.innerHTML = html;
+    host.addEventListener("click", function (e) {
+      var a = e.target.closest("[data-act]");
+      if (!a) return;
+      var act = a.getAttribute("data-act");
+      e.preventDefault();
+      if (act === "lapsed") run(Q.shuffle(lapsedQuestions()), "The ones you keep missing");
+      if (act === "chapter") pickChapter();
+    });
+  }
+
+  function pickChapter() {
+    var list = (window.CHAPTERS || []).filter(function (c) {
+      return window.QUIZZES && window.QUIZZES[c.id];
+    });
+    var options = list.map(function (c) { return c.n + " · " + c.title; }).join("\n");
+    var answer = window.prompt("Which chapter? Type its number.\n\n" + options, "01");
+    if (answer === null) return;
+    var want = String(answer).trim().replace(/^0+/, "");
+    var found = list.filter(function (c) { return String(c.n).replace(/^0+/, "") === want; })[0];
+    if (!found) { window.alert("No chapter with that number."); return; }
+    run(Q.shuffle(Q.forChapter(found.id)), "Cramming " + found.n + " · " + found.title);
+  }
+
+  /* ------------------------------------------------------------- schedule */
+
+  function paintSchedule() {
+    var host = document.getElementById("schedule");
+    var cards = LF.profile.cards;
+    var ids = Object.keys(cards);
+    if (!ids.length) {
+      host.innerHTML = '<p class="subtle">Nothing scheduled yet.</p>';
+      return;
+    }
+
+    var buckets = { "Due now": 0, "Tomorrow": 0, "This week": 0, "This month": 0, "Later": 0 };
+    var today = LF.today();
+    ids.forEach(function (id) {
+      var gap = LF.daysBetween(today, cards[id].due);
+      if (gap <= 0) buckets["Due now"]++;
+      else if (gap === 1) buckets["Tomorrow"]++;
+      else if (gap <= 7) buckets["This week"]++;
+      else if (gap <= 31) buckets["This month"]++;
+      else buckets["Later"]++;
+    });
+
+    var max = Math.max.apply(null, Object.keys(buckets).map(function (k) { return buckets[k]; })) || 1;
+    var rows = Object.keys(buckets).map(function (k) {
+      return '<div class="part-row"><span class="part-name">' + k + "</span>" +
+        '<span class="part-track"><span style="width:' + Math.round((buckets[k] / max) * 100) + '%"></span></span>' +
+        '<span class="part-pct">' + buckets[k] + "</span></div>";
+    }).join("");
+
+    var recall = LF.recall();
+    host.innerHTML = '<div class="part-list">' + rows + "</div>" +
+      '<p class="subtle">' + ids.length + " of " + Q.count() + " questions are in the schedule" +
+      (recall === null ? "" : ", and " + recall + "% of them are considered retained (right twice, " +
+       "with the next review at least four days away)") + ".</p>";
+  }
+
+  paintStart();
+  modes();
+  paintSchedule();
+})();
+</script>
+</body>
+</html>

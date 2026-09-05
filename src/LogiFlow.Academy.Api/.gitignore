@@ -1,0 +1,3 @@
+# The SQLite database and the development signing key. Neither belongs in git:
+# one is somebody's progress, the other would let anyone mint a token for any user.
+App_Data/

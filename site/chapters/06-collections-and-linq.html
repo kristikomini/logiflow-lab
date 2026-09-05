@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 · Collections and LINQ — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="06-collections-and-linq">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 1 &mdash; The platform and the language <span>&rsaquo;</span> Chapter 06</p>
+<h1>Collections and LINQ</h1>
+<p class="lede">
+  Two topics that must be learned together, because the second one hides the first. LINQ makes
+  every collection look the same &mdash; and the cost of choosing the wrong one, or of not noticing
+  <em>when</em> a query runs, stays completely invisible until production.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Ottima conoscenza del linguaggio C#."</em> LINQ is the part of C# most likely to appear
+  in a live-coding round, and <code>IQueryable</code> vs <code>IEnumerable</code> is the question
+  that connects this chapter to <a href="12-ef-core.html">EF Core</a>.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="picking-a-collection">Picking a collection</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A <strong>List</strong> is a row of numbered lockers. Locker 7 is instant &mdash; you walk
+    straight to it. But "which locker has the red bag in it?" means opening every single one.
+  </p>
+  <p>
+    A <strong>Dictionary</strong> is a cloakroom with tickets. You hand over ticket
+    <em>MO-4471</em> and the attendant fetches your coat immediately, however many coats there
+    are. The catch is that you must have kept the ticket &mdash; you cannot ask for "the third
+    coat".
+  </p>
+  <p>
+    A <strong>HashSet</strong> is a guest list. Its only real talent is answering
+    "is this name on it?" instantly, and it refuses to write the same name twice.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Choose by the operation you perform most, and know its cost. <code>List&lt;T&gt;</code> is a
+    growable array: O(1) indexing and amortised O(1) append, but O(n) search and O(n) removal
+    from the middle. <code>Dictionary&lt;K,V&gt;</code> and <code>HashSet&lt;T&gt;</code> are hash
+    tables: O(1) average lookup, at the cost of memory and of requiring a correct
+    <code>GetHashCode</code>.
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr>
+    <th>Type</th><th>By index</th><th>Search / contains</th><th>Add</th><th>Reach for it when</th>
+  </tr></thead>
+  <tbody>
+    <tr><td><code>T[]</code></td><td>O(1)</td><td>O(n)</td><td>&mdash; fixed size</td><td>The size is known and never changes.</td></tr>
+    <tr><td><code>List&lt;T&gt;</code></td><td>O(1)</td><td>O(n)</td><td>O(1)*</td><td>The default. Ordered, indexable, grows.</td></tr>
+    <tr><td><code>Dictionary&lt;K,V&gt;</code></td><td>&mdash;</td><td>O(1)</td><td>O(1)*</td><td>Look-up by a key. The most under-used type in C#.</td></tr>
+    <tr><td><code>HashSet&lt;T&gt;</code></td><td>&mdash;</td><td>O(1)</td><td>O(1)*</td><td>Membership tests and de-duplication.</td></tr>
+    <tr><td><code>Queue&lt;T&gt;</code></td><td>&mdash;</td><td>O(n)</td><td>O(1)*</td><td>First in, first out. Work pending.</td></tr>
+    <tr><td><code>Stack&lt;T&gt;</code></td><td>&mdash;</td><td>O(n)</td><td>O(1)*</td><td>Last in, first out. Undo, traversal.</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="subtle">* amortised &mdash; occasionally the backing array is doubled and everything is copied.</p>
+
+<div class="code-head">the O(n²) that hides in plain sight</div>
+<pre><code><span class="cm">// ✗ For every order, scan the whole customer list.</span>
+<span class="cm">//   1,000 orders × 10,000 customers = 10,000,000 comparisons.</span>
+<span class="kw">foreach</span> (<span class="kw">var</span> order <span class="kw">in</span> orders)
+{
+    <span class="kw">var</span> customer = customers.First(c =&gt; c.Id == order.CustomerId);   <span class="cm">// O(n) each time</span>
+    ...
+}
+
+<span class="cm">// ✓ Index once, then every look-up is free.</span>
+<span class="cm">//   10,000 + 1,000 operations.</span>
+<span class="kw">var</span> byId = customers.ToDictionary(c =&gt; c.Id);
+<span class="kw">foreach</span> (<span class="kw">var</span> order <span class="kw">in</span> orders)
+{
+    <span class="kw">var</span> customer = byId[order.CustomerId];                          <span class="cm">// O(1)</span>
+    ...
+}</code></pre>
+
+<p>
+  This exact transformation &mdash; <em>"build a dictionary first"</em> &mdash; is the single most
+  common answer to "this endpoint got slow" in line-of-business .NET, and it is a very common
+  live-coding exercise.
+</p>
+
+<h3>Which interface should a method return?</h3>
+
+<p>
+  Return the <em>least</em> capability the caller genuinely needs. It keeps your options open and
+  tells the reader what they may do.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Type</th><th>Caller can</th><th>Use as</th></tr></thead>
+  <tbody>
+    <tr><td><code>IEnumerable&lt;T&gt;</code></td><td>Iterate, once, forwards</td><td>Parameter type, and streaming results</td></tr>
+    <tr><td><code>IReadOnlyCollection&lt;T&gt;</code></td><td>Iterate + <code>Count</code></td><td>Return type when the set is finite and materialised</td></tr>
+    <tr><td><code>IReadOnlyList&lt;T&gt;</code></td><td>&hellip;+ index</td><td>The usual return type for "a list of things"</td></tr>
+    <tr><td><code>ICollection&lt;T&gt;</code> / <code>IList&lt;T&gt;</code></td><td>&hellip;+ mutate</td><td>Only when the caller is <em>meant</em> to modify it</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="what-linq-is">What LINQ actually is</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine asking for "all the red sweets, sorted by size". You could tip the whole bag on the
+    table, push the red ones into a pile, then line them up. Or you could hand your instructions to
+    a machine that picks up <em>one sweet at a time</em>, throws away anything not red, and passes
+    the rest along a little conveyor belt.
+  </p>
+  <p>
+    LINQ is the conveyor belt. And &mdash; this is the surprising part &mdash; the belt does not
+    move at all until somebody stands at the end of it holding out a bowl.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    LINQ operators are extension methods on <code>IEnumerable&lt;T&gt;</code> that return
+    <em>iterators</em>, not results. <code>Where</code> does not filter anything when you call it;
+    it builds an object that knows how to filter when asked. Nothing executes until something
+    enumerates the chain &mdash; a <code>foreach</code>, or a terminal operator like
+    <code>ToList</code>, <code>Count</code>, <code>First</code>, <code>Any</code>,
+    <code>Sum</code>. This is <strong>deferred execution</strong>, and it is the source of both
+    LINQ&rsquo;s efficiency and its two classic bugs.
+  </p>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="linq-title">
+    <title id="linq-title">Deferred execution: building a pipeline, then pulling items through it</title>
+    <defs>
+      <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-text" style="font-weight:700">1 · Calling the operators builds a pipeline. Nothing runs.</text>
+
+    <rect x="20" y="42" width="140" height="46" rx="8" class="d-panel"/>
+    <rect x="20" y="42" width="140" height="46" rx="8" class="d-stroke"/>
+    <text x="90" y="70" class="d-mono" text-anchor="middle">orders</text>
+
+    <path d="M162 65 L200 65" class="d-arrow" stroke-width="1.8" marker-end="url(#a4)"/>
+    <rect x="202" y="42" width="170" height="46" rx="8" class="d-panel"/>
+    <rect x="202" y="42" width="170" height="46" rx="8" class="d-stroke" stroke-dasharray="4 3"/>
+    <text x="287" y="70" class="d-mono" text-anchor="middle">.Where(o =&gt; o.Paid)</text>
+
+    <path d="M374 65 L412 65" class="d-arrow" stroke-width="1.8" marker-end="url(#a4)"/>
+    <rect x="414" y="42" width="170" height="46" rx="8" class="d-panel"/>
+    <rect x="414" y="42" width="170" height="46" rx="8" class="d-stroke" stroke-dasharray="4 3"/>
+    <text x="499" y="70" class="d-mono" text-anchor="middle">.Select(o =&gt; o.Id)</text>
+
+    <path d="M586 65 L624 65" class="d-arrow" stroke-width="1.8" marker-end="url(#a4)"/>
+    <rect x="626" y="42" width="190" height="46" rx="8" class="d-brand" opacity=".92"/>
+    <text x="721" y="70" class="d-white" text-anchor="middle">.ToList()  ← the bowl</text>
+
+    <text x="20" y="126" class="d-text" style="font-weight:700">2 · The terminal operator pulls. One item travels the whole way, then the next.</text>
+
+    <rect x="20" y="146" width="796" height="106" rx="9" class="d-fill"/>
+    <rect x="20" y="146" width="796" height="106" rx="9" class="d-stroke"/>
+
+    <text x="40" y="172" class="d-mono">order #1  paid</text>
+    <path d="M180 167 L250 167" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="262" y="172" class="d-mono">passes Where</text>
+    <path d="M380 167 L450 167" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="462" y="172" class="d-mono">Select → 1</text>
+    <path d="M560 167 L630 167" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="642" y="172" class="d-mono">added to list</text>
+
+    <text x="40" y="204" class="d-mono">order #2  unpaid</text>
+    <path d="M180 199 L250 199" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="262" y="204" class="d-mono">dropped ✗</text>
+    <text x="462" y="204" class="d-small">never reaches Select — no work wasted</text>
+
+    <text x="40" y="236" class="d-mono">order #3  paid</text>
+    <path d="M180 231 L250 231" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="262" y="236" class="d-mono">passes Where</text>
+    <path d="M380 231 L450 231" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="462" y="236" class="d-mono">Select → 3</text>
+    <path d="M560 231 L630 231" class="d-arrow" stroke-width="1.4" marker-end="url(#a4)"/>
+    <text x="642" y="236" class="d-mono">added to list</text>
+
+    <text x="20" y="286" class="d-small">One pass over the source, no intermediate collections, and <tspan style="font-style:italic">First()</tspan> would have stopped after order #1.</text>
+    <text x="20" y="308" class="d-small">The same laziness is what makes enumerating the chain twice run the whole thing twice.</text>
+  </svg>
+  <figcaption>Operators build the pipeline; only a terminal operator makes anything move.</figcaption>
+</figure>
+
+<h3>The two bugs deferred execution causes</h3>
+
+<div class="code-head">bug 1 — multiple enumeration</div>
+<pre><code><span class="kw">var</span> expensive = orders.Where(o =&gt; SlowCheck(o));   <span class="cm">// nothing has run yet</span>
+
+<span class="ty">Console</span>.WriteLine(expensive.Count());              <span class="cm">// runs SlowCheck on everything</span>
+<span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> expensive) Print(o);            <span class="cm">// runs SlowCheck on everything AGAIN</span>
+
+<span class="cm">// ✓ Materialise once when you will use it more than once.</span>
+<span class="kw">var</span> list = orders.Where(o =&gt; SlowCheck(o)).ToList();</code></pre>
+
+<div class="code-head">bug 2 — the captured variable</div>
+<pre><code><span class="kw">var</span> threshold = 100m;
+<span class="kw">var</span> big = orders.Where(o =&gt; o.Total &gt; threshold);   <span class="cm">// captures the VARIABLE</span>
+
+threshold = 1000m;                                  <span class="cm">// ← changed before enumeration</span>
+
+<span class="kw">var</span> result = big.ToList();   <span class="cm">// filters on 1000, not 100. The query ran now.</span></code></pre>
+
+<p class="subtle">
+  The lambda closes over the <em>variable</em>, not its value at the time of the call. Chapter 07
+  and <a href="../../course/module-02-delegates-and-closures/README.md">module 02</a> go into
+  closures properly; for now, treat "a LINQ query is a recipe, not a meal" as the rule.
+</p>
+
+<h2 id="iqueryable">IEnumerable vs IQueryable &mdash; the question that matters</h2>
+
+<p>
+  This is the bridge between this chapter and every database chapter that follows, and it is asked
+  in interviews constantly.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You want the three tallest children in a school of eight hundred.
+  </p>
+  <p>
+    <strong>IEnumerable</strong> is: bring all eight hundred children into the room, then measure
+    them and pick three. It works. The room is very full.
+  </p>
+  <p>
+    <strong>IQueryable</strong> is: send a note to the school office saying "please send me your
+    three tallest". Three children arrive. The office did the sorting, because the office has the
+    records.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <code>IEnumerable&lt;T&gt;</code> takes <code>Func&lt;T,bool&gt;</code> &mdash; compiled code,
+    executable only in .NET. <code>IQueryable&lt;T&gt;</code> takes
+    <code>Expression&lt;Func&lt;T,bool&gt;&gt;</code> &mdash; a data structure describing the
+    lambda, which a provider (EF Core) can <em>read</em> and translate into T-SQL.
+  </p>
+  <p>
+    The moment you call <code>.AsEnumerable()</code>, <code>.ToList()</code>, or any operator EF
+    Core cannot translate, the query stops being translatable: everything after that point runs
+    in memory, on whatever rows have already been fetched.
+  </p>
+</div>
+
+<div class="code-head">the same code, a thousandfold difference</div>
+<pre><code><span class="cm">// ✓ IQueryable — one efficient statement, three rows come back</span>
+<span class="kw">var</span> top = <span class="kw">await</span> db.Orders
+    .Where(o =&gt; o.CustomerId == id)
+    .OrderByDescending(o =&gt; o.Total)
+    .Take(3)
+    .ToListAsync();
+
+<span class="cm">// SELECT TOP(3) ... FROM Orders WHERE CustomerId = @id ORDER BY Total DESC</span>
+
+
+<span class="cm">// ✗ ToList() first — the whole table crosses the network, then LINQ runs on it</span>
+<span class="kw">var</span> top2 = db.Orders
+    .ToList()                          <span class="cm">// ← SELECT * FROM Orders. Every row. Every column.</span>
+    .Where(o =&gt; o.CustomerId == id)
+    .OrderByDescending(o =&gt; o.Total)
+    .Take(3)
+    .ToList();</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ How to spot it in a code review</div>
+  <p>
+    Look for <code>.ToList()</code>, <code>.AsEnumerable()</code> or <code>.ToArray()</code>
+    appearing <em>before</em> a <code>Where</code> or <code>OrderBy</code>. Nine times out of ten
+    it is there because somebody hit a translation error and made it go away. It did not go away;
+    it moved to the network.
+  </p>
+</div>
+
+<h2 id="operators">The operators worth memorising</h2>
+
+<div class="code-head">filtering, projecting, ordering</div>
+<pre><code>orders.Where(o =&gt; o.Total &gt; 100)              <span class="cm">// filter</span>
+orders.Select(o =&gt; o.CustomerName)            <span class="cm">// project (map)</span>
+orders.SelectMany(o =&gt; o.Lines)               <span class="cm">// flatten one level</span>
+orders.OrderBy(o =&gt; o.Date).ThenByDescending(o =&gt; o.Total)
+orders.Distinct() / .Skip(20).Take(10)        <span class="cm">// dedupe / page</span></code></pre>
+
+<div class="code-head">the four "get me one" operators — and their differences</div>
+<pre><code>orders.First(o =&gt; o.Paid)            <span class="cm">// throws if none</span>
+orders.FirstOrDefault(o =&gt; o.Paid)   <span class="cm">// null if none          ← the usual choice</span>
+orders.Single(o =&gt; o.Id == 7)        <span class="cm">// throws if none OR if more than one</span>
+orders.SingleOrDefault(o =&gt; o.Id == 7) <span class="cm">// null if none, throws if many</span></code></pre>
+
+<p>
+  <code>Single</code> is a <em>claim</em>: "exactly one of these exists, and if that is ever untrue
+  I want to know immediately." Use it on unique keys &mdash; the exception is doing its job. Use
+  <code>First</code> when several matches are legitimate and you want the earliest.
+</p>
+
+<div class="code-head">aggregation and grouping</div>
+<pre><code>orders.Any(o =&gt; o.Paid)                 <span class="cm">// ✓ cheap — stops at the first match</span>
+orders.Count(o =&gt; o.Paid) &gt; 0           <span class="cm">// ✗ counts every one first</span>
+
+orders.Sum(o =&gt; o.Total)
+orders.Max(o =&gt; o.Date)
+
+<span class="cm">// GroupBy — the shape SQL calls GROUP BY</span>
+<span class="kw">var</span> perCustomer = orders
+    .GroupBy(o =&gt; o.CustomerId)
+    .Select(g =&gt; <span class="kw">new</span>
+    {
+        CustomerId = g.Key,
+        Count      = g.Count(),
+        Revenue    = g.Sum(o =&gt; o.Total)
+    });</code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>Any()</code> vs <code>Count() &gt; 0</code></div>
+  <p>
+    A small, real difference that interviewers like because it shows whether you think about cost.
+    <code>Any()</code> stops at the first match; <code>Count()</code> walks the entire sequence.
+    Against a database it is the difference between <code>EXISTS</code> and <code>COUNT(*)</code>.
+    Against an infinite sequence, <code>Count()</code> never returns at all.
+  </p>
+</div>
+
+<h3>Query syntax</h3>
+<p>
+  Both forms compile to the same thing. Method syntax is far more common; query syntax is
+  genuinely nicer for joins and multi-level grouping, so you should be able to <em>read</em> it.
+</p>
+
+<div class="code-head">the same query, twice</div>
+<pre><code><span class="kw">var</span> a = orders.Where(o =&gt; o.Paid)
+              .OrderBy(o =&gt; o.Date)
+              .Select(o =&gt; o.Id);
+
+<span class="kw">var</span> b = <span class="kw">from</span> o <span class="kw">in</span> orders
+        <span class="kw">where</span> o.Paid
+        <span class="kw">orderby</span> o.Date
+        <span class="kw">select</span> o.Id;</code></pre>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Run this and explain the output before reading the note. It is the whole chapter in eight
+    lines.
+  </p>
+  <pre><code><span class="kw">var</span> source = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">int</span>&gt; { 1, 2, 3 };
+
+<span class="kw">var</span> query = source.Select(n =&gt;
+{
+    <span class="ty">Console</span>.WriteLine($<span class="st">"  evaluating {n}"</span>);
+    <span class="kw">return</span> n * 2;
+});
+
+<span class="ty">Console</span>.WriteLine(<span class="st">"query built"</span>);
+source.Add(4);                              <span class="cm">// ← added AFTER building the query</span>
+<span class="ty">Console</span>.WriteLine(<span class="st">"first enumeration:"</span>);
+<span class="kw">foreach</span> (<span class="kw">var</span> n <span class="kw">in</span> query) { }
+<span class="ty">Console</span>.WriteLine(<span class="st">"second enumeration:"</span>);
+<span class="kw">foreach</span> (<span class="kw">var</span> n <span class="kw">in</span> query) { }</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    "query built" prints <em>before</em> any evaluation; the 4 <em>is</em> included, because the
+    query reads the list when it runs, not when it was written; and everything is evaluated twice.
+    Three separate surprises, all from the same cause.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-03-linq-internals/README.md">Module 03</a> implements
+    <code>Where</code> and <code>Select</code> from scratch so the iterator machinery stops being
+    magic; <a href="../../course/module-09-advanced-linq/README.md">Module 09</a> covers expression
+    trees and custom providers; <a href="../../course/module-20-equality-and-collections/README.md">Module
+    20</a> explains why a broken <code>GetHashCode</code> silently turns a
+    <code>Dictionary</code> back into a linear scan.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><code>List&lt;T&gt;</code> by default; <code>Dictionary&lt;K,V&gt;</code> the moment you
+        find yourself searching inside a loop.</li>
+    <li>A nested loop over two collections is O(n&times;m). Build a dictionary first.</li>
+    <li>Return the least capable type that serves the caller &mdash; usually
+        <code>IReadOnlyList&lt;T&gt;</code>.</li>
+    <li>LINQ operators are lazy. A query is a recipe; a terminal operator is the cooking.</li>
+    <li>Enumerating twice executes twice. <code>ToList()</code> once if you will use it more than
+        once.</li>
+    <li>Lambdas capture variables, not values. A query built before a variable changes will see
+        the new value.</li>
+    <li><code>IQueryable</code> is translated to SQL; <code>IEnumerable</code> runs in memory.
+        <code>ToList()</code> in the wrong place moves the work &mdash; and the whole table &mdash;
+        onto your server.</li>
+    <li><code>Any()</code>, never <code>Count() &gt; 0</code>.</li>
+    <li><code>Single</code> asserts uniqueness; <code>First</code> takes the earliest of many. Pick
+        the one that states your intent.</li>
+    <li>Project with <code>Select</code> before materialising: fetch the four columns you need,
+        not the twenty that exist.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is deferred execution?"</p>
+  <p class="a">
+    LINQ operators return iterators rather than results; nothing is evaluated until the sequence is
+    enumerated. Then give the payoff: it allows chaining without intermediate collections and lets
+    <code>First()</code> stop early &mdash; and it causes double execution when you enumerate the
+    same query twice.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"IEnumerable or IQueryable?"</p>
+  <p class="a">
+    <code>IEnumerable</code> holds compiled delegates and runs in memory;
+    <code>IQueryable</code> holds an expression tree that a provider translates &mdash; to T-SQL,
+    in EF Core&rsquo;s case. Getting this wrong is how you accidentally load a whole table to find
+    three rows.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When would you use a Dictionary over a List?"</p>
+  <p class="a">
+    Whenever look-up by key dominates. O(1) versus O(n) &mdash; and note the requirements: the key
+    must have a stable, correct <code>GetHashCode</code>, and a mutable key is a bug because the
+    entry becomes unreachable in its own dictionary.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>SelectMany</code> do?"</p>
+  <p class="a">
+    Flattens one level: <code>orders.SelectMany(o =&gt; o.Lines)</code> turns a sequence of orders
+    into a single sequence of all their lines. It is the LINQ equivalent of a join across a
+    collection property.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"This endpoint takes eight seconds. Where do you look?"</p>
+  <p class="a">
+    First at whether a query is being executed inside a loop (the N+1 problem &mdash;
+    <a href="12-ef-core.html">chapter 12</a>), then at whether a <code>ToList()</code> appears
+    before the filtering, then at whether a search is happening inside a loop that a dictionary
+    would make constant. Those three account for most of it.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

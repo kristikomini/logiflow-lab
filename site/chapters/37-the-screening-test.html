@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>37 · The screening test — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="37-the-screening-test">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 8 &mdash; The human requirements <span>&rsaquo;</span> Chapter 37</p>
+<h1>The screening test</h1>
+<p class="lede">
+  Before anyone reads your code, talks to you, or looks at your project, a large consultancy will
+  send you a link to a timed automated test. It is scored by hidden test cases with no human in the
+  loop. This is the round that filters most candidates out, and the only one you can prepare for
+  mechanically.
+</p>
+
+<div class="box note">
+  <div class="box-title">Why this chapter exists</div>
+  <p>
+    <a href="38-the-interview.html">Chapter 38</a> tells you how to behave during live coding with
+    a person watching. This is the other thing: sixty to ninety minutes, two or three problems, no
+    interviewer, no partial credit for good intentions. Product companies and small software houses
+    often skip it; NTT Data, Accenture, Reply, Engineering and their peers generally do not.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="what">What it looks like</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    It is a driving theory test, not a driving lesson. Nobody is sitting next to you being
+    impressed by how carefully you check the mirrors. A machine ticks boxes.
+  </p>
+  <p>
+    Which is annoying &mdash; but it also means it is the fairest round, because you can practise
+    it and get straightforwardly better. Nobody can practise being liked.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <ul>
+    <li><strong>60&ndash;90 minutes</strong>, in the browser, timer visible, often with the tab
+        monitored.</li>
+    <li><strong>Two or three coding problems</strong>, sometimes preceded by multiple-choice
+        questions on C#, SQL and OOP &mdash; that part is chapters 02 to 12 and you have already
+        done it.</li>
+    <li><strong>Scored by hidden tests</strong>, usually including large inputs designed
+        specifically to fail an O(n²) solution.</li>
+    <li><strong>Partial credit is normal.</strong> A solution passing 7 of 10 cases scores far
+        better than an empty editor. Never leave a problem blank.</li>
+    <li><strong>Frequently there is a SQL problem too</strong>, which for a .NET role is often the
+        easiest marks in the whole test &mdash;
+        <a href="10-tsql-querying.html">chapter 10</a> covers more than it will ask.</li>
+  </ul>
+</div>
+
+<h2 id="complexity">Complexity, the amount you actually need</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You are looking for a friend's name in the school register. One way: read every name from the
+    top until you find it. The other: the names are alphabetical, so you open the middle, see
+    whether you have gone too far, and throw away half. Then half again.
+  </p>
+  <p>
+    With 1 000 names the first way takes up to 1 000 looks. The second takes about 10. That gap is
+    what all this notation is describing &mdash; not how fast your computer is, but how much worse
+    it gets when the list grows.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    Big-O describes how work grows with input size, ignoring constants. You need five of them:
+  </p>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Order</th><th>Typical of</th><th>n = 1 000</th><th>n = 1 000 000</th></tr></thead>
+  <tbody>
+    <tr><td><code>O(1)</code></td><td>dictionary lookup, array index</td><td>1</td><td>1</td></tr>
+    <tr><td><code>O(log n)</code></td><td>binary search, a B-tree seek</td><td>~10</td><td>~20</td></tr>
+    <tr><td><code>O(n)</code></td><td>one pass over the data</td><td>1 000</td><td>1 000 000</td></tr>
+    <tr><td><code>O(n log n)</code></td><td>sorting</td><td>~10 000</td><td>~20 000 000</td></tr>
+    <tr><td><code>O(n²)</code></td><td><strong>a loop inside a loop over the same data</strong></td><td>1 000 000</td><td>10<sup>12</sup> &mdash; will time out</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p class="subtle">
+  Look at the last row. This is why the test has a large hidden input: it is not testing whether
+  you can write the answer, it is testing whether you noticed the nested loop. And you have met
+  this before &mdash; it is the same argument as a table scan versus an index seek in
+  <a href="11-tsql-performance.html">chapter 11</a>, and the N+1 query in
+  <a href="12-ef-core.html">chapter 12</a>. Three different chapters, one idea.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 290" role="img" aria-labelledby="cx-title">
+    <title id="cx-title">A nested loop compared with a dictionary lookup, and how the two grow with input size</title>
+    <defs>
+      <marker id="a37" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="26" class="d-small">For each item, search the whole list again</text>
+    <rect x="20" y="40" width="340" height="86" rx="8" class="d-panel d-stroke"/>
+    <text x="36" y="62" class="d-mono">foreach (var a in items)</text>
+    <text x="36" y="82" class="d-mono">  foreach (var b in items)   ← n × n</text>
+    <text x="36" y="102" class="d-mono">    if (a + b == target) ...</text>
+    <text x="20" y="146" class="d-small">1 000 items → 1 000 000 comparisons. 1 M items → a timeout.</text>
+
+    <line x1="380" y1="80" x2="430" y2="80" class="d-arrow" marker-end="url(#a37)"/>
+
+    <text x="450" y="26" class="d-small">Index once, then ask</text>
+    <rect x="450" y="40" width="370" height="86" rx="8" class="d-brand"/>
+    <text x="466" y="62"  class="d-white" style="font-size:11px;font-family:ui-monospace,monospace">var seen = new HashSet&lt;int&gt;();</text>
+    <text x="466" y="82"  class="d-white" style="font-size:11px;font-family:ui-monospace,monospace">foreach (var a in items)      ← n</text>
+    <text x="466" y="102" class="d-white" style="font-size:11px;font-family:ui-monospace,monospace">  if (seen.Contains(target-a))← O(1)</text>
+    <text x="450" y="146" class="d-small">1 000 items → 1 000 lookups. 1 M items → 1 M lookups.</text>
+
+    <text x="20" y="186" class="d-small">The move is always the same: spend memory to buy time. A Dictionary or a HashSet turns "search again"</text>
+    <text x="20" y="206" class="d-small">into "ask once". If you learn one thing before the test, learn to spot the nested loop and reach for a hash set.</text>
+
+    <rect x="20" y="228" width="800" height="44" rx="8" class="d-panel d-stroke"/>
+    <text x="36" y="248" class="d-small">In C# the collection you want is nearly always one of three: Dictionary&lt;K,V&gt; for "look it up by key",</text>
+    <text x="36" y="264" class="d-small">HashSet&lt;T&gt; for "have I seen this", List&lt;T&gt; for "keep them in order". Chapter 06 has the full table.</text>
+  </svg>
+  <figcaption>
+    Almost every "optimise this" problem in a junior screening test is this single transformation.
+  </figcaption>
+</figure>
+
+<h2 id="shapes">The shapes that keep coming back</h2>
+
+<p>
+  Junior tests draw from a small pool. Recognising the shape in the first minute is most of the
+  battle &mdash; and this is a .NET test, so LINQ is allowed and expected.
+</p>
+
+<div class="code-head">1 · frequency count with a dictionary</div>
+<pre><code><span class="cm">// "Find the first non-repeating character" / "most common word" / "any duplicates?"</span>
+<span class="kw">var</span> counts = <span class="kw">new</span> <span class="ty">Dictionary</span>&lt;<span class="kw">char</span>, <span class="kw">int</span>&gt;();
+<span class="kw">foreach</span> (<span class="kw">char</span> c <span class="kw">in</span> input)
+    counts[c] = counts.GetValueOrDefault(c) + <span class="nu">1</span>;
+
+<span class="kw">foreach</span> (<span class="kw">char</span> c <span class="kw">in</span> input)
+    <span class="kw">if</span> (counts[c] == <span class="nu">1</span>) <span class="kw">return</span> c;
+<span class="kw">return</span> <span class="st">'\0'</span>;                          <span class="cm">// two passes, O(n). Not nested loops.</span></code></pre>
+
+<div class="code-head">2 · lookup instead of a second loop</div>
+<pre><code><span class="cm">// "Two numbers that sum to the target" — the classic O(n²) trap.</span>
+<span class="kw">var</span> seen = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;<span class="kw">int</span>&gt;();
+<span class="kw">foreach</span> (<span class="kw">int</span> n <span class="kw">in</span> numbers)
+{
+    <span class="kw">if</span> (seen.Contains(target - n)) <span class="kw">return</span> <span class="kw">true</span>;
+    seen.Add(n);
+}
+<span class="kw">return</span> <span class="kw">false</span>;</code></pre>
+
+<div class="code-head">3 · group, aggregate, rank &mdash; the one .NET tests love</div>
+<pre><code><span class="cm">// "Top 3 customers by total" — LINQ is the expected answer here.</span>
+<span class="kw">var</span> top = orders
+    .GroupBy(o =&gt; o.CustomerId)
+    .Select(g =&gt; <span class="kw">new</span> { Id = g.Key, Total = g.Sum(o =&gt; o.Total) })
+    .OrderByDescending(x =&gt; x.Total)
+    .ThenBy(x =&gt; x.Id)            <span class="cm">// tie-break — hidden tests check this</span>
+    .Take(<span class="nu">3</span>)
+    .ToList();</code></pre>
+
+<div class="code-head">4 · running window over a sequence</div>
+<pre><code><span class="cm">// "Largest sum of k consecutive values" — slide, do not recompute.</span>
+<span class="kw">int</span> sum = numbers.Take(k).Sum(), best = sum;
+<span class="kw">for</span> (<span class="kw">int</span> i = k; i &lt; numbers.Length; i++)
+{
+    sum += numbers[i] - numbers[i - k];   <span class="cm">// add one, drop one: O(n) not O(n×k)</span>
+    best = <span class="ty">Math</span>.Max(best, sum);
+}</code></pre>
+
+<div class="code-head">5 · strings, and the trap inside them</div>
+<pre><code><span class="cm">// ✗ Building a string in a loop is O(n²): strings are immutable,</span>
+<span class="cm">//   so every += copies everything so far.</span>
+<span class="kw">string</span> result = <span class="st">""</span>;
+<span class="kw">foreach</span> (<span class="kw">var</span> w <span class="kw">in</span> words) result += w + <span class="st">" "</span>;
+
+<span class="cm">// ✓</span>
+<span class="kw">var</span> sb = <span class="kw">new</span> <span class="ty">StringBuilder</span>();
+<span class="kw">foreach</span> (<span class="kw">var</span> w <span class="kw">in</span> words) sb.Append(w).Append(<span class="st">' '</span>);
+<span class="cm">// or simply: string.Join(" ", words)</span></code></pre>
+
+<div class="code-head">6 · recursion, kept shallow</div>
+<pre><code><span class="cm">// Tree or nested-structure walks. Always ask: what is the base case?</span>
+<span class="kw">static int</span> Depth(<span class="ty">Node</span>? node) =&gt;
+    node <span class="kw">is null</span> ? <span class="nu">0</span> : <span class="nu">1</span> + <span class="ty">Math</span>.Max(Depth(node.Left), Depth(node.Right));
+<span class="cm">// If the input could be 100 000 deep, rewrite it with an explicit Stack&lt;T&gt;</span>
+<span class="cm">// — StackOverflowException cannot be caught and kills the process.</span></code></pre>
+
+<h2 id="minutes">Spending the ninety minutes</h2>
+
+<ol>
+  <li><strong>Read every problem first (3 min).</strong> Do the easiest one first. Marks are marks,
+      and confidence is real.</li>
+  <li><strong>Write the brute-force version and make it pass (15 min).</strong> A working O(n²)
+      scores; an elegant half-finished solution scores nothing. Optimise only after something
+      works.</li>
+  <li><strong>Then look for the nested loop</strong> and replace it with a dictionary or a set.</li>
+  <li><strong>Spend five minutes on edge cases before submitting.</strong> This is where the hidden
+      tests live: empty input, one element, all elements equal, negative numbers, duplicates,
+      <code>null</code>, and values above <code>int.MaxValue</code> &mdash; sums overflow silently
+      in C#, so use <code>long</code> when totalling.</li>
+  <li><strong>Never leave a problem empty.</strong> Even a partial solution that handles the simple
+      case earns points.</li>
+</ol>
+
+<div class="box trap">
+  <div class="box-title">⚠ The five that actually cost people the round</div>
+  <ul>
+    <li><strong><code>list.Contains(x)</code> inside a loop.</strong> Looks innocent, is O(n²).
+        <code>HashSet.Contains</code> is O(1).</li>
+    <li><strong>Building a string with <code>+=</code> in a loop.</strong> Same trap, different
+        clothes.</li>
+    <li><strong>Ignoring the output format.</strong> Returning a list when it wanted a
+        comma-separated string fails every test while the logic is perfect.</li>
+    <li><strong><code>int.Parse</code> on input that might be malformed.</strong>
+        <code>TryParse</code> costs nothing and prevents a crash that scores zero.</li>
+    <li><strong>Optimising first.</strong> The most common way to run out of time with an empty
+        editor.</li>
+  </ul>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Do not grind hundreds of puzzles. Do six, one per shape above, under a real timer &mdash;
+    30 minutes each, no pausing, no looking things up. Then do the honest part:
+  </p>
+  <pre><code>For each one, write down:
+  what shape was it?
+  did I spot it in the first two minutes?
+  which edge case did I miss?</code></pre>
+  <p class="subtle" style="margin-top:.6em">
+    The list of edge cases you personally forget is short and stable &mdash; most people have two or
+    three &mdash; and once it is written down you stop losing marks to it. That list is worth more
+    than another fifty solved problems. Then set up a
+    <code>dotnet new console</code> project you can open in thirty seconds, because fumbling with
+    tooling during a timed test is a real and avoidable loss.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>Never leave a problem blank. Partial credit is real.</li>
+    <li>Read all the problems first, then do the easiest one.</li>
+    <li>Make it work, then make it fast. Never the other way round.</li>
+    <li>A loop inside a loop over the same data is the thing the large input is testing for.</li>
+    <li>Dictionary and HashSet turn "search again" into "ask once". That is the whole trick.</li>
+    <li>Never <code>Contains</code> on a <code>List</code> inside a loop.</li>
+    <li>Never build a string with <code>+=</code> in a loop. <code>StringBuilder</code> or <code>string.Join</code>.</li>
+    <li>Sum into a <code>long</code>. <code>int</code> overflow is silent by default.</li>
+    <li><code>TryParse</code>, never <code>Parse</code>, on input you did not create.</li>
+    <li>Check the output format as carefully as the logic.</li>
+    <li>Edge cases: empty, one, all-equal, negative, duplicates, null.</li>
+    <li>LINQ is expected in a .NET test. Readable LINQ beats a clever loop.</li>
+    <li>Keep your own list of the edge cases you forget. It is short and it is fixable.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<p>
+  There is nobody to answer in this round &mdash; but the same material comes back in the technical
+  interview afterwards, phrased like this:
+</p>
+
+<div class="qa">
+  <p class="q">"What is the complexity of your solution?"</p>
+  <p class="a">
+    State it and justify it in one breath: "O(n), because it is a single pass and each dictionary
+    lookup is O(1) on average." The word <em>average</em> matters — hashing degrades to O(n) with
+    bad collisions, and knowing that is a genuine signal. Then say what you traded: extra memory
+    proportional to n.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you make this faster?"</p>
+  <p class="a">
+    Find the nested loop and remove it by indexing one side into a dictionary or set. Then be
+    honest about the trade — memory for time — and add the sentence that shows judgement: with a
+    hundred items it does not matter, and you would only pay that memory if the input can actually
+    get large.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"When is a <code>List</code> the wrong collection?"</p>
+  <p class="a">
+    When you are searching it by value rather than reading it by index —
+    <code>List.Contains</code> is O(n), so calling it in a loop is O(n²).
+    <code>HashSet&lt;T&gt;</code> for membership, <code>Dictionary&lt;K,V&gt;</code> for lookup by
+    key. This is <a href="06-collections-and-linq.html">chapter 06</a> asked as an algorithms
+    question, and the two are the same thing.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You did not finish the test. What happened?"</p>
+  <p class="a">
+    Answer factually and without defensiveness: which problem, what you had, what you would do
+    differently with the time again. Everyone respects "I spent too long optimising the second one
+    before it worked, so I would write the brute force first next time." Nobody respects blaming
+    the platform.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper</div>
+  <p>
+    The collection choices behind all of this are in
+    <a href="06-collections-and-linq.html">chapter 06</a>, and
+    <a href="../../course/module-20-equality-and-collections/README.md">Module 20 — Equality and
+    collections</a> explains why a bad <code>GetHashCode</code> turns your O(1) dictionary into an
+    O(n) list. Pass this round and the next one has a human in it:
+    <a href="38-the-interview.html">chapter 38</a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

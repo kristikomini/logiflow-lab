@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    THE BLAZOR FRONT END
+    ====================
+    A Blazor Web App running in InteractiveServer render mode, and a *client of the API* rather
+    than a second head on the Application layer.
+
+    Why an HTTP client instead of a project reference to LogiFlow.Application:
+
+      * It is what you will be asked to build. A UI over an existing API is the common industrial
+        shape - and it keeps the API the product, not an implementation detail of the web app.
+      * It forces the contract to be real. This project redeclares the DTOs it consumes
+        (see Contracts/) instead of sharing types, which is what any non-.NET consumer would have
+        to do. If the API changes shape, this project should break - silently sharing a type
+        would hide that.
+      * The architecture tests stay meaningful. Nothing here can reach past the API into a
+        handler or an entity, because it has no reference to them.
+
+    Why InteractiveServer rather than WebAssembly:
+
+      * The JWT never leaves the server. There is no token in browser storage, no CORS, and no
+        refresh dance - the browser holds only a SignalR circuit. This is the same reasoning
+        behind a backend-for-frontend, arrived at for free.
+      * No multi-megabyte runtime download, which matters on a factory-floor tablet.
+      * The trade-off, stated honestly: one stateful circuit per user. Cheap to start, expensive
+        to scale, and the UI dies when the connection does. For an internal admin tool with tens
+        of concurrent users - which is what most `gestionale` front ends are - that is the right
+        trade. For a public site with thousands, it is not.
+
+    Covered in: course/module-18-blazor/README.md
+  -->
+
+  <!--
+    NO PACKAGE REFERENCES, AND ONE IN PARTICULAR THAT WAS DELIBERATELY NOT ADDED.
+
+    Microsoft.Extensions.Http.Resilience is already in Directory.Packages.props, and
+    .AddStandardResilienceHandler() on the typed client is a one-liner. It is not here because
+    the standard handler retries failed requests, and this client's requests include:
+
+        POST /api/orders            -> creates an order
+        POST /api/orders/{id}/lines -> adds a line
+
+    Neither is idempotent. A retry after a timeout - where the request actually SUCCEEDED and only
+    the response was lost - creates a second order, or doubles a quantity. That is the exact
+    failure the "POST, not PUT, to create" note in module 10 warns about, arriving through a
+    library instead of a proxy.
+
+    The correct fix is not "no resilience". It is retry on the idempotent reads only, plus an
+    Idempotency-Key on the writes so a replay is safe - which is the endpoint-filter exercise at
+    the end of module 15. Until that exists, retrying writes would be a bug wearing a best
+    practice's clothing.
+  -->
+
+</Project>

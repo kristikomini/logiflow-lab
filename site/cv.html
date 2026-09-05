@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV builder — LogiFlow Academy</title>
+<meta name="description" content="Build an Italian technical CV and a lettera di presentazione in the shape chapter 36 argues for — and have it checked against that chapter's own rules before you send it.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/learn.css">
+</head>
+<body data-page="cv">
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+
+    <p class="crumbs">Your study <span>&rsaquo;</span> CV builder</p>
+    <h1>CV e lettera</h1>
+    <p class="lede">
+      <a href="chapters/36-cv-and-linkedin.html">Chapter 36</a> tells you what an Italian
+      technical CV needs. This page produces one in that shape &mdash; and then
+      <strong>checks it against the chapter's own rules</strong>, which is the part reading
+      cannot do for you at 23:00 the night before an application closes.
+    </p>
+
+    <div id="cvApp"></div>
+
+    <h2 id="why" class="no-print">What it checks, and what it cannot</h2>
+
+    <div class="box note no-print">
+      <div class="box-title">Every warning traces to a paragraph in chapter 36</div>
+      <ul>
+        <li><strong>The GDPR line</strong> is added to the Italian version automatically. Its
+          absence is noticed, and some applicant systems filter on it.</li>
+        <li><strong>CEFR levels only.</strong> &ldquo;Good English&rdquo; means nothing; B2 is a
+          claim they can test.</li>
+        <li><strong>Bullets that describe presence</strong> &mdash; <em>worked on</em>,
+          <em>mi sono occupato di</em> &mdash; are flagged. The formula is what you did
+          &rarr; with what &rarr; what changed.</li>
+        <li><strong>At least one number somewhere.</strong> Measured ones only.
+          &ldquo;4&nbsp;s to 90&nbsp;ms&rdquo; is the difference between a claim and a fact.</li>
+        <li><strong>Length.</strong> One page as a junior; cut the oldest thing, not the newest.</li>
+      </ul>
+    </div>
+
+    <div class="box trap no-print">
+      <div class="box-title">⚠ What no checker can tell you</div>
+      <p>
+        Whether the bullets are <strong>true</strong>, and whether they are the right three.
+        A CV full of numbers you cannot defend is worse than a vague one &mdash; every noun on
+        it is a question the interviewer may now ask, which is the
+        <a href="chapters/36-cv-and-linkedin.html#bullets">real function of a bullet</a> and
+        also the risk.
+      </p>
+    </div>
+
+    <div class="box no-print">
+      <div class="box-title">Where it is stored</div>
+      <p>
+        In this browser, under its own <code>localStorage</code> key. Nothing is uploaded and
+        there is no server involved &mdash; this page works with the network unplugged, like the
+        rest of the site. Use <strong>Copy as Markdown</strong> to move it somewhere else, and
+        <strong>Print</strong> to produce the PDF (Chrome and Edge: destination
+        <em>Save as PDF</em>, margins <em>Default</em>, background graphics off).
+      </p>
+    </div>
+
+  </main>
+</div>
+
+<script src="assets/chapters.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/site.js"></script>
+<script src="assets/learn.js"></script>
+<script src="assets/account.js"></script>
+<script src="assets/cv.js"></script>
+</body>
+</html>

@@ -1,0 +1,268 @@
+# LogiFlow local development stack - THE OPTIONAL PATH.
+#
+# This is no longer how the repository runs by default. `dotnet run --project src/LogiFlow.Api`
+# now targets a SQL Server installed natively on your machine, with Windows authentication, no
+# Redis (the cache falls back to AddDistributedMemoryCache) and no collector (the OTLP exporters
+# are skipped when Otlp:Endpoint is empty).
+#
+# This file is kept, and still works, because it buys three things the native path cannot:
+#
+#   * a database without installing one, on a machine where you would rather not
+#   * a GENUINELY distributed cache - the in-memory fallback is per-process, and two API
+#     instances sharing it will disagree with each other silently
+#   * the Aspire Dashboard, which is distributed as a container image and nothing else
+#
+# To use it, start the stack and run the API under the `docker` launch profile, which overrides
+# the three connection settings via environment variables:
+#
+#   docker compose up -d
+#   docker compose ps             wait for (healthy), not just Up
+#   dotnet run --project src/LogiFlow.Api --launch-profile docker
+#
+#   docker compose logs -f sql    watch SQL Server come up
+#   docker compose down           stop (keeps data)
+#   docker compose down -v        stop AND wipe the database volume
+#
+# NOTE: if you also have SQL Server installed natively it already owns port 1433, and this stack
+# will fail to bind it. Run one or the other, not both.
+#
+# Covered in: course/module-00-setup/02-running-the-stack.md - "The container path" 
+
+name: logiflow
+
+services:
+  # ── SQL Server 2022 ──────────────────────────────────────────────────────
+  # The database the whole course runs against. Developer edition is free for
+  # non-production use and is feature-identical to Enterprise.
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: logiflow-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Str0ng!Passw0rd"   # dev-only; see module-13 for real secret handling
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      # /opt/mssql-tools18 is the 2022-image path; -C trusts the self-signed cert.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ── Redis ────────────────────────────────────────────────────────────────
+  # Backing store for IDistributedCache. Module 10 shows cache-aside and
+  # why an in-memory cache breaks the moment you scale to two instances.
+  redis:
+    image: redis:7-alpine
+    container_name: logiflow-redis
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      # Host port 6380, not 6379. A locally-installed Redis (or another project's container)
+      # very often already owns 6379, and the resulting "port is already allocated" error
+      # blocks the whole stack from starting. Inside the compose network the port is still
+      # 6379 - only the host mapping is shifted. Match this in appsettings.Development.json.
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Mailpit ──────────────────────────────────────────────────────────────
+  # An SMTP server that accepts everything and delivers nothing, with a web UI:
+  #
+  #     http://localhost:8025
+  #
+  # It is the successor to MailHog (unmaintained since 2020) and it exists to solve one
+  # problem: developing email templates requires SENDING email, and sending email requires
+  # either a real relay - which can reach real people - or a stub that cannot show you what
+  # the message actually looks like. Mailpit is a real SMTP endpoint whose inbox is a web
+  # page, so the code path is production's and the blast radius is zero.
+  #
+  # The `docker` launch profile points Mailing:Smtp at this container. Without the profile the
+  # API writes .eml files to App_Data/mail instead, which needs no container at all.
+  #
+  # Covered in: course/module-10-cross-cutting/05-mailing.md
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: logiflow-mail
+    environment:
+      # Keep captured mail in the volume across restarts rather than in memory, so a message
+      # sent yesterday is still there to compare against today's.
+      MP_DATA_FILE: /data/mailpit.db
+      MP_MAX_MESSAGES: "500"
+    ports:
+      - "8025:8025"   # web UI
+      - "1025:1025"   # SMTP - matches Mailing__Smtp__Port in the docker launch profile
+    volumes:
+      - maildata:/data
+    healthcheck:
+      # The image is distroless: no curl, no wget, no shell utilities. It ships its own
+      # health command precisely because the usual CMD-SHELL probe cannot work here.
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── Aspire Dashboard ─────────────────────────────────────────────────────
+  # Logs, distributed traces AND metrics in one first-party UI:
+  #
+  #     http://localhost:18888
+  #
+  # It speaks OTLP, which is exactly what the OpenTelemetry exporters in Program.cs already
+  # emit - so there is no vendor-specific sink to configure. It is stateless (nothing is kept
+  # across restarts), which is perfect for local development and useless in production, where
+  # you would point the same OTLP endpoint at Grafana, Jaeger, Honeycomb or Application Insights.
+  # Your application code does not change; only the endpoint does. That portability is the
+  # whole argument for OpenTelemetry.
+  #
+  # Covered in: course/module-11-observability/
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    container_name: logiflow-telemetry
+    environment:
+      # Without this the dashboard demands a generated login token from its own container logs
+      # on every restart, which is friction with no benefit on a local-only endpoint.
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18888:18888"   # web UI
+      - "18889:18889"   # OTLP/gRPC ingestion - matches OTEL_EXPORTER_OTLP_ENDPOINT below
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  #  THE APPLICATION ITSELF — opt-in, behind the `app` profile.
+  #
+  #      docker compose --profile app up -d --build
+  #
+  #  Everything above is a dependency. Everything below is LogiFlow, built from
+  #  the Dockerfiles in src/. Without --profile app these four never start, so
+  #  the default `docker compose up -d` still gives you exactly the stack the
+  #  README describes and nothing more.
+  #
+  #  WHY TWO API INSTANCES.
+  #  The README claims the in-memory cache fallback "is silently wrong the
+  #  moment you scale out". That is the kind of claim worth being able to watch
+  #  rather than believe. Both instances here point at the same Redis, so the
+  #  cache is genuinely shared; unset ConnectionStrings__Redis on both, restart,
+  #  and write through :8081 then read through :8082 — the second instance
+  #  happily serves its own stale copy, with no error anywhere.
+  #
+  #  Covered in: course/module-10-cross-cutting/03-caching.md
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  api:
+    profiles: ["app"]
+    build:
+      # The root, not src/LogiFlow.Api — the build needs Directory.Packages.props
+      # and the referenced projects. See the comment at the top of the Dockerfile.
+      context: .
+      dockerfile: src/LogiFlow.Api/Dockerfile
+    container_name: logiflow-api-1
+    depends_on:
+      sql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+    environment:
+      # Development, deliberately, and this is the one setting here you must not
+      # copy to a server. It is what makes the container create, migrate and seed
+      # its own database on first start, which is the behaviour that makes this
+      # stack a single command. Module 13's golden rule 7 says migrations belong
+      # in the pipeline, not at startup, precisely because instances race — see
+      # api-2 below, which is why this one has to be healthy first.
+      ASPNETCORE_ENVIRONMENT: Development
+      # `sql`, not localhost: inside a compose network the service name is the
+      # hostname, and the port is the container's 1433 rather than the host
+      # mapping. Getting this wrong is the most common first-container failure.
+      ConnectionStrings__SqlServer: "Server=sql,1433;Database=LogiFlow;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=True;Encrypt=True"
+      ConnectionStrings__Redis: "redis:6379"
+      Otlp__Endpoint: "http://aspire-dashboard:18889"
+      Mailing__Transport: Smtp
+      Mailing__Smtp__Host: mailpit
+      Mailing__Smtp__Port: "1025"
+    ports:
+      - "8081:8080"
+    healthcheck:
+      # /health/ready, not /health/live: readiness includes the database, and an
+      # instance that cannot reach SQL Server should not be sent traffic. This is
+      # the probe api-2 and web wait on.
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  api-2:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: src/LogiFlow.Api/Dockerfile
+    container_name: logiflow-api-2
+    depends_on:
+      # The second instance waits for the first to be READY rather than merely
+      # started, so the two never run EF migrations against the same database at
+      # the same time. That ordering is a workaround for running migrations at
+      # startup at all; the real fix is the pipeline step in
+      # course/module-13-deployment/04-migrations-in-ci.md.
+      api: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__SqlServer: "Server=sql,1433;Database=LogiFlow;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=True;Encrypt=True"
+      ConnectionStrings__Redis: "redis:6379"
+      Otlp__Endpoint: "http://aspire-dashboard:18889"
+      Mailing__Transport: Smtp
+      Mailing__Smtp__Host: mailpit
+      Mailing__Smtp__Port: "1025"
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: src/LogiFlow.Web/Dockerfile
+    container_name: logiflow-web
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # One instance, pointed at one API instance. Blazor InteractiveServer keeps
+      # per-circuit state in server memory, so scaling THIS horizontally needs
+      # sticky sessions — a different problem from scaling the API, and a good
+      # thing to have noticed before an interviewer asks.
+      LogiFlowApi__BaseUrl: "http://api:8080"
+    ports:
+      - "8080:8080"
+
+  academy:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: src/LogiFlow.Academy.Api/Dockerfile
+    container_name: logiflow-academy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      # The same port the native `dotnet run` uses, so every link in site/README.md
+      # keeps working either way.
+      - "5280:8080"
+    volumes:
+      # SQLite and the generated signing key both live here. Drop this line and
+      # every account disappears the next time the container is rebuilt.
+      - academydata:/app/App_Data
+
+volumes:
+  sqldata:
+  redisdata:
+  maildata:
+  academydata:

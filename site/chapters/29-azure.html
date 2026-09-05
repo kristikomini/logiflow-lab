@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>29 · Azure — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="29-azure">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 6 &mdash; Tools and shipping <span>&rsaquo;</span> Chapter 29</p>
+<h1>Azure</h1>
+<p class="lede">
+  You are not expected to be a cloud architect. You are expected to know where your application
+  runs, where its secrets live, how it talks to the database without a password in a config file,
+  and where you look when it breaks at eight in the morning.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the advert</div>
+  <p><em>"Familiarit&agrave; con servizi Cloud (Azure)."</em> <em>Familiarit&agrave;</em> is the
+  softest word in the whole posting. Understand the handful of services below and you have
+  comfortably exceeded it.</p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="iaas-paas">IaaS, PaaS, SaaS</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>You want to eat pasta.</p>
+  <ul>
+    <li><strong>On-premises</strong> &mdash; you grow the wheat, mill the flour, and wash up.</li>
+    <li><strong>IaaS</strong> &mdash; someone rents you a kitchen. You still cook, and you still
+        clean the oven.</li>
+    <li><strong>PaaS</strong> &mdash; someone rents you a kitchen <em>with</em> a chef&rsquo;s
+        assistant who keeps everything working. You just cook.</li>
+    <li><strong>SaaS</strong> &mdash; you go to a restaurant.</li>
+  </ul>
+  <p>Almost everything a .NET developer touches in Azure is the third one.</p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The distinction is <em>who is responsible for what</em>. With IaaS (Virtual Machines) you own
+    the OS: patching, hardening, the runtime, scaling. With PaaS (App Service, Azure SQL Database)
+    the platform owns all of that and you own your code, your configuration and your data. Less
+    control, dramatically less operational work &mdash; which for a small team is almost always the
+    right trade.
+  </p>
+</div>
+
+<h2 id="services">The services you will actually touch</h2>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 380" role="img" aria-labelledby="az-title">
+    <title id="az-title">A typical .NET application deployed on Azure</title>
+    <defs>
+      <marker id="a18" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="30" width="808" height="330" rx="11" class="d-panel"/>
+    <rect x="16" y="30" width="808" height="330" rx="11" class="d-stroke" stroke-dasharray="6 4"/>
+    <text x="34" y="52" class="d-small">Resource group: rg-logiflow-prod · region: West Europe</text>
+
+    <rect x="40" y="76" width="180" height="60" rx="8" class="d-panel"/>
+    <rect x="40" y="76" width="180" height="60" rx="8" class="d-stroke"/>
+    <text x="130" y="100" class="d-text" text-anchor="middle">Front Door / CDN</text>
+    <text x="130" y="120" class="d-small" text-anchor="middle">TLS, WAF, caching</text>
+
+    <path d="M222 106 L286 106" class="d-arrow" stroke-width="1.8" marker-end="url(#a18)"/>
+
+    <rect x="288" y="66" width="220" height="80" rx="8" class="d-brand" opacity=".92"/>
+    <text x="398" y="94" class="d-white" text-anchor="middle">App Service</text>
+    <text x="398" y="114" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">your ASP.NET Core app</text>
+    <text x="398" y="132" class="d-white" text-anchor="middle" style="font-weight:400;font-size:11.5px">slots · autoscale · always-on</text>
+
+    <path d="M398 148 L398 196" class="d-arrow" stroke-width="1.8" marker-end="url(#a18)"/>
+    <text x="408" y="176" class="d-small">managed identity — no password</text>
+
+    <rect x="288" y="198" width="220" height="66" rx="8" class="d-panel"/>
+    <rect x="288" y="198" width="220" height="66" rx="8" class="d-stroke"/>
+    <text x="398" y="224" class="d-text" text-anchor="middle">Azure SQL Database</text>
+    <text x="398" y="244" class="d-small" text-anchor="middle">PaaS — backups and patching included</text>
+
+    <path d="M510 106 L568 106" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#a18)"/>
+    <rect x="570" y="80" width="212" height="52" rx="8" class="d-panel"/>
+    <rect x="570" y="80" width="212" height="52" rx="8" class="d-stroke"/>
+    <text x="676" y="102" class="d-text" text-anchor="middle">Key Vault</text>
+    <text x="676" y="120" class="d-small" text-anchor="middle">secrets, certificates, keys</text>
+
+    <path d="M510 150 L560 176" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#a18)"/>
+    <rect x="570" y="152" width="212" height="52" rx="8" class="d-panel"/>
+    <rect x="570" y="152" width="212" height="52" rx="8" class="d-stroke"/>
+    <text x="676" y="174" class="d-text" text-anchor="middle">Blob Storage</text>
+    <text x="676" y="192" class="d-small" text-anchor="middle">files, PDFs, uploads</text>
+
+    <path d="M510 224 L560 248" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#a18)"/>
+    <rect x="570" y="224" width="212" height="52" rx="8" class="d-panel"/>
+    <rect x="570" y="224" width="212" height="52" rx="8" class="d-stroke"/>
+    <text x="676" y="246" class="d-text" text-anchor="middle">Service Bus</text>
+    <text x="676" y="264" class="d-small" text-anchor="middle">queues — work done later</text>
+
+    <rect x="40" y="288" width="742" height="54" rx="8" class="d-panel"/>
+    <rect x="40" y="288" width="742" height="54" rx="8" class="d-stroke"/>
+    <text x="411" y="312" class="d-text" text-anchor="middle">Application Insights + Log Analytics</text>
+    <text x="411" y="330" class="d-small" text-anchor="middle">every box above sends logs, metrics and distributed traces here — this is where you look first</text>
+
+    <rect x="40" y="160" width="180" height="100" rx="8" class="d-panel"/>
+    <rect x="40" y="160" width="180" height="100" rx="8" class="d-stroke"/>
+    <text x="130" y="186" class="d-text" text-anchor="middle">Azure Cache</text>
+    <text x="130" y="204" class="d-text" text-anchor="middle">for Redis</text>
+    <text x="130" y="228" class="d-small" text-anchor="middle">chapter 20, managed</text>
+    <path d="M286 116 L224 190" class="d-arrow" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#a18)"/>
+  </svg>
+  <figcaption>Almost every requirement in the advert has a box on this diagram.</figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Service</th><th>What it is</th><th>Know</th></tr></thead>
+  <tbody>
+    <tr><td><strong>App Service</strong></td><td>Managed hosting for web apps and APIs</td>
+        <td>Deployment slots, autoscale, app settings override <code>appsettings.json</code>.</td></tr>
+    <tr><td><strong>Azure SQL Database</strong></td><td>Managed SQL Server</td>
+        <td>DTU or vCore pricing; backups and failover included; firewall rules by default.</td></tr>
+    <tr><td><strong>Key Vault</strong></td><td>Secrets, keys, certificates</td>
+        <td>Where connection strings belong. Accessed via managed identity.</td></tr>
+    <tr><td><strong>Blob Storage</strong></td><td>Files and unstructured data</td>
+        <td>Hot/cool/archive tiers; SAS tokens for time-limited access.</td></tr>
+    <tr><td><strong>Service Bus</strong></td><td>Queues and topics</td>
+        <td>For work that can happen later, and for decoupling services.</td></tr>
+    <tr><td><strong>Application Insights</strong></td><td>Telemetry</td>
+        <td>Logs, metrics, distributed tracing, and KQL to query them.</td></tr>
+    <tr><td><strong>Container Apps / AKS</strong></td><td>Containers, managed or Kubernetes</td>
+        <td>Container Apps when you want containers without operating Kubernetes.</td></tr>
+    <tr><td><strong>Azure Functions</strong></td><td>Serverless, event-driven</td>
+        <td>Timers, queue triggers. Beware the cold start on the consumption plan.</td></tr>
+    <tr><td><strong>Entra ID</strong></td><td>Identity (formerly Azure AD)</td>
+        <td>The source of both user sign-in and managed identities.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="organisation">How resources are organised</h2>
+
+<ul>
+  <li><strong>Tenant</strong> &rarr; your organisation&rsquo;s Entra ID directory.</li>
+  <li><strong>Subscription</strong> &rarr; the billing and quota boundary. Most companies have at
+      least one per environment.</li>
+  <li><strong>Resource group</strong> &rarr; a folder with a lifecycle. Everything in it can be
+      deployed and deleted together, which is why one group per environment per application is the
+      usual pattern.</li>
+  <li><strong>Region</strong> &rarr; where it physically runs. For Italian data, <em>Italy
+      North</em> (Milan) or <em>West Europe</em> (Netherlands) &mdash; and where matters, because
+      of latency and because GDPR makes people ask.</li>
+</ul>
+
+<p class="subtle">
+  Naming conventions look bureaucratic and save real time:
+  <code>rg-logiflow-prod-weu</code>, <code>app-logiflow-api-prod</code>,
+  <code>sql-logiflow-prod</code>, <code>kv-logiflow-prod</code>. When something is on fire at
+  08:00, being able to guess a resource name is worth a great deal.
+</p>
+
+<h2 id="secrets">Secrets and managed identity</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A password is a key you copy and hand out. Every copy can be lost, and you never quite know how
+    many exist.
+  </p>
+  <p>
+    A managed identity is a face the building already recognises. There is nothing to copy, nothing
+    to lose, and nothing to accidentally commit to Git &mdash; the door simply knows who you are.
+  </p>
+</div>
+
+<div class="code-head">the modern connection string — with no password in it</div>
+<pre><code><span class="cm">// appsettings.json — safe to commit</span>
+<span class="st">"ConnectionStrings"</span>: {
+  <span class="st">"Default"</span>: <span class="st">"Server=sql-logiflow-prod.database.windows.net;Database=LogiFlow;Authentication=Active Directory Default;"</span>
+}</code></pre>
+<pre><code><span class="cm">// Program.cs — read the rest of the secrets from Key Vault, as the app's own identity</span>
+<span class="kw">if</span> (!builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddAzureKeyVault(
+        <span class="kw">new</span> <span class="ty">Uri</span>($<span class="st">"https://kv-logiflow-prod.vault.azure.net/"</span>),
+        <span class="kw">new</span> <span class="ty">DefaultAzureCredential</span>());
+}</code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 <code>DefaultAzureCredential</code> is the piece worth understanding</div>
+  <p>
+    It tries a chain of credential sources in order: environment variables, then the workload or
+    managed identity assigned to the running resource, then Visual Studio, the Azure CLI, and
+    Azure PowerShell. The consequence is that <strong>the same code works on your laptop and in
+    production</strong> &mdash; locally it uses your <code>az login</code> session, in Azure it
+    uses the app&rsquo;s managed identity. No secret is stored anywhere in either case.
+  </p>
+</div>
+
+<h3>Configuration in App Service</h3>
+<p>
+  App settings in the portal or pipeline become environment variables, which sit above
+  <code>appsettings.json</code> in the configuration hierarchy
+  (<a href="14-web-api.html#config">chapter 14</a>). Nested keys use a double underscore:
+  <code>ConnectionStrings__Default</code>, <code>Pricing__TimeoutSeconds</code>. Better still,
+  reference Key Vault directly: <code>@Microsoft.KeyVault(SecretUri=…)</code>.
+</p>
+
+<h2 id="slots">Deployment slots</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Instead of redecorating the shop while customers are inside, you decorate an identical shop next
+    door, check it is right, and then swap the front doors over. If something is wrong, you swap
+    the doors back.
+  </p>
+</div>
+
+<div class="code-head">the swap</div>
+<pre><code><span class="cm"># deploy to a staging slot — production is untouched</span>
+az webapp deploy --resource-group rg-logiflow-prod \
+                 --name app-logiflow-api-prod --slot staging \
+                 --src-path ./publish.zip
+
+<span class="cm"># warm it up, run smoke tests against https://app-…-staging.azurewebsites.net</span>
+
+<span class="cm"># then swap: near-zero downtime, and instantly reversible</span>
+az webapp deployment slot swap --resource-group rg-logiflow-prod \
+                               --name app-logiflow-api-prod --slot staging</code></pre>
+
+<p class="subtle">
+  Slots are the cheapest safe-deployment mechanism Azure offers, because the swap warms the new
+  instance first and the rollback is another swap. Mark environment-specific settings as
+  <strong>deployment slot settings</strong> so they stay with the slot instead of following the
+  swap.
+</p>
+
+<h2 id="observability">Where you look when it breaks</h2>
+
+<div class="code-head">Application Insights, queried with KQL</div>
+<pre><code><span class="cm">// the failing requests in the last hour, worst endpoints first</span>
+requests
+| <span class="kw">where</span> timestamp &gt; ago(1h) <span class="kw">and</span> success == <span class="st">"False"</span>
+| <span class="kw">summarize</span> failures = count(), p95 = percentile(duration, 95) <span class="kw">by</span> name
+| <span class="kw">order by</span> failures <span class="kw">desc</span>
+
+<span class="cm">// everything belonging to one user's request — the trace id from chapter 14</span>
+<span class="kw">union</span> requests, dependencies, exceptions, traces
+| <span class="kw">where</span> operation_Id == <span class="st">"8f2b1c…"</span>
+| <span class="kw">order by</span> timestamp <span class="kw">asc</span></code></pre>
+
+<p>
+  The second query is why returning a <code>traceId</code> in your error responses matters: a user
+  reports the id and you reconstruct their entire request across every service it touched.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ Cost is a correctness concern</div>
+  <p>
+    The cloud bills by the hour whether or not anyone is using it. Realistic ways teams lose money:
+    a development environment nobody switched off; a SQL Database over-provisioned "to be safe"; an
+    Application Insights instance ingesting verbose logs at full sampling; and unbounded egress.
+    A developer who asks "what does this cost per month?" in a design discussion is unusual and
+    valued.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Everything here fits inside an Azure free account. Deploy the chapter 14 API for real &mdash;
+    it takes about fifteen minutes and it changes how you talk about deployment.
+  </p>
+  <pre><code>az login
+az group create -n rg-demo -l westeurope
+
+az appservice plan create -g rg-demo -n plan-demo --sku F1 --is-linux
+az webapp create -g rg-demo -p plan-demo -n app-demo-&lt;yourname&gt; --runtime <span class="st">"DOTNETCORE:10.0"</span>
+
+dotnet publish -c Release -o publish
+<span class="kw">cd</span> publish &amp;&amp; zip -r ../publish.zip . &amp;&amp; <span class="kw">cd</span> ..
+az webapp deploy -g rg-demo -n app-demo-&lt;yourname&gt; --src-path publish.zip
+
+az webapp log tail -g rg-demo -n app-demo-&lt;yourname&gt;    <span class="cm"># live logs</span>
+
+<span class="cm"># and, importantly:</span>
+az group delete -n rg-demo --yes                        <span class="cm"># delete the group, delete the bill</span></code></pre>
+</div>
+
+<div class="box note">
+  <div class="box-title">Going deeper in this repository</div>
+  <p>
+    <a href="../../course/module-13-deployment/README.md">Module 13</a> covers deployment and
+    <a href="../../course/module-11-observability/README.md">Module 11</a> covers observability
+    &mdash; logging, metrics and tracing &mdash; in detail.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>PaaS unless you have a reason. Owning an OS is work nobody thanks you for.</li>
+    <li>One resource group per application per environment. Deleting the group deletes the bill.</li>
+    <li>Secrets live in Key Vault, never in <code>appsettings.json</code>, never in Git.</li>
+    <li>Managed identity over connection-string passwords. Nothing to leak.</li>
+    <li><code>DefaultAzureCredential</code> makes local and cloud the same code.</li>
+    <li>App settings override <code>appsettings.json</code>; nested keys use
+        <code>__</code>.</li>
+    <li>Deploy to a slot and swap. It is warm-up and rollback in one mechanism.</li>
+    <li>Send logs, metrics and traces to Application Insights, and include a trace id in error
+        responses.</li>
+    <li>Choose the region deliberately &mdash; latency and data residency both matter.</li>
+    <li>Ask what it costs. Turn off non-production environments outside working hours.</li>
+    <li>Anything you clicked in the portal will be gone or wrong in six months. Put it in code
+        (<a href="30-azure-devops-cicd.html">chapter 30</a>).</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between IaaS and PaaS?"</p>
+  <p class="a">
+    Who owns the operating system. IaaS gives you a VM and the patching, scaling and hardening that
+    come with it; PaaS gives you a place to put code and takes that work away. Give an example of
+    each: Virtual Machines versus App Service.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How do you store a connection string in Azure?"</p>
+  <p class="a">
+    In Key Vault, read at startup using the application&rsquo;s managed identity &mdash; or better,
+    avoid the password entirely with Entra authentication to Azure SQL. Never in
+    <code>appsettings.json</code>, and never in source control.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is a managed identity?"</p>
+  <p class="a">
+    An Entra ID identity assigned to an Azure resource, whose credentials the platform rotates and
+    never exposes. The application authenticates as itself, so there is no secret to store, leak or
+    rotate manually.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you deploy without downtime?"</p>
+  <p class="a">
+    Deploy to a staging slot, warm it and smoke-test it, then swap. Rollback is a second swap. Add
+    that database migrations must be backward compatible for the duration of the swap, because both
+    versions run against the same schema for a moment &mdash; that caveat is what makes the answer
+    sound like experience.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Your API is slow in production. Where do you start?"</p>
+  <p class="a">
+    Application Insights: the performance blade for slow endpoints, then dependency durations to
+    see whether the time is in SQL, an HTTP call or your own code, then an end-to-end trace for a
+    single slow operation. Metrics before guesses &mdash; and the same discipline as
+    <a href="11-tsql-performance.html">chapter 11</a>.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>
