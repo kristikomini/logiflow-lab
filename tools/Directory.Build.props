@@ -1,0 +1,32 @@
+<Project>
+
+  <!-- Inherit everything the repository root sets, then override the one property that
+       cannot work here. Without this import MSBuild stops at the FIRST Directory.Build.props
+       it finds walking upwards, so this file would silently replace the root one rather than
+       extend it, and tools/ would lose the analyzers, the language version and the rest. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      No lock file for tools/.
+
+      Everything in here is a FILE BASED app run as `dotnet run tools/doctor.cs`. The SDK
+      generates the project for it at run time, and that generated project takes its runtime
+      identifier from the machine doing the running: win-x64 on a developer's laptop,
+      linux-x64 on the CI runner. A lock file records the RID it was written under, so a
+      lock file generated on Windows makes a locked restore on Linux fail with NU1004
+      ("the project's runtime identifiers have changed"). It is not a stale file that a
+      regeneration would fix; it cannot be correct on both platforms at once.
+
+      That is the difference worth keeping in mind: a lock file pins a dependency GRAPH, and
+      the graph for an ahead of time compiled app is platform specific by design. The real
+      projects under src/ and tests/ are portable and keep their lock files, which is where
+      the guarantee actually matters.
+
+      Covered in: course/module-13-deployment/02-configuration.md
+    -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <RestoreLockedMode>false</RestoreLockedMode>
+  </PropertyGroup>
+
+</Project>
