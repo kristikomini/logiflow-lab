@@ -71,6 +71,28 @@ list.Add(<span class="st">"quarantadue"</span>);              <span class="cm">/
 <span class="cm">// With generics — the mistake does not compile.</span>
 <span class="ty">List</span>&lt;<span class="kw">int</span>&gt; numbers = [<span class="nu">42</span>];
 numbers.Add(<span class="st">"quarantadue"</span>);           <span class="cm">// CS1503, on your machine, today</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ArrayList</code> &mdash; the pre-generics collection. It stores <code>object</code>,
+        which every type converts to, so it accepts <strong>anything</strong>.</li>
+    <li><code>list.Add(42)</code> &mdash; a hidden <strong>boxing</strong> conversion. <code>int</code>
+        is a value type, <code>object</code> is a reference type, so the value is copied onto the heap
+        inside a wrapper. Invisible in the source, and an allocation per item.</li>
+    <li><code>(int)list[1]</code> &mdash; an <strong>unboxing cast</strong>. The compiler permits it
+        because the static type is <code>object</code> and it cannot know better; at run time the
+        object is a string, so it throws <code>InvalidCastException</code>.</li>
+    <li><code>List&lt;int&gt; numbers = [42];</code> &mdash; <code>&lt;int&gt;</code> is a
+        <strong>type argument</strong>, closing the generic type. The square brackets are a
+        <strong>collection expression</strong> (C# 12), the modern spelling of
+        <code>new List&lt;int&gt; { 42 }</code>.</li>
+    <li><code>numbers.Add("quarantadue")</code> &mdash; <strong>CS1503 at compile time</strong>. The
+        method's parameter is genuinely <code>int</code>, not <code>object</code>.</li>
+    <li><strong>Generics buy two things at once:</strong> the error moves from run time to compile
+        time, and the boxing disappears &mdash; a <code>List&lt;int&gt;</code> stores actual integers
+        in one array. Type safety and speed from the same feature.</li>
+  </ul>
+</div>
   <p>
     Three benefits, and you should be able to name all three:
     <strong>compile-time safety</strong> (errors move from runtime to build),
@@ -140,6 +162,27 @@ numbers.Add(<span class="st">"quarantadue"</span>);           <span class="cm">/
         <span class="kw">if</span> (item.CompareTo(best) &gt; <span class="nu">0</span>) best = item;   <span class="cm">// legal because of the where</span>
     <span class="kw">return</span> best;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Largest&lt;T&gt;</code> &mdash; <code>&lt;T&gt;</code> after the method name declares
+        a <strong>type parameter</strong>. It is a placeholder filled in per call, and by convention it
+        is named <code>T</code>.</li>
+    <li><strong>Without a constraint <code>T</code> is almost useless.</strong> The compiler must
+        assume the worst, so only members of <code>object</code> are available &mdash;
+        <code>a &gt; b</code> would not compile, because most types have no <code>&gt;</code>.</li>
+    <li><code>where T : IComparable&lt;T&gt;</code> &mdash; the <strong>constraint</strong>. It is a
+        promise the caller must keep and a permission the method body gains: inside, every
+        <code>T</code> is known to have <code>CompareTo</code>.</li>
+    <li><code>item.CompareTo(best) &gt; 0</code> &mdash; the convention for comparison: positive means
+        greater, zero means equal, negative means less. Legal here <em>only</em> because of the
+        <code>where</code>.</li>
+    <li><code>items.First()</code> &mdash; throws on an empty sequence. This method has a latent bug
+        for that case, which a constraint cannot express.</li>
+    <li>Other constraints worth knowing: <code>where T : class</code>, <code>where T : struct</code>,
+        and <code>where T : new()</code>, which permits <code>new T()</code> inside the body.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -186,6 +229,30 @@ numbers.Add(<span class="st">"quarantadue"</span>);           <span class="cm">/
 
 <span class="cm">// The last type argument of Func is ALWAYS the return type. That is the</span>
 <span class="cm">// one detail people get wrong under pressure.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A delegate is a type whose values are methods.</strong> A variable that holds a
+        method the way another holds an <code>int</code> &mdash; that is the whole idea, and it is what
+        LINQ, DI, async and every event handler are built from.</li>
+    <li><code>Func&lt;int, int, int&gt;</code> &mdash; the <strong>last type argument is always the
+        return type</strong>; everything before it is a parameter. So this takes two
+        <code>int</code>s and returns an <code>int</code>. This is the detail people get wrong under
+        pressure.</li>
+    <li><code>(a, b) =&gt; a + b</code> &mdash; a <strong>lambda</strong>. No types are written because
+        they are inferred from <code>Func&lt;int, int, int&gt;</code> on the left. An expression body
+        means its value is the return value; no <code>return</code> keyword is needed.</li>
+    <li><code>Action&lt;string&gt;</code> &mdash; <strong><code>Action</code> returns
+        <code>void</code></strong>. It has no return type argument at all, which is the whole
+        difference from <code>Func</code>.</li>
+    <li><code>m =&gt; Console.WriteLine(m)</code> &mdash; a single parameter needs no parentheses.
+        <code>(m) =&gt; ...</code> is equally valid.</li>
+    <li><code>Predicate&lt;Order&gt;</code> &mdash; identical in effect to
+        <code>Func&lt;Order, bool&gt;</code>, and older. LINQ uses <code>Func</code>; a few
+        <code>List&lt;T&gt;</code> methods still ask for <code>Predicate</code>, and the two are
+        <strong>not</strong> implicitly convertible even though they describe the same shape.</li>
+  </ul>
+</div>
   <p>
     And this is where LINQ comes from. <code>Where</code> does not contain your condition &mdash;
     you hand it one:
@@ -201,6 +268,28 @@ orders.Where(o =&gt; o.Total &gt; <span class="nu">1000m</span>)
         <span class="kw">if</span> (predicate(item))      <span class="cm">// ← calling the method you passed in</span>
             <span class="kw">yield return</span> item;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>orders.Where(o =&gt; o.Total &gt; 1000m)</code> &mdash; the lambda
+        <strong>is</strong> a <code>Func&lt;Order, bool&gt;</code>. Nothing magical is happening;
+        <code>Where</code> is an ordinary method taking an ordinary argument.</li>
+    <li><code>this IEnumerable&lt;T&gt; source</code> &mdash; <code>this</code> on the first parameter
+        makes it an <strong>extension method</strong>. That is the entire mechanism behind LINQ's
+        fluent syntax: <code>orders.Where(...)</code> compiles to
+        <code>Enumerable.Where(orders, ...)</code>.</li>
+    <li><code>Func&lt;T, bool&gt; predicate</code> &mdash; the parameter is a
+        <strong>delegate</strong>. The caller supplies behaviour, not data.</li>
+    <li><code>predicate(item)</code> &mdash; <strong>calling the method that was passed in</strong>.
+        Parentheses on a delegate variable invoke whatever it currently refers to.</li>
+    <li><code>yield return item;</code> &mdash; makes this an <strong>iterator</strong>. The compiler
+        rewrites the method into a state machine that produces one element, suspends, and resumes on
+        the next request. This is what makes LINQ lazy, and why the body does not run until you
+        enumerate.</li>
+    <li><strong>Ten lines is the whole of <code>Where</code>.</strong> Once this is not magic, neither
+        is the rest of LINQ.</li>
+  </ul>
+</div>
   <p>
     Generics plus delegates, eight lines, and you have written the core of LINQ. That is a
     genuinely good thing to be able to say out loud &mdash; see
@@ -219,6 +308,27 @@ orders.Where(o =&gt; o.Total &gt; <span class="nu">1000m</span>)
     actions.Add(() =&gt; <span class="ty">Console</span>.Write(i));
 
 <span class="kw">foreach</span> (<span class="kw">var</span> a <span class="kw">in</span> actions) a();     <span class="out">// 333 — not 012</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>new List&lt;Action&gt;()</code> &mdash; a list of <em>methods</em>. Nothing runs when
+        one is added.</li>
+    <li><code>() =&gt; Console.Write(i)</code> &mdash; a lambda taking no parameters. Empty parentheses
+        are required. It <strong>captures <code>i</code></strong>.</li>
+    <li><strong>The capture is of the variable, not its value.</strong> A <code>for</code> loop
+        declares <code>i</code> <em>once</em>, so all three lambdas close over the same storage
+        location.</li>
+    <li><code>a()</code> in the second loop &mdash; the first time any of them runs. By then the loop
+        has finished and <code>i</code> is <code>3</code>, so all three print <code>3</code>:
+        <strong>333</strong>, not 012.</li>
+    <li><strong>The fix is a fresh variable per iteration:</strong> <code>int copy = i;</code> inside
+        the loop, capturing <code>copy</code>. Each iteration then has its own storage.</li>
+    <li><strong>A <code>foreach</code> does not have this bug</strong> &mdash; its variable is a new
+        one per iteration. The language was changed in C# 5 for exactly this reason, and the
+        <code>for</code> loop was deliberately left alone, because there <code>i</code> is genuinely
+        one counter.</li>
+  </ul>
+</div>
   <p>
     All three lambdas captured the same <code>i</code>, and by the time they run it is 3. The fix
     is a fresh variable per iteration &mdash; <code>int copy = i;</code> inside the loop.
@@ -274,6 +384,31 @@ service.OrderSubmitted += OnOrderSubmitted;
 
 <span class="cm">// …and the line everybody forgets, which is a memory leak in a long-lived app.</span>
 service.OrderSubmitted -= OnOrderSubmitted;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public event EventHandler&lt;...&gt;? OrderSubmitted;</code> &mdash;
+        <code>event</code> is a <strong>restricted delegate field</strong>. Outside the class only
+        <code>+=</code> and <code>-=</code> are permitted &mdash; nobody else can invoke it or replace
+        the whole subscriber list, which is precisely what a plain public delegate field would
+        allow.</li>
+    <li><code>EventHandler&lt;TArgs&gt;</code> &mdash; the convention:
+        <code>(object? sender, TArgs e)</code> returning void. Following it means the event works with
+        tooling and reads the way every other .NET event does.</li>
+    <li><code>?</code> on the type &mdash; an event with no subscribers is <strong>null</strong>, not
+        an empty list. That is the source of the classic <code>NullReferenceException</code>.</li>
+    <li><code>OrderSubmitted?.Invoke(this, new(order.Id))</code> &mdash; <code>?.</code> handles the
+        no-subscribers case. <code>Invoke</code> calls every subscriber in turn, on the
+        <strong>current thread, synchronously</strong>: a slow handler blocks the publisher, and a
+        throwing handler stops the ones after it.</li>
+    <li><code>new(order.Id)</code> &mdash; a <strong>target-typed new</strong>. The parameter type is
+        known, so the type name is not repeated.</li>
+    <li><code>+=</code> and <code>-=</code> &mdash; subscribe and unsubscribe.
+        <strong><code>-=</code> is the line everybody forgets</strong>: the event holds a reference to
+        the subscriber, so a short-lived object subscribed to a long-lived publisher can never be
+        collected. That is the classic .NET memory leak.</li>
+  </ul>
+</div>
 
 <figure class="diagram">
   <svg viewBox="0 0 840 240" role="img" aria-labelledby="ev-title">
@@ -345,6 +480,28 @@ service.OrderSubmitted -= OnOrderSubmitted;</code></pre>
                 <span class="kw">yield return</span> item;
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public static class MyLinq</code> &mdash; extension methods must live in a
+        <strong>static, non-nested class</strong>. The compiler enforces it.</li>
+    <li><code>this IEnumerable&lt;T&gt; source</code> &mdash; <code>this</code> makes it an extension.
+        The method becomes callable as though it were declared on
+        <code>IEnumerable&lt;T&gt;</code>, without modifying that interface or any of its
+        implementations.</li>
+    <li><strong>An extension method is not really a member.</strong> It is a static method with
+        friendlier syntax, resolved at compile time, and it can therefore be shadowed by a real
+        instance method with the same name.</li>
+    <li><code>yield return item;</code> &mdash; makes it lazy in exactly the way the real
+        <code>Where</code> is lazy. Nothing runs until enumeration begins, and it streams one element
+        at a time rather than building a list.</li>
+    <li><strong>The point of writing this yourself</strong> is that LINQ stops being a feature and
+        becomes a library &mdash; extension methods plus generics plus delegates plus iterators, all
+        of which you now have.</li>
+    <li>An extension is only visible where its namespace is in scope, which is why the odd
+        <code>using</code> makes new methods appear on a type you did not write.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then call it with <code>.MyWhere(x =&gt; x &gt; 2)</code> and put a breakpoint inside the
     <code>foreach</code>. Watch the debugger jump <em>out</em> of your method at

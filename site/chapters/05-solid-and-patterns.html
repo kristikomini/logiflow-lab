@@ -279,6 +279,27 @@
     <span class="cm">// and the export. Adding "Platinum" means finding all four.</span>
     <span class="kw">throw new</span> <span class="ty">ArgumentOutOfRangeException</span>(<span class="kw">nameof</span>(tier));
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public decimal Discount(Order order, CustomerTier tier)</code> &mdash; the signature
+        is fine. Everything wrong here is in the body.</li>
+    <li><code>if (tier == CustomerTier.Bronze)</code> &mdash; comparing an <strong>enum</strong>. Enums
+        are value types compiled to integers, so <code>==</code> is a cheap numeric comparison.</li>
+    <li><code>order.Total * 0.02m</code> &mdash; the <code>m</code> suffix keeps the arithmetic in
+        <code>decimal</code>. Writing <code>0.02</code> would make it a <code>double</code> and the
+        multiplication would not compile against a <code>decimal</code>.</li>
+    <li><code>throw new ArgumentOutOfRangeException(nameof(tier))</code> &mdash; required, because the
+        compiler cannot prove the <code>if</code> chain is exhaustive. A <code>switch</code> expression
+        over the enum could at least warn.</li>
+    <li><strong>The real defect is duplication, not this method.</strong> The same chain also lives in
+        the invoice, the quote and the export, so adding <code>Platinum</code> means finding four
+        places and remembering all four.</li>
+    <li><strong>Open/Closed, stated usefully:</strong> a new tier should mean new code, not edited
+        code. Every <code>if</code> chain over a closed set of cases is a place where that has already
+        failed.</li>
+  </ul>
+</div>
 
 <div class="code-head">after: one type per rule, resolved by DI</div>
 <pre><code><span class="kw">public interface</span> <span class="ty">IDiscountPolicy</span>
@@ -308,6 +329,38 @@ services.Scan(s =&gt; s.FromAssemblyOf&lt;<span class="ty">IDiscountPolicy</span
     <span class="kw">public decimal</span> For(<span class="ty">Order</span> order, <span class="ty">CustomerTier</span> tier) =&gt;
         _byTier.TryGetValue(tier, <span class="kw">out var</span> p) ? p.DiscountFor(order) : <span class="nu">0m</span>;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public interface IDiscountPolicy</code> &mdash; the abstraction. One implementation
+        per tier, each ignorant of the others.</li>
+    <li><code>CustomerTier Tier { get; }</code> &mdash; a <strong>get-only property</strong> on the
+        interface. It lets each policy declare which tier it serves, so nothing outside has to know the
+        mapping.</li>
+    <li><code>public CustomerTier Tier =&gt; CustomerTier.Gold;</code> &mdash; an expression-bodied
+        property returning a constant. It implements the interface member; no <code>override</code>
+        keyword is used for interface implementations.</li>
+    <li><code>sealed</code> &mdash; the variation lives in <em>having many policies</em>, not in
+        subclassing one. Sealing says so.</li>
+    <li><code>services.Scan(...)</code> &mdash; <strong>assembly scanning</strong>, from the Scrutor
+        package rather than the framework. It finds every implementation by reflection at start-up, so
+        adding a policy requires no registration line.</li>
+    <li><code>.AsImplementedInterfaces()</code> &mdash; register each class under the interfaces it
+        implements, so all of them are resolvable as <code>IEnumerable&lt;IDiscountPolicy&gt;</code>.
+        <code>.WithSingletonLifetime()</code> is safe here because a policy is stateless.</li>
+    <li><code>DiscountCalculator(IEnumerable&lt;IDiscountPolicy&gt; policies)</code> &mdash; the
+        container injects <strong>all</strong> registered implementations as a sequence. Asking for
+        <code>IEnumerable&lt;T&gt;</code> of a service is the standard way to say "give me every
+        one".</li>
+    <li><code>policies.ToDictionary(p =&gt; p.Tier)</code> &mdash; builds the lookup once, in the
+        constructor, turning the <code>if</code> chain into an O(1) index. It throws if two policies
+        claim the same tier &mdash; a genuinely useful failure, at start-up rather than in
+        production.</li>
+    <li><strong>The cost, stated honestly.</strong> Three lines of arithmetic became several files and
+        a scanning registration. Worth it because the logic was duplicated four times; not worth it for
+        a rule used once.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Adding Platinum is now one new file and zero edits &mdash; that is Open/Closed, concretely. Note
@@ -393,6 +446,27 @@ services.Scan(s =&gt; s.FromAssemblyOf&lt;<span class="ty">IDiscountPolicy</span
   <pre><code>ls src/LogiFlow.Application/Behaviors/          <span class="cm"># four decorators</span>
 cat src/LogiFlow.Application/Abstractions/Messaging/IDispatcher.cs
 cat src/LogiFlow.Application/Abstractions/Data/IRepositories.cs</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ls src/LogiFlow.Application/Behaviors/</code> &mdash; a shell command, not C#. These
+        four classes are the <strong>Decorator</strong> pattern in production: logging, validation,
+        transactions and caching, each wrapping the next around a handler.</li>
+    <li><strong>Why decorators rather than a base class:</strong> a handler can be wrapped by any
+        combination, in any order, chosen at registration. Inheritance would need a class per
+        combination &mdash; the explosion from <a href="03-oop.html">chapter 03</a>.</li>
+    <li><code>IDispatcher.cs</code> &mdash; the <strong>Mediator</strong> pattern. Callers send a
+        request object rather than referencing a handler, so the pipeline can be inserted between them
+        without either side knowing.</li>
+    <li><code>IRepositories.cs</code> &mdash; the <strong>Repository</strong> pattern, and the one
+        worth arguing about: EF Core's <code>DbSet</code> is already a repository, so a thin wrapper
+        over it usually adds indirection and nothing else. Read it and decide whether these earn their
+        place.</li>
+    <li><strong>Read the code before the pattern name.</strong> A pattern learned as a diagram becomes
+        something to apply; a pattern met as a solution to a problem you have already felt becomes
+        something you can judge.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then do the exercise that actually teaches it: delete <code>CachingBehavior</code> from the DI
     registration and run the tests. Nothing in any handler changes, nothing fails to compile, and

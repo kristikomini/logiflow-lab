@@ -99,6 +99,45 @@
         <span class="kw">REFERENCES</span> dbo.Customers (Id),
     <span class="kw">CONSTRAINT</span> CK_Orders_Total    <span class="kw">CHECK</span> (Total &gt;= 0)
 );</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dbo.Orders</code> &mdash; <code>dbo</code> is the <strong>schema</strong>, a namespace
+        inside the database. Always qualify: an unqualified name is resolved per user and the lookup is
+        slower as well as ambiguous.</li>
+    <li><code>INT NOT NULL IDENTITY(1,1)</code> &mdash; three separate things.
+        <code>INT</code> is the type; <code>NOT NULL</code> is a constraint; <code>IDENTITY(1,1)</code>
+        makes the engine generate values starting at 1, stepping by 1.</li>
+    <li><strong>A surrogate key is meaningless on purpose.</strong> It never changes, because it
+        encodes no fact about the order that could turn out to be wrong.</li>
+    <li><code>OrderNumber NVARCHAR(20)</code> &mdash; a <strong>natural key</strong>: unique and
+        meaningful to humans. <code>NVARCHAR</code> is Unicode, <code>VARCHAR</code> is not; in Italy
+        that difference is accented characters, so prefer <code>NVARCHAR</code>.</li>
+    <li><code>DECIMAL(18,2)</code> &mdash; 18 digits total, 2 after the point. The SQL counterpart of
+        C#'s <code>decimal</code>, and for the same reason: <code>FLOAT</code> would be binary
+        floating point and wrong for money.</li>
+    <li><code>TINYINT</code> for <code>Status</code> &mdash; one byte, 0 to 255. The natural storage
+        for a small enum, though it costs you readability in raw queries.</li>
+    <li><code>CONSTRAINT DF_Orders_Status DEFAULT 0</code> &mdash; a <strong>named</strong> default.
+        Naming constraints is not decoration: an auto-generated name differs between environments, and
+        a migration that must drop it then cannot find it.</li>
+    <li><code>DATETIME2(3)</code> &mdash; the modern date type, 3 decimal places of a second.
+        <code>SYSUTCDATETIME()</code> and not <code>GETDATE()</code>, because storing local time
+        discards the offset and breaks at the clock change.</li>
+    <li><code>NVARCHAR(MAX) NULL</code> &mdash; explicitly nullable, and the only nullable column here.
+        <strong>Every <code>NULL</code> you allow is a case every query must handle</strong>, so allow
+        it deliberately.</li>
+    <li><code>PRIMARY KEY (Id)</code> &mdash; uniqueness plus, in SQL Server, a
+        <strong>clustered index</strong> by default, meaning the table is physically ordered by this
+        column.</li>
+    <li><code>UNIQUE (OrderNumber)</code> &mdash; a second uniqueness rule, enforced by the engine
+        rather than by application code that can be bypassed.</li>
+    <li><code>FOREIGN KEY (CustomerId) REFERENCES ...</code> &mdash; <strong>referential
+        integrity</strong>. The database refuses an order pointing at a customer that does not exist,
+        which is a guarantee no amount of C# validation can match, because the database is the one
+        guard every writer passes.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -163,6 +202,25 @@
 
 <span class="cm">-- 2. Several tables can share one series — useful when Orders and Quotes
 --    must draw from the same run of document numbers.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>CREATE SEQUENCE ... AS INT START WITH 1000 INCREMENT BY 1</code> &mdash; a
+        <strong>standalone number generator</strong>. Unlike <code>IDENTITY</code> it belongs to the
+        schema, not to a table.</li>
+    <li><code>NEXT VALUE FOR dbo.OrderNumbers</code> &mdash; takes the next number, and it is
+        <strong>available before the insert</strong>. With <code>IDENTITY</code> you only learn the
+        value afterwards, via <code>SCOPE_IDENTITY()</code>.</li>
+    <li><code>DECLARE @id INT = ...</code> &mdash; a T-SQL local variable. The <code>@</code> prefix is
+        part of the name.</li>
+    <li><strong>The two reasons to prefer a sequence:</strong> you need the number before the row
+        exists &mdash; to build a document or hand it to another system &mdash; or several tables must
+        draw from one series, as when Orders and Quotes share a run of document numbers.</li>
+    <li><strong>Gaps are guaranteed with both.</strong> A rolled-back transaction consumes the number
+        anyway. If your accountant needs a gapless series, neither mechanism provides it, and that is a
+        business requirement with a much more expensive solution.</li>
+  </ul>
+</div>
   <p class="subtle">
     A sequence gaps too, for the same reasons. It is a better tool, not a gapless one.
   </p>
@@ -324,6 +382,31 @@
 <span class="cm">-- NULL poisons arithmetic and concatenation:</span>
 <span class="kw">SELECT</span> Total + Discount <span class="kw">FROM</span> dbo.Orders;             <span class="cm">-- NULL if Discount is NULL</span>
 <span class="kw">SELECT</span> Total + <span class="kw">ISNULL</span>(Discount, 0) <span class="kw">FROM</span> dbo.Orders;  <span class="cm">-- ✓</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WHERE Notes = NULL</code> &mdash; returns <strong>zero rows, always</strong>, and no
+        error. <code>NULL</code> means "unknown", so <code>unknown = unknown</code> is itself unknown,
+        and <code>WHERE</code> keeps only rows that are <em>true</em>.</li>
+    <li><code>WHERE Notes IS NULL</code> &mdash; the correct form. <code>IS NULL</code> is a distinct
+        operator that tests for the marker rather than comparing values.</li>
+    <li><strong>SQL uses three-valued logic:</strong> true, false and unknown. It is the single biggest
+        difference from C#'s <code>bool</code>, and nearly every "why is this row missing" question
+        traces back to it.</li>
+    <li><code>COUNT(*)</code> versus <code>COUNT(Notes)</code> &mdash; genuinely different questions.
+        <code>COUNT(*)</code> counts rows; <code>COUNT(col)</code> counts <strong>non-null values in
+        that column</strong>. Hence 1000 and 240.</li>
+    <li><code>SUM</code>, <code>AVG</code> and <code>MAX</code> skip nulls too &mdash; which means an
+        average over a mostly-null column is an average of the few rows that had data, not of the
+        table.</li>
+    <li><code>Total + Discount</code> &mdash; <strong>null poisons arithmetic</strong>. Any operation
+        involving <code>NULL</code> produces <code>NULL</code>, so one missing discount empties the
+        whole result.</li>
+    <li><code>ISNULL(Discount, 0)</code> &mdash; substitute a value. The ANSI-standard spelling is
+        <code>COALESCE(Discount, 0)</code>, which takes any number of arguments and is the more
+        portable choice.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ <code>NOT IN</code> with a nullable column</div>
@@ -392,6 +475,27 @@
   <p>No SQL Server installed? One command, if you have Docker:</p>
   <pre><code>docker run -e <span class="st">"ACCEPT_EULA=Y"</span> -e <span class="st">"MSSQL_SA_PASSWORD=Str0ng!Passw0rd"</span> \
   -p 1433:1433 -d mcr.microsoft.com/mssql/server:2022-latest</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>docker run</code> &mdash; a shell command. This starts SQL Server in a container so you
+        can practise without installing it.</li>
+    <li><code>-e "ACCEPT_EULA=Y"</code> &mdash; <code>-e</code> sets an <strong>environment
+        variable</strong> inside the container. The image refuses to start without this one.</li>
+    <li><code>MSSQL_SA_PASSWORD</code> &mdash; SQL Server enforces its own complexity rules and
+        <strong>exits without explanation</strong> if they are not met. A container that starts and
+        immediately stops is almost always this.</li>
+    <li><code>-p 1433:1433</code> &mdash; <strong>host port : container port</strong>, in that order.
+        It is what makes the server reachable from your machine at
+        <code>Server=localhost,1433</code>.</li>
+    <li><code>-d</code> &mdash; detached, so the container runs in the background and gives your
+        terminal back.</li>
+    <li><code>\</code> at the end of a line &mdash; a shell line continuation. On Windows PowerShell
+        it is a backtick instead, and pasting the Unix form is a common first stumble.</li>
+    <li><strong>The data lives inside the container</strong> unless you mount a volume, so removing it
+        deletes your database. Fine for practice, and worth knowing before you are surprised.</li>
+  </ul>
+</div>
   <p>Then create the two tables above and prove the constraints are real:</p>
   <pre><code><span class="cm">-- 1. an order for a customer who does not exist</span>
 <span class="kw">INSERT INTO</span> dbo.Orders (OrderNumber, CustomerId, Total) <span class="kw">VALUES</span> (<span class="st">'A1'</span>, 999, 10);
@@ -400,6 +504,29 @@
 <span class="cm">-- 2. the same order number twice</span>
 <span class="cm">-- 3. a negative total</span>
 <span class="cm">-- 4. then: SELECT * FROM dbo.Orders WHERE Notes &lt;&gt; 'x';  -- where did the rows go?</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>INSERT INTO ... VALUES ('A1', 999, 10)</code> &mdash; the column list in parentheses
+        then the values, positionally. Always write the column list: <code>INSERT</code> without one
+        breaks silently the day a column is added.</li>
+    <li><strong>Customer 999 does not exist</strong>, so the foreign key rejects the row. The database
+        refused to store a lie, and no application code was involved &mdash; that is the point of
+        declaring it.</li>
+    <li><strong>The same order number twice</strong> violates <code>UQ_Orders_Number</code>. Note this
+        is the check that survives two web servers inserting simultaneously; a
+        <code>SELECT</code>-then-<code>INSERT</code> in C# does not.</li>
+    <li><strong>A negative total</strong> is rejected only if you declared a <code>CHECK</code>
+        constraint. If nothing stopped it, that is the lesson: a rule not written down is a rule the
+        database does not have.</li>
+    <li><code>WHERE Notes &lt;&gt; 'x'</code> &mdash; the trap from the NULL block, arriving in
+        disguise. Rows where <code>Notes</code> is <code>NULL</code> are <strong>excluded</strong>,
+        because <code>NULL &lt;&gt; 'x'</code> is unknown rather than true. Most people expect
+        "everything that is not x" and get a silently short answer.</li>
+    <li><strong>Do run all four.</strong> An error message you have caused deliberately, once, is
+        worth more than the paragraph explaining it.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     This repository already has a <code>docker-compose.yml</code> with SQL Server configured
     &mdash; <code>docker compose up -d</code> is enough.

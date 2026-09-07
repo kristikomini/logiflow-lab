@@ -100,6 +100,28 @@
 <span class="kw">var</span> conn = <span class="kw">new</span> <span class="ty">SqlConnection</span>(cs);
 <span class="kw">try</span>     { ... }
 <span class="kw">finally</span> { conn?.Dispose(); }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>using (var conn = ...) { }</code> &mdash; the <strong>using statement</strong>. The
+        braces are the lifetime: <code>Dispose()</code> runs when control leaves them, by any route
+        including an exception.</li>
+    <li><code>using var conn = ...;</code> &mdash; the <strong>using declaration</strong> (C# 8). No
+        braces, no extra nesting; disposal happens at the end of the enclosing scope. Prefer it, unless
+        you deliberately want a shorter lifetime than the whole method.</li>
+    <li><code>try { ... } finally { conn?.Dispose(); }</code> &mdash; <strong>this is what both
+        compile to</strong>. There is no runtime feature called "using"; it is syntax for a
+        try/finally.</li>
+    <li><code>?.</code> in the generated <code>finally</code> &mdash; guards the case where the
+        constructor itself threw and <code>conn</code> is still null.</li>
+    <li><strong>Why <code>finally</code> and not "after the block":</strong> code after the block is
+        skipped when an exception unwinds. A connection released only on the happy path is a leak that
+        appears exclusively under errors &mdash; the load pattern where you can least afford it.</li>
+    <li><code>IDisposable</code> exists because the <strong>GC does not manage anything but
+        memory</strong>. File handles, sockets and database connections are OS resources the collector
+        knows nothing about, so releasing them is your job, deterministically.</li>
+  </ul>
+</div>
   <p>
     <code>using</code> is <code>try/finally</code>. That is the answer to "what does
     <code>using</code> compile to", and it explains why an exception cannot leak the resource.
@@ -116,6 +138,27 @@
   <pre><code><span class="cm">// ✗ Looks correct. Exhausts sockets under load.</span>
 <span class="kw">using var</span> http = <span class="kw">new</span> <span class="ty">HttpClient</span>();
 <span class="kw">var</span> r = <span class="kw">await</span> http.GetAsync(url);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>using var http = new HttpClient();</code> &mdash; correct-looking and wrong. It
+        follows the rule from the previous block and still breaks under load.</li>
+    <li><strong>Disposing an <code>HttpClient</code> does not release its socket immediately.</strong>
+        The underlying TCP connection goes into the OS <code>TIME_WAIT</code> state for up to four
+        minutes. Create one per request and a busy service exhausts the ephemeral port range and starts
+        throwing <code>SocketException</code>.</li>
+    <li><strong>The opposite extreme is also wrong.</strong> One static <code>HttpClient</code> forever
+        caches DNS, so it keeps calling an IP address that has been decommissioned &mdash; invisible
+        until a failover.</li>
+    <li><strong>The answer is <code>IHttpClientFactory</code></strong>:
+        <code>services.AddHttpClient&lt;IPricingClient, PricingClient&gt;()</code>. It pools handlers,
+        rotates them on a schedule to pick up DNS changes, and is where retry policies attach.</li>
+    <li><strong>The general lesson.</strong> "Implements <code>IDisposable</code>" does not imply "wrap
+        it in <code>using</code>". Injected services &mdash; <code>HttpClient</code>,
+        <code>DbContext</code> &mdash; are owned by the container, and disposing one early breaks every
+        later user in the same request.</li>
+  </ul>
+</div>
   <p>
     Disposing an <code>HttpClient</code> does not immediately free its socket &mdash; the
     connection sits in <code>TIME_WAIT</code> for a while. In a loop or a busy endpoint you run out
@@ -155,6 +198,28 @@
 <span class="ty">ArrayList</span> list = [<span class="nu">1</span>, <span class="nu">2</span>, <span class="nu">3</span>];       <span class="cm">// three boxes — use List&lt;int&gt;</span>
 <span class="kw">string</span> s = <span class="st">"total: "</span> + <span class="nu">42</span>;      <span class="cm">// historically boxed; use interpolation</span>
 <span class="ty">IComparable</span> c = <span class="nu">42</span>;             <span class="cm">// a struct assigned to an interface</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>object boxed = n;</code> &mdash; <strong>boxing</strong>. <code>int</code> is a value
+        type and <code>object</code> is a reference type, so the CLR allocates a wrapper on the heap
+        and copies the value in. One implicit conversion, one allocation, no syntax.</li>
+    <li><code>(int)boxed</code> &mdash; <strong>unboxing</strong>: a checked cast that copies the value
+        back out. It throws <code>InvalidCastException</code> unless the boxed type matches
+        <em>exactly</em> &mdash; unboxing an <code>int</code> as a <code>long</code> fails.</li>
+    <li><strong>It is a copy, which is its own trap.</strong> Mutating a value type through an
+        <code>object</code> reference modifies the box, not the original.</li>
+    <li><code>ArrayList list = [1, 2, 3];</code> &mdash; three boxes, because it stores
+        <code>object</code>. <code>List&lt;int&gt;</code> stores actual integers in one array and
+        allocates none.</li>
+    <li><code>IComparable c = 42;</code> &mdash; assigning a struct to an <strong>interface</strong>
+        boxes it. Interfaces are reference types, so this is the boxing people genuinely do not
+        see.</li>
+    <li><strong>Why care.</strong> One box is nothing. A box per element in a hot loop is millions of
+        small short-lived objects, which is gen-0 pressure and GC pauses &mdash; and it is invisible in
+        the source, which is what makes it worth recognising.</li>
+  </ul>
+</div>
   <p>
     This is the third benefit of <a href="04-generics-delegates-events.html#generics">generics</a>
     and the one candidates forget: <code>List&lt;int&gt;</code> stores the ints inline;
@@ -265,6 +330,37 @@ _cache.GetOrAdd(id, Load);
 
 <span class="cm">// 4. Do not share mutable state at all. Immutability needs no synchronisation,</span>
 <span class="cm">//    which is why records and read-only collections are the real answer.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>private readonly object _gate = new();</code> &mdash; the lock object.
+        <strong>Private</strong> so nothing outside can lock it, <strong>readonly</strong> so it cannot
+        be reassigned mid-flight, and its own object so it has no other purpose.</li>
+    <li><code>lock (_gate) { _count++; }</code> &mdash; <strong>mutual exclusion</strong>: one thread
+        inside at a time. It compiles to <code>Monitor.Enter</code>/<code>Exit</code> in a try/finally,
+        so the lock is released even if the body throws.</li>
+    <li><code>_count++</code> &mdash; needs the lock because it is <strong>read, add, write</strong>:
+        three steps, and another thread can land between them.</li>
+    <li><code>lock(this)</code>, <code>lock(typeof(X))</code>, locking a string &mdash; all wrong,
+        for one reason: <strong>the object is reachable from outside</strong>. Anyone can lock the same
+        instance, so your class can be deadlocked by code you have never seen. Interned string literals
+        are the worst case, since unrelated assemblies share them.</li>
+    <li><code>Interlocked.Increment(ref _count)</code> &mdash; a <strong>single atomic CPU
+        instruction</strong>, no lock at all. Far cheaper, and available only for simple operations on
+        one value.</li>
+    <li><code>ref</code> &mdash; passes the variable itself, not a copy, so the method can modify it in
+        place. Required here: the increment must happen at the original location.</li>
+    <li><code>ConcurrentDictionary</code> &mdash; built for concurrent access. Wrapping an ordinary
+        <code>Dictionary</code> in your own lock is slower and easier to get wrong.</li>
+    <li><code>_cache.GetOrAdd(id, Load)</code> &mdash; <strong>the factory may run more than
+        once</strong> under contention. Only one result is stored, but <code>Load</code> can be
+        called twice, so it must be cheap and free of side effects. "Thread-safe" is not
+        "run-once".</li>
+    <li><strong>Option four beats all three:</strong> do not share mutable state. Immutable data needs
+        no synchronisation, which is why records and pure functions scale so much better than careful
+        locking.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ You cannot <code>await</code> inside a <code>lock</code></div>
@@ -272,6 +368,20 @@ _cache.GetOrAdd(id, Load);
 {
     <span class="kw">await</span> LoadAsync();      <span class="cm">// does not compile — and that is a kindness</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>await</code> inside <code>lock</code> &mdash; <strong>a compile error</strong>, and
+        deliberately so.</li>
+    <li><strong>Why the language forbids it.</strong> A <code>lock</code> is owned by a
+        <em>thread</em>. <code>await</code> can resume on a different thread, which would then try to
+        release a lock it never took &mdash; corrupting the lock, not just failing.</li>
+    <li><strong>It would also be a bad idea even if it worked</strong>, because holding a lock across
+        an unbounded wait serialises every caller behind the slowest network call.</li>
+    <li>The error message names the real fix rather than a workaround: you need an asynchronous
+        primitive, which is the next block.</li>
+  </ul>
+</div>
   <p>
     A <code>lock</code> is owned by a <em>thread</em>, and after an <code>await</code> the
     continuation may run on a different one, so releasing it would be meaningless. Use
@@ -283,6 +393,26 @@ _cache.GetOrAdd(id, Load);
 <span class="kw">await</span> _gate.WaitAsync(ct);
 <span class="kw">try</span>     { <span class="kw">await</span> LoadAsync(ct); }
 <span class="kw">finally</span> { _gate.Release(); }        <span class="cm">// or the lock is held forever</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>new SemaphoreSlim(1, 1)</code> &mdash; initial count 1, maximum 1. A semaphore
+        permitting a single holder behaves as a <strong>mutex you can await</strong>.</li>
+    <li><code>await _gate.WaitAsync(ct)</code> &mdash; takes the slot, asynchronously. If it is taken,
+        the method suspends and the <strong>thread is released</strong> rather than blocked. Passing
+        <code>ct</code> means a cancelled request stops waiting.</li>
+    <li><code>try</code> immediately after acquiring, <strong>never before</strong>. Putting
+        <code>WaitAsync</code> inside the <code>try</code> would release a slot that was never taken
+        if the wait itself threw.</li>
+    <li><code>finally { _gate.Release(); }</code> &mdash; <strong>the whole reason this shape
+        exists</strong>. A semaphore has no scope-based release, so an exception on a path without
+        <code>finally</code> holds the slot forever and every later caller hangs.</li>
+    <li><strong>It is not re-entrant.</strong> Unlike <code>lock</code>, the same execution path
+        entering twice deadlocks against itself.</li>
+    <li>The counting form &mdash; <code>new SemaphoreSlim(4, 4)</code> &mdash; is the standard way to
+        cap concurrency, for example four simultaneous calls to a rate-limited API.</li>
+  </ul>
+</div>
 </div>
 
 <div class="box trap">
@@ -303,9 +433,44 @@ _cache.GetOrAdd(id, Load);
   <pre><code><span class="kw">int</span> count = <span class="nu">0</span>;
 <span class="ty">Parallel</span>.For(<span class="nu">0</span>, <span class="nu">1_000_000</span>, _ =&gt; count++);
 <span class="ty">Console</span>.WriteLine(count);          <span class="out">// 862417. Or 91355. Never 1000000.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Parallel.For(0, 1_000_000, ...)</code> &mdash; runs the body across many threads at
+        once. The underscores are <strong>digit separators</strong>, ignored by the compiler.</li>
+    <li><code>_</code> as the parameter &mdash; a <strong>discard</strong>: the index is supplied but
+        deliberately unused.</li>
+    <li><code>count++</code> &mdash; the bug, and it is one character wide. It is
+        <strong>three operations</strong>: read <code>count</code>, add one, write it back. Two threads
+        can read the same value, both add one, and both write the same result &mdash; two increments,
+        one effect.</li>
+    <li><strong>The output is different every run</strong>, and always short. There is no exception, no
+        warning and no crash: just a number that is quietly wrong, which is what makes race conditions
+        the worst class of bug to inherit.</li>
+    <li><strong>It gets worse on better hardware.</strong> More cores means more contention, so code
+        that passed on a laptop fails on the production server.</li>
+  </ul>
+</div>
   <pre><code><span class="kw">int</span> count = <span class="nu">0</span>;
 <span class="ty">Parallel</span>.For(<span class="nu">0</span>, <span class="nu">1_000_000</span>, _ =&gt; <span class="ty">Interlocked</span>.Increment(<span class="kw">ref</span> count));
 <span class="ty">Console</span>.WriteLine(count);          <span class="out">// 1000000, every time</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Interlocked.Increment(ref count)</code> &mdash; the three steps become
+        <strong>one atomic instruction</strong> the CPU guarantees cannot be interleaved.</li>
+    <li><code>ref count</code> &mdash; passes the storage location itself. <code>Interlocked</code>
+        must operate on the original variable, not a copy, so <code>ref</code> is not optional.</li>
+    <li><strong>1000000, every time.</strong> Not usually, not almost &mdash; the guarantee is
+        absolute.</li>
+    <li><strong>Why not just <code>lock</code>:</strong> it would also be correct and roughly an order
+        of magnitude slower here. <code>Interlocked</code> is the right tool when the shared state is a
+        single number; a <code>lock</code> is right when several fields must change together.</li>
+    <li><strong>What this pair really teaches</strong> is that "it worked when I tested it" is not
+        evidence about concurrent code. The broken version works most of the time, which is precisely
+        the problem.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Run the first one five times and note that the number is different each time and never right.
     That irreproducibility <em>is</em> the lesson &mdash; it is why these bugs survive testing and
