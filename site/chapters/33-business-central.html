@@ -206,6 +206,30 @@ codeunit <span class="nu">50100</span> <span class="st">"LOGI Sales Subscribers"
             Error(<span class="st">'Il cliente %1 non ha una finestra di consegna.'</span>, Customer.<span class="st">"No."</span>);
     <span class="kw">end</span>;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>AL, the Business Central language.</strong> Pascal-descended, and the resemblance to
+        C# is superficial.</li>
+    <li><code>tableextension 50100 "LOGI Customer Ext" extends Customer</code> &mdash; you
+        <strong>extend</strong> Microsoft's table; you never modify it. That is the whole modern
+        extension model, and it is what makes upgrades survivable.</li>
+    <li><code>50100</code> &mdash; an <strong>object id from your assigned range</strong>. 50000&ndash;99999
+        is the per-tenant range; ids are a real, allocated resource and collisions between extensions
+        are a genuine deployment problem.</li>
+    <li><code>"LOGI ..."</code> &mdash; an <strong>affix</strong> reserved to your publisher. Required
+        for AppSource, and sensible regardless, because two extensions adding
+        <code>"Delivery Window"</code> to the same table will collide.</li>
+    <li><code>Caption = 'Finestra di consegna'</code> &mdash; <strong>single quotes</strong> for strings
+        in AL, and the caption is what a user sees. Captions are translatable; the field name is
+        not.</li>
+    <li><code>DataClassification = CustomerContent</code> &mdash; <strong>required</strong>, and it is a
+        GDPR classification rather than documentation. The compiler refuses the field without it, which
+        is an unusually good piece of language design.</li>
+    <li><code>pageextension</code> &mdash; a separate object, because adding the field and showing it
+        are separate concerns. Data and UI are extended independently.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Read the third object again, because it is the entire philosophy. Microsoft's posting routine
@@ -278,6 +302,24 @@ codeunit <span class="nu">50100</span> <span class="st">"LOGI Sales Subscribers"
 <span class="cm"># Ctrl+Shift+P → "AL: Go!" → pick Microsoft cloud sandbox</span>
 <span class="cm"># it scaffolds app.json + launch.json + a HelloWorld pageextension</span>
 <span class="cm"># F5 → downloads symbols, compiles, publishes, opens the browser</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>#</code> &mdash; comments. These are instructions, not a script.</li>
+    <li><strong>"AL Language" by Microsoft</strong> &mdash; VS Code is the only editor. There is no
+        Visual Studio option, which surprises people arriving from C#.</li>
+    <li><code>AL: Go!</code> &mdash; scaffolds <code>app.json</code>, <code>launch.json</code> and a
+        HelloWorld extension in one command.</li>
+    <li><strong>A cloud sandbox needs no local install</strong> &mdash; no SQL Server, no BC server, no
+        licence. That removes the barrier that keeps most developers out of this market.</li>
+    <li><code>F5</code> &mdash; <strong>downloads symbols</strong>, compiles, publishes and opens the
+        browser. The symbol download is the step that fails behind a corporate proxy and produces a
+        baffling error.</li>
+    <li><strong>Why bother:</strong> Business Central work in Emilia-Romagna pays well and has a
+        fraction of the competition, precisely because the tooling is unfamiliar. An afternoon in a
+        sandbox is a cheap option on a whole second market.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then do the thing that teaches the model: take the <code>tableextension</code> and
     <code>pageextension</code> above, change the ids to your assigned range, and press F5. A new

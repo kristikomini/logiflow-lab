@@ -111,6 +111,27 @@
 &lt;TextBlock Text=<span class="st">"{Binding Total, StringFormat=C}"</span> /&gt;
 &lt;Button Content=<span class="st">"Invia"</span> Command=<span class="st">"{Binding SubmitCommand}"</span> /&gt;
 <span class="cm">// Enabled/disabled comes from the command's CanExecute. Nothing to remember.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>WinForms is "push"</strong>: the form reaches into controls and sets their values.
+        Every line here is an instruction to a widget.</li>
+    <li><code>dataGridView1</code> &mdash; the designer-generated name, and its survival into real code
+        is characteristic. The form and the UI are one class.</li>
+    <li><code>.DataSource = orders</code> &mdash; a plain <code>List&lt;T&gt;</code> here means the grid
+        never updates again. Only a <code>BindingList&lt;T&gt;</code> raises the change notifications
+        the grid listens for.</li>
+    <li><code>ToString("C")</code> &mdash; culture-sensitive currency, correct for a human reading a
+        screen in Italy.</li>
+    <li><code>btnSubmit.Enabled = orders.Count &gt; 0</code> &mdash; <strong>and you must remember to do
+        this everywhere</strong>. Every other method that changes the list must repeat it, and the one
+        that forgets leaves a button enabled over an empty grid.</li>
+    <li><strong>That repetition is the argument for MVVM.</strong> Not elegance: the bug is a rule
+        expressed in five places instead of one.</li>
+    <li><code>_service.GetOrders()</code> &mdash; blocking, and the next block is about why that freezes
+        the window.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   That is the whole difference, and it is why WPF leads to MVVM and WinForms tends not to. Once the
@@ -177,6 +198,30 @@
 
     <span class="kw">private bool</span> CanSubmit() =&gt; !IsBusy &amp;&amp; Orders.Count &gt; <span class="nu">0</span>;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>: ObservableObject</code> &mdash; from CommunityToolkit.Mvvm. It supplies
+        <code>INotifyPropertyChanged</code>, the interface the entire binding system rests on.</li>
+    <li><code>partial</code> &mdash; <strong>required</strong>, because a source generator writes the
+        other half of this class at compile time.</li>
+    <li><code>[ObservableProperty]</code> on <code>_orders</code> &mdash; generates a public
+        <code>Orders</code> property that raises <code>PropertyChanged</code> on assignment. You write
+        the field; the generator writes the ceremony.</li>
+    <li><code>ObservableCollection&lt;T&gt;</code> &mdash; raises events on <em>add and remove</em>, which
+        is a different notification from the property changing. A <code>List&lt;T&gt;</code> here
+        binds once and never updates &mdash; the same trap as the previous block.</li>
+    <li><code>[NotifyCanExecuteChangedFor(nameof(SubmitCommand))]</code> &mdash;
+        <strong>this attribute is the answer to the WinForms repetition</strong>. Setting
+        <code>IsBusy</code> re-evaluates the button's availability automatically, everywhere, forever.
+        The rule is stated once.</li>
+    <li><code>nameof(...)</code> &mdash; compile-time, so a rename cannot silently break the
+        wiring.</li>
+    <li><code>[RelayCommand]</code> &mdash; generates an <code>ICommand</code> from a method. Commands
+        are how a view model exposes actions without referencing a button, which is what makes the
+        class testable with no window at all.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Note what is <em>not</em> here: no <code>Dispatcher</code>, no <code>button.Enabled = </code>, no
@@ -264,6 +309,28 @@ _backgroundService.DataArrived += OnDataArrived;   <span class="cm">// window cl
                                                    <span class="cm">// because the service still holds it</span>
 <span class="cm">// ✓ unsubscribe on close, or use a weak event.</span>
 Closed += (s, e) =&gt; _backgroundService.DataArrived -= OnDataArrived;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>.Result</code> on the UI thread &mdash; <strong>the window goes white and Windows says
+        "Non risponde"</strong>. The message pump is the thread you just blocked, so nothing repaints
+        and no input is processed.</li>
+    <li><strong>It also deadlocks</strong>, for the reason in
+        <a href="07-async-and-errors.html">chapter 07</a>: the continuation must run on the UI
+        synchronization context, and that context is occupied by the thread waiting for it.</li>
+    <li><code>async void</code> &mdash; and <strong>an event handler is the one legitimate use of
+        it</strong>. Everywhere else it is a bug: an <code>async void</code> method cannot be awaited,
+        and an exception inside it crashes the process rather than surfacing at a caller.</li>
+    <li><code>await</code> in a handler &mdash; the handler returns immediately, <strong>the pump keeps
+        turning</strong>, and the window stays responsive.</li>
+    <li><strong>The continuation comes back on the UI thread by itself.</strong> The captured
+        synchronization context &mdash; the same thing that causes the deadlock above &mdash; is here
+        doing you a favour, which is why no <code>Invoke</code> or <code>Dispatcher</code> call is
+        needed.</li>
+    <li>Wrap the body in try/catch regardless: with <code>async void</code> there is nowhere else for
+        an exception to go.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Why the leak matters more here than on the web</div>
@@ -290,6 +357,22 @@ Closed += (s, e) =&gt; _backgroundService.DataArrived -= OnDataArrived;</code></
   <pre><code>dotnet tool install -g upgrade-assistant
 upgrade-assistant upgrade MyApp.sln        <span class="cm"># also a Visual Studio extension;</span>
                                            <span class="cm"># offers in-place or side-by-side</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>-g</code> &mdash; installs the tool globally rather than into a project.</li>
+    <li><code>upgrade-assistant upgrade MyApp.sln</code> &mdash; and desktop is the
+        <strong>best case</strong> for this tool. WinForms and WPF both exist on modern .NET, so unlike
+        Web Forms there is a real target.</li>
+    <li><strong>In-place or side-by-side</strong> &mdash; side-by-side keeps the old project building
+        while you work, which makes the change reviewable instead of a cliff.</li>
+    <li><strong>What actually blocks a desktop port:</strong> third-party control suites without a .NET
+        8+ build, anything using <code>AppDomain</code>, and WCF clients. The tool's analyse step names
+        them.</li>
+    <li><strong>The payoff is worth the effort:</strong> modern .NET, current C#, single-file publish,
+        and the same SDK-style project as the rest of your solution.</li>
+  </ul>
+</div>
   <p>
     It converts the project file, retargets, and flags incompatibilities. What it cannot fix, and
     what actually consumes the week: <code>AppDomain</code>s, .NET Remoting, WCF clients (there is
@@ -379,9 +462,46 @@ upgrade-assistant upgrade MyApp.sln        <span class="cm"># also a Visual Stud
   <pre><code>dotnet new wpf -o DesktopDemo &amp;&amp; cd DesktopDemo
 dotnet add package CommunityToolkit.Mvvm
 dotnet run</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet new wpf -o DesktopDemo</code> &mdash; a WPF project on modern .NET, from the
+        normal SDK. No Visual Studio required.</li>
+    <li><code>dotnet add package CommunityToolkit.Mvvm</code> &mdash; the source generators from the
+        second block. Small, official, and it removes most MVVM boilerplate.</li>
+    <li><code>dotnet run</code> &mdash; Windows only, since WPF and WinForms are Windows
+        technologies. That is the honest constraint of this whole chapter.</li>
+    <li>Then bind a control to a view-model property and change it in code. Watching the UI update with
+        no code touching the control is the moment the pattern makes sense.</li>
+  </ul>
+</div>
   <p>Then feel the bug rather than reading about it. In the button handler, first write:</p>
   <pre><code><span class="ty">Thread</span>.Sleep(<span class="nu">4000</span>);              <span class="cm">// drag the window while it runs</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Thread.Sleep(4000)</code> &mdash; <strong>blocks the thread</strong> for four seconds.
+        On a UI thread that is four seconds of no repainting and no input.</li>
+    <li><strong>Drag the window while it runs.</strong> It will not move, the contents go white, and
+        Windows offers to close it &mdash; the exact behaviour users report as "the program
+        crashed".</li>
+    <li>This is <a href="07-async-and-errors.html">chapter 07</a>'s abstract rule made physical, which
+        is why it is worth ten seconds of your time.</li>
+  </ul>
+</div>
   <pre><code><span class="kw">await</span> <span class="ty">Task</span>.Delay(<span class="nu">4000</span>);         <span class="cm">// now drag it again</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>await Task.Delay(4000)</code> &mdash; <strong>a timer, not a sleep</strong>. No thread
+        is held; a continuation is scheduled for when it fires.</li>
+    <li><strong>Now drag it again</strong> &mdash; the window moves, redraws and responds throughout,
+        and the code above and below the await is otherwise identical.</li>
+    <li><strong>One keyword, and the difference between a frozen application and a responsive
+        one.</strong> That is the whole lesson of async on a UI, and no explanation lands as hard as
+        doing it twice.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     The first freezes the window solid and Windows greys it out; the second leaves it perfectly
     draggable, and the code after it still runs on the UI thread and can set a label. Same four

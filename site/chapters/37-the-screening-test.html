@@ -166,6 +166,25 @@
 <span class="kw">foreach</span> (<span class="kw">char</span> c <span class="kw">in</span> input)
     <span class="kw">if</span> (counts[c] == <span class="nu">1</span>) <span class="kw">return</span> c;
 <span class="kw">return</span> <span class="st">'\0'</span>;                          <span class="cm">// two passes, O(n). Not nested loops.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Recognise the shape:</strong> anything about frequency &mdash; first non-repeating,
+        most common, any duplicates &mdash; is a <strong>count with a dictionary</strong>.</li>
+    <li><code>Dictionary&lt;char, int&gt;</code> &mdash; O(1) lookup, which is what turns the nested-loop
+        solution into a linear one.</li>
+    <li><code>counts.GetValueOrDefault(c) + 1</code> &mdash; returns <code>0</code> for a missing key
+        instead of throwing, so no "does it exist" branch is needed. Concise and interviewer-friendly.</li>
+    <li><strong>Two passes, not nested loops.</strong> The first counts, the second finds the first
+        with a count of one &mdash; and <em>first</em> requires the second pass over the input, not
+        over the dictionary, whose order you must not rely on.</li>
+    <li><code>'\0'</code> &mdash; the null character as "not found". Say the choice out loud in an
+        interview; returning <code>char?</code> is arguably better and noticing the question is what
+        is being marked.</li>
+    <li><strong>Say the complexity before they ask.</strong> "Two passes, O(n) time and O(k) space" is
+        the sentence that separates candidates.</li>
+  </ul>
+</div>
 
 <div class="code-head">2 · lookup instead of a second loop</div>
 <pre><code><span class="cm">// "Two numbers that sum to the target" — the classic O(n²) trap.</span>
@@ -176,6 +195,21 @@
     seen.Add(n);
 }
 <span class="kw">return</span> <span class="kw">false</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>The classic O(n&sup2;) trap.</strong> The obvious solution is two nested loops, and
+        the hidden tests are sized so that it times out.</li>
+    <li><code>HashSet&lt;int&gt;</code> &mdash; O(1) <code>Contains</code>. Reaching for a hash set is
+        the single highest-value reflex in these tests.</li>
+    <li><code>seen.Contains(target - n)</code> &mdash; <strong>check before adding</strong>. Look for the
+        complement among numbers already seen, so one pass suffices.</li>
+    <li><strong>Order matters:</strong> adding before checking makes a single element match itself when
+        <code>target</code> is twice its value.</li>
+    <li><strong>Trading memory for time</strong> is the whole pattern, and naming it is worth as much as
+        writing it.</li>
+  </ul>
+</div>
 
 <div class="code-head">3 · group, aggregate, rank &mdash; the one .NET tests love</div>
 <pre><code><span class="cm">// "Top 3 customers by total" — LINQ is the expected answer here.</span>
@@ -186,6 +220,24 @@
     .ThenBy(x =&gt; x.Id)            <span class="cm">// tie-break — hidden tests check this</span>
     .Take(<span class="nu">3</span>)
     .ToList();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>LINQ is the expected answer here</strong>, not a hand-rolled loop. The test is
+        whether you know the standard library.</li>
+    <li><code>.GroupBy(o =&gt; o.CustomerId)</code> then <code>.Select(g =&gt; ...)</code> &mdash;
+        <code>g.Key</code> is the grouped value and <code>g</code> is itself enumerable, which is why
+        <code>g.Sum(...)</code> works directly.</li>
+    <li><code>new { Id = ..., Total = ... }</code> &mdash; an anonymous type. Fine inside a method; it
+        cannot be returned from one.</li>
+    <li><code>.ThenBy(x =&gt; x.Id)</code> &mdash; <strong>the tie-break, and hidden tests check
+        it</strong>. Without a deterministic secondary sort, two customers with equal totals come back
+        in an arbitrary order and the assertion fails intermittently.</li>
+    <li><strong>That is the real lesson of this block.</strong> "It works on my machine" and "it passes
+        every run" are different claims, and ties are where they diverge.</li>
+    <li><code>.Take(3)</code> after ordering, never before.</li>
+  </ul>
+</div>
 
 <div class="code-head">4 · running window over a sequence</div>
 <pre><code><span class="cm">// "Largest sum of k consecutive values" — slide, do not recompute.</span>
@@ -195,6 +247,23 @@
     sum += numbers[i] - numbers[i - k];   <span class="cm">// add one, drop one: O(n) not O(n×k)</span>
     best = <span class="ty">Math</span>.Max(best, sum);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>The sliding window.</strong> Recomputing the sum for every position is O(n&times;k);
+        sliding it is O(n).</li>
+    <li><code>numbers.Take(k).Sum()</code> &mdash; seed the window with the first k values.</li>
+    <li><code>sum += numbers[i] - numbers[i - k]</code> &mdash; <strong>add one, drop one</strong>. The
+        single line that makes it linear, and the whole technique.</li>
+    <li><code>i - k</code> &mdash; the element leaving the window. Starting the loop at
+        <code>i = k</code> is what keeps that index valid, and off-by-one here is the usual
+        mistake.</li>
+    <li><code>Math.Max(best, sum)</code> &mdash; track the maximum as you go, so no second pass is
+        needed.</li>
+    <li><strong>Say the edge case aloud:</strong> what if the array is shorter than
+        <code>k</code>? Noticing it is worth marks even if you handle it in one line.</li>
+  </ul>
+</div>
 
 <div class="code-head">5 · strings, and the trap inside them</div>
 <pre><code><span class="cm">// ✗ Building a string in a loop is O(n²): strings are immutable,</span>
@@ -206,6 +275,23 @@
 <span class="kw">var</span> sb = <span class="kw">new</span> <span class="ty">StringBuilder</span>();
 <span class="kw">foreach</span> (<span class="kw">var</span> w <span class="kw">in</span> words) sb.Append(w).Append(<span class="st">' '</span>);
 <span class="cm">// or simply: string.Join(" ", words)</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>result += w + " "</code> &mdash; <strong>O(n&sup2;)</strong>, because strings are
+        immutable: every <code>+=</code> allocates a new string and copies everything so far.</li>
+    <li><strong>It is a favourite of timed tests</strong> precisely because it is correct and too
+        slow, so it passes the examples and fails the hidden performance case.</li>
+    <li><code>StringBuilder</code> &mdash; a mutable buffer that grows by doubling, turning the
+        quadratic cost linear.</li>
+    <li><code>.Append(w).Append(' ')</code> &mdash; <code>Append</code> returns the builder, which is
+        what allows chaining. Note <code>' '</code> in single quotes: a <code>char</code>, with an
+        overload that skips the string machinery.</li>
+    <li><code>string.Join(" ", words)</code> &mdash; <strong>best when it fits</strong>. One pass,
+        correctly sized, no trailing separator to trim &mdash; and it states the intent instead of the
+        mechanism.</li>
+  </ul>
+</div>
 
 <div class="code-head">6 · recursion, kept shallow</div>
 <pre><code><span class="cm">// Tree or nested-structure walks. Always ask: what is the base case?</span>
@@ -213,6 +299,26 @@
     node <span class="kw">is null</span> ? <span class="nu">0</span> : <span class="nu">1</span> + <span class="ty">Math</span>.Max(Depth(node.Left), Depth(node.Right));
 <span class="cm">// If the input could be 100 000 deep, rewrite it with an explicit Stack&lt;T&gt;</span>
 <span class="cm">// — StackOverflowException cannot be caught and kills the process.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>static int Depth(Node? node)</code> &mdash; recursion, and the shape to recognise for
+        any tree or nested structure.</li>
+    <li><strong>"What is the base case?" is the question to ask first</strong>, out loud. Here it is
+        <code>node is null =&gt; 0</code>, and getting it wrong is either infinite recursion or an
+        off-by-one on every branch.</li>
+    <li><code>Node?</code> &mdash; nullable, which is what makes the base case expressible in the type
+        rather than only in the body.</li>
+    <li><code>1 + Math.Max(Depth(node.Left), Depth(node.Right))</code> &mdash; one for this node, plus
+        the deeper subtree. The whole algorithm is one expression.</li>
+    <li><strong>The senior answer is the comment.</strong> Recursion depth is stack depth, and
+        <code>StackOverflowException</code> <strong>cannot be caught</strong> &mdash; it terminates the
+        process immediately.</li>
+    <li>So for input that could be 100,000 deep, rewrite it with an explicit
+        <code>Stack&lt;T&gt;</code>. Volunteering that trade-off is what marks the difference between
+        knowing the algorithm and having run one in production.</li>
+  </ul>
+</div>
 
 <h2 id="minutes">Spending the ninety minutes</h2>
 
@@ -257,6 +363,22 @@
   what shape was it?
   did I spot it in the first two minutes?
   which edge case did I miss?</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Three questions after every practice test.</strong> The reflection is what makes
+        practice compound; without it you re-learn the same shapes.</li>
+    <li><strong>"What shape was it?"</strong> &mdash; frequency count, hash-set lookup, sliding window,
+        recursion, LINQ aggregation. There are perhaps ten, and recognising the shape is nearly all of
+        the work.</li>
+    <li><strong>"Did I spot it in the first two minutes?"</strong> &mdash; because these tests are timed.
+        Knowing the solution slowly is scored the same as not knowing it.</li>
+    <li><strong>"Which edge case did I miss?"</strong> &mdash; empty input, one element, all identical,
+        ties, and integer overflow. The hidden tests are made of exactly these.</li>
+    <li><strong>Keep the answers.</strong> The list becomes short and repetitive very quickly, and that
+        repetition is the finding: it is nearly always the same two or three gaps.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     The list of edge cases you personally forget is short and stable &mdash; most people have two or
     three &mdash; and once it is written down you stop losing marks to it. That list is worth more

@@ -207,6 +207,30 @@
 <span class="cm">// 3. "Make this faster" — the O(n²) from chapter 06, every time</span>
 <span class="kw">var</span> byId = customers.ToDictionary(c =&gt; c.Id);      <span class="cm">// index once…</span>
 <span class="kw">foreach</span> (<span class="kw">var</span> o <span class="kw">in</span> orders) { <span class="kw">var</span> c = byId[o.CustomerId]; }   <span class="cm">// …then O(1)</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>The same two questions, in C# and in T-SQL.</strong> This block is deliberately the
+        twin of <a href="10-tsql-querying.html">chapter 10</a>'s, because interviewers ask one, then
+        the other, to see whether you know which side of the wire the work should happen on.</li>
+    <li><code>.GroupBy(o =&gt; o.CustomerId).Select(g =&gt; ...)</code> &mdash;
+        <code>g.Key</code> is the grouped value; <code>g</code> is enumerable, so
+        <code>g.Sum(...)</code> aggregates within the group.</li>
+    <li><code>new { CustomerId = ..., Total = ... }</code> &mdash; an anonymous type, usable inside the
+        method and not returnable from it.</li>
+    <li><code>.OrderByDescending(...).Take(3)</code> &mdash; order then take, never the reverse. And
+        <strong>mention the tie-break</strong>: without a secondary sort the result is non-deterministic
+        when totals are equal.</li>
+    <li><code>.GroupBy(i =&gt; i.Code).Where(g =&gt; g.Count() &gt; 1)</code> &mdash; the duplicates
+        question, and it is really asking <strong>whether you reach for hashing</strong>.
+        <code>GroupBy</code> is hash-based, so this is O(n) where the nested loop is
+        O(n&sup2;).</li>
+    <li><strong>Say where it runs.</strong> On an <code>IQueryable</code> this becomes SQL; on a
+        <code>List</code> it runs in your process. Volunteering that distinction unprompted is the
+        single most effective thing you can do in a .NET interview, and it is
+        <a href="06-collections-and-linq.html">chapter 06</a>'s rule arriving where it counts.</li>
+  </ul>
+</div>
 
 <h2 id="italian-terms">The Italian vocabulary you need for stage 1</h2>
 

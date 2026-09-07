@@ -183,6 +183,28 @@ from a background worker.
 + Atomic with the business data; retryable; survives an Elasticsearch outage.
 − The index is eventually consistent — typically a second or two behind.
 − One more moving part to monitor (the worker's queue depth).</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>An ADR again</strong>, as in <a href="25b-production-support.html">chapter 25b</a>
+        &mdash; numbered, dated, and written in Markdown beside the code.</li>
+    <li><code>Status: accepted &middot; Date: ...</code> &mdash; a decision is a point in time. Records
+        are superseded, never edited, so the reasoning as it stood survives.</li>
+    <li><code>## Context</code> &mdash; <strong>the problem before any solution</strong>, and the
+        strongest sentence here is <em>"we have seen this happen twice"</em>. Evidence, not
+        preference.</li>
+    <li>The context is <a href="22-messaging-and-queues.html">chapter 22</a>'s dual-write, stated as a
+        constraint: two systems, no shared transaction, so any ordering can diverge.</li>
+    <li><code>## Decision</code> &mdash; what was chosen, in the present tense, briefly. The detail
+        belongs in the code; this is why the code looks the way it does.</li>
+    <li><strong>What it really prevents</strong> is the colleague who, eighteen months on, sees an outbox
+        table, finds no explanation, decides it is over-engineering, and removes it &mdash; restoring
+        the bug it was written to avoid.</li>
+    <li><strong>This is the artefact that makes you look senior.</strong> Anyone can hold an opinion in a
+        meeting; writing the trade-off down where the next person will find it is the part almost
+        nobody does.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Context, decision, consequences &mdash; including the ones you did not like. An ADR that lists

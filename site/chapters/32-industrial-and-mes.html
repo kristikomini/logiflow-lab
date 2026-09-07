@@ -254,6 +254,31 @@ ProductionEvent(Id, MachineId, WorkOrderId, OccurredAtUtc, Good, Scrap)
 Downtime(Id, MachineId, FromUtc, ToUtc, ReasonId, OperatorId)    <span class="cm">-- reason: planned? failure? changeover?</span>
 Reading(MachineId, TagId, OccurredAtUtc, Value)                  <span class="cm">-- the big one; partition by date</span>
 Lot(Id, WorkOrderId, MaterialLotId)                              <span class="cm">-- what went into what</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is a schema sketch, not code.</strong> It is the vocabulary of an MES, and the
+        comments carry the domain knowledge.</li>
+    <li><code>Shift(..., StartsAtLocal, EndsAtLocal, ProductionDate)</code> &mdash; and
+        <strong><code>ProductionDate</code> is NOT derived from the clock</strong>. A night shift
+        starting at 22:00 belongs to one production day throughout, including the hours after midnight.
+        Computing it from the timestamp is the classic mistake and it corrupts every report.</li>
+    <li><strong>Local for shifts, UTC for events.</strong> A shift is a human schedule tied to a plant's
+        wall clock; an event is a moment in time. Storing either the other way breaks at the daylight
+        saving change &mdash; the night an hour repeats.</li>
+    <li><code>ErpOrderNo</code> &mdash; the foreign system's identifier, kept alongside your own key. The
+        MES does not own the order; the ERP does.</li>
+    <li><code>ProductionEvent(..., Good, Scrap)</code> &mdash; counted separately, because quality is
+        half of OEE and a machine running fast while producing scrap looks excellent if you count only
+        output.</li>
+    <li><code>Downtime(..., ReasonId, ...)</code> &mdash; <strong>and the reason is the whole
+        point</strong>: planned, failure or changeover. Availability without a reason code tells you a
+        line stopped and nothing about whether that mattered.</li>
+    <li><code>OperatorId</code> on downtime &mdash; and worth flagging: in Italy this is personal data
+        under GDPR, and using it to evaluate individual performance also runs into
+        <em>controllo a distanza</em> rules under the Statuto dei Lavoratori.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Two decisions in there are the whole conversation. <strong><code>ProductionDate</code> is stored,
@@ -290,6 +315,28 @@ Lot(Id, WorkOrderId, MaterialLotId)                              <span class="cm
 
 <span class="cm"># then, in a console app:</span>
 dotnet add package OPCFoundation.NetStandard.Opc.Ua.Client</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>opc-plc</code> &mdash; Microsoft's <strong>simulated PLC</strong>. It lets you learn OPC
+        UA without a machine, a licence or a factory.</li>
+    <li><code>-p 50000:50000</code> &mdash; the OPC UA endpoint port, which the client connects
+        to.</li>
+    <li><code>--autoaccept</code> &mdash; accept client certificates automatically.
+        <strong>Convenient here and exactly what you must not do in a plant</strong>: OPC UA's security
+        is certificate-based, and auto-accepting is turning it off.</li>
+    <li><code>--sn=5 --sr=10</code> &mdash; five simulated nodes updating every ten seconds, so there is
+        changing data to subscribe to.</li>
+    <li><code>--rm</code> &mdash; the container deletes itself on exit, which suits an
+        experiment.</li>
+    <li><code>OPCFoundation.NetStandard.Opc.Ua.Client</code> &mdash; the official client. Note the
+        model: you <strong>subscribe</strong> to nodes and receive changes, rather than polling
+        &mdash; a push model much closer to messaging than to a REST API.</li>
+    <li><strong>Why this is worth an evening.</strong> "I have written an OPC UA client against a
+        simulated PLC" is a sentence almost nobody applying in this region can say, and it is the
+        difference between claiming interest in industrial software and demonstrating it.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Connect, browse the address space, and subscribe to a simulated tag. Then do the exercise that
     is really the point: write the samples through a bounded in-memory queue into SQLite, and pull

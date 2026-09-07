@@ -97,6 +97,23 @@ builder.Services.AddChatClient(sp =&gt;
     .UseLogging()
     .UseDistributedCache()      <span class="cm">// identical prompt → cached answer → no cost</span>
     .UseOpenTelemetry();        <span class="cm">// chapter 25: it is a dependency like any other</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddChatClient(...)</code> &mdash; from Microsoft.Extensions.AI. It registers an
+        <strong><code>IChatClient</code></strong>, and the abstraction is the point.</li>
+    <li><strong>The provider package differs; the interface does not.</strong> Swapping Azure OpenAI for
+        a locally-hosted model is a one-line change.</li>
+    <li><strong>That matters more than it sounds.</strong> It lets you develop and run tests against a
+        local model without spending money per call, which is the difference between a test suite you
+        run and one you skip.</li>
+    <li><code>new DefaultAzureCredential()</code> &mdash; managed identity again, per
+        <a href="29-azure.html">chapter 29</a>. No API key in configuration and nothing to leak.</li>
+    <li><code>.AsIChatClient()</code> &mdash; adapts the provider's own client to the common interface.
+        Everything downstream depends on the interface, so it substitutes in a test like any other
+        dependency.</li>
+  </ul>
+</div>
 
 <div class="code-head">using it</div>
 <pre><code><span class="kw">public sealed class</span> <span class="ty">ComplaintTriage</span>(<span class="ty">IChatClient</span> chat)
@@ -113,6 +130,26 @@ builder.Services.AddChatClient(sp =&gt;
         <span class="kw">return</span> response.Text;
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ComplaintTriage(IChatClient chat)</code> &mdash; ordinary constructor injection. The
+        model is a dependency like a repository, not a special kind of thing.</li>
+    <li><code>ChatRole.System</code> &mdash; the <strong>instruction</strong>, separate from the user's
+        text. Keeping them separate is the structural defence against prompt injection: the user's
+        words arrive as data rather than as instructions.</li>
+    <li><strong>The system message is still not a security boundary.</strong> Treat any text that
+        reaches the model as untrusted, and never let its output trigger an action without a check
+        &mdash; the same posture as <a href="15-api-security.html">chapter 15</a>.</li>
+    <li><code>"reply exactly: NOT_A_COMPLAINT"</code> &mdash; <strong>a sentinel</strong>, and it is
+        doing real work: it gives the caller a deterministic branch instead of trying to interpret free
+        text.</li>
+    <li><strong>Design for the model being wrong.</strong> It may reply with the sentinel wrapped in a
+        sentence, so compare with care.</li>
+    <li><code>CancellationToken ct</code> &mdash; passed through. Model calls are slow and expensive, so
+        a cancelled request should stop paying for one.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">Note the escape hatch in the system prompt</div>
@@ -141,6 +178,26 @@ builder.Services.AddChatClient(sp =&gt;
 // from the internet (chapter 15): validate before you act on it.</span>
 <span class="kw">if</span> (!result.TryGetResult(<span class="kw">out var</span> triage) || !<span class="ty">Enum</span>.IsDefined(triage.Severity))
     <span class="kw">return</span> <span class="ty">Triage</span>.Fallback;   <span class="cm">// a defined behaviour, not an exception in a queue worker</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>GetResponseAsync&lt;Triage&gt;(...)</code> &mdash; <strong>structured output</strong>.
+        The library derives a schema from the record and asks the model to conform to it.</li>
+    <li><code>public record Triage(Severity Severity, ...)</code> &mdash; a C# type as the contract. Far
+        better than parsing prose, and it makes the expected shape reviewable.</li>
+    <li><strong>"It usually deserialises", and "usually" is the whole problem.</strong> This is a
+        probabilistic system: the same input can produce different output, so nothing here is a
+        guarantee.</li>
+    <li><code>TryGetResult(out var ...)</code> &mdash; the <strong>Try pattern</strong>, exactly as in
+        <a href="00b-variables-and-types.html">chapter 00b</a>. Failure is expected, so it is a return
+        value rather than an exception.</li>
+    <li><strong>Validate before you act.</strong> Treat the output like a request body from the internet
+        &mdash; an enum can arrive out of range, a string can be empty, a
+        <code>bool</code> can be confidently wrong.</li>
+    <li><strong>And it is not a test.</strong> A suite that asserts on exact model output is flaky by
+        construction; assert on the shape and on the guardrails instead.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Prompt injection: their text is not your instruction</div>
@@ -228,6 +285,29 @@ builder.Services.AddChatClient(sp =&gt;
 <span class="kw">SELECT TOP</span> (<span class="nu">5</span>) c.DocumentId, c.Content
 <span class="kw">FROM</span>     dbo.DocumentChunks c
 <span class="kw">ORDER BY</span> <span class="ty">VECTOR_DISTANCE</span>(<span class="st">'cosine'</span>, c.Embedding, @questionEmbedding);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>VECTOR</code> and <code>VECTOR_DISTANCE</code> &mdash; native to SQL Server 2025, so the
+        retrieval half of RAG is <strong>a query against the database you already run and back
+        up</strong>.</li>
+    <li><strong>That is the argument.</strong> No second datastore to operate, secure, back up and
+        explain &mdash; and in a small team that consideration usually outweighs the raw capability of
+        a dedicated vector database.</li>
+    <li><code>'cosine'</code> &mdash; the distance metric. Cosine compares direction and ignores
+        magnitude, which is what you want for text embeddings.</li>
+    <li><code>ORDER BY VECTOR_DISTANCE(...)</code> &mdash; <strong>smaller is closer</strong>, so no
+        <code>DESC</code>. Getting that backwards returns the least relevant chunks and looks like a
+        bad model.</li>
+    <li><code>TOP (5)</code> &mdash; retrieval feeds a limited context window, so this number is a real
+        trade-off between recall and cost.</li>
+    <li><code>@questionEmbedding</code> &mdash; a parameter, produced by embedding the user's question
+        with the <em>same</em> model that embedded the documents. Mixing embedding models silently
+        returns nonsense, and it is the commonest RAG bug.</li>
+    <li><strong>Chunking is where quality actually comes from</strong> &mdash; too large and the match is
+        diluted, too small and it loses context. It matters more than the choice of model.</li>
+  </ul>
+</div>
 
 <p>
   Azure AI Search, PostgreSQL with <code>pgvector</code> and a dedicated vector database are the

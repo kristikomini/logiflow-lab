@@ -33,7 +33,7 @@ importScripts("assets/chapters.js");
    mechanism — there is no partial invalidation and you do not want one. Forget
    to bump it and returning visitors keep last month's chapters, with no error
    anywhere, which is the single most common service-worker bug. */
-const CACHE = "logiflow-academy-v5";
+const CACHE = "logiflow-academy-v6";
 
 const SHELL = [
   "./",
