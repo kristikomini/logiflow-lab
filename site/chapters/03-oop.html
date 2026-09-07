@@ -166,6 +166,30 @@
 order.Lines.Add(line);
 order.Total = order.Lines.Sum(l =&gt; l.Price);   <span class="cm">// forgotten here → wrong invoice</span>
 order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public OrderStatus Status { get; set; }</code> &mdash; a <strong>public
+        setter</strong>, and that is the whole problem. Anyone, anywhere, can put this order into any
+        state at any moment, so the rule "a submitted order cannot change" has no single place to
+        live.</li>
+    <li><code>public List&lt;OrderLine&gt; Lines { get; set; } = new();</code> &mdash; the type is
+        <code>List&lt;T&gt;</code>, which is <strong>mutable</strong>, and it is handed out directly.
+        Even with a private setter a caller could still write <code>order.Lines.Add(...)</code>: the
+        property protects the reference, never the object it points at.</li>
+    <li><code>= new()</code> &mdash; a <strong>target-typed new</strong> as a property initialiser, so
+        the list exists before anyone touches it. Without it the property would start null.</li>
+    <li><code>order.Total = order.Lines.Sum(l =&gt; l.Price);</code> &mdash; <code>Total</code> is
+        <strong>stored data that duplicates a fact</strong> already implied by the lines. Two copies of
+        one truth, kept in step by whoever remembers.</li>
+    <li><code>l =&gt; l.Price</code> &mdash; a <strong>lambda</strong> handed to <code>Sum</code>,
+        saying "for each line, the number to add".</li>
+    <li><strong>This is the anaemic domain model.</strong> Properties with no behaviour and all the
+        rules living in whichever service happened to be written first. It is popular, it compiles,
+        and the bug is not in this class &mdash; it is at the one call site out of forty that forgot
+        the second line.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ encapsulated — the rules live in one place</div>
 <pre><code><span class="kw">public class</span> <span class="ty">Order</span>
@@ -191,6 +215,41 @@ order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
         Status = <span class="ty">OrderStatus</span>.Submitted;
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>private readonly List&lt;OrderLine&gt; _lines = new();</code> &mdash;
+        <strong>private</strong> so nobody outside can reach it, and <strong>readonly</strong> so the
+        field cannot be pointed at a different list later. The leading underscore is the C# convention
+        for a private field.</li>
+    <li><code>public IReadOnlyList&lt;OrderLine&gt; Lines =&gt; _lines;</code> &mdash; the type is the
+        protection. <code>IReadOnlyList&lt;T&gt;</code> has no <code>Add</code>, so callers can
+        enumerate and index but cannot modify. <code>=&gt;</code> makes it an expression-bodied
+        property returning the field.</li>
+    <li><em>Read-only, not immutable.</em> A determined caller can still cast back to
+        <code>List&lt;T&gt;</code>. This stops accidents, not attackers, and that is the right goal
+        inside one process.</li>
+    <li><code>{ get; private set; }</code> &mdash; readable everywhere, writable only inside this
+        class. That single word is what makes <code>Submit()</code> the only route into the
+        <code>Submitted</code> state.</li>
+    <li><code>public decimal Total =&gt; _lines.Sum(l =&gt; l.Price);</code> &mdash; a
+        <strong>computed property</strong>. It stores nothing, so it cannot drift out of step; it is
+        recalculated on every read. The trade is CPU for correctness, and for a handful of lines that
+        trade is free.</li>
+    <li><code>public void AddLine(OrderLine line)</code> &mdash; behaviour, not data. The rule and the
+        state it guards now sit in the same file, and there is no other way in.</li>
+    <li><code>throw new InvalidOperationException(...)</code> &mdash; the right exception type here: the
+        <em>object</em> is in the wrong state, as opposed to
+        <code>ArgumentException</code>, which would mean the <em>argument</em> was wrong.</li>
+    <li><code>Status = OrderStatus.Submitted;</code> &mdash; legal because this line is inside the
+        class. The private setter is what forces every state change through a method that can check
+        it first.</li>
+    <li><strong>An invalid Order is now unrepresentable</strong> rather than merely discouraged. That
+        is the difference encapsulation buys, and it is why the real
+        <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Domain/Catalog/Product.cs">Product.cs</a>
+        in this repository has private setters and a static factory.</li>
+  </ul>
+</div>
 
 <p>
   The second version cannot be misused. There is no sequence of public calls that produces an
@@ -279,6 +338,42 @@ order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
     <span class="kw">protected override</span> <span class="ty">Task</span> SendCoreAsync(<span class="ty">Notification</span> n, <span class="ty">CancellationToken</span> ct)
         =&gt; _smtp.SendAsync(n.To, n.Body, ct);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public interface INotificationSender</code> &mdash; a <strong>capability</strong>:
+        members with no bodies and no state. Any class may claim it, and a class may claim many. This
+        is the seam that dependency injection plugs into.</li>
+    <li><code>Task SendAsync(...)</code> &mdash; the signature ends in a semicolon. Note it returns
+        <code>Task</code> and not <code>void</code>, so the caller can await it, and takes a
+        <code>CancellationToken</code>, so the caller can stop it.</li>
+    <li><code>public abstract class RetryingSender : INotificationSender</code> &mdash;
+        <strong>abstract</strong> means it cannot be instantiated: it exists to be inherited. Unlike an
+        interface it may hold state and real implementations &mdash; the shared machinery.</li>
+    <li><code>for (var attempt = 1; ; attempt++)</code> &mdash; note the <strong>empty middle
+        clause</strong>. No condition means "loop forever"; the exits are the <code>return</code> on
+        success and the rethrow when the <code>when</code> filter stops matching.</li>
+    <li><code>try { await SendCoreAsync(n, ct); return; }</code> &mdash; <code>return</code> inside
+        <code>try</code> leaves the whole method on the first success.</li>
+    <li><code>catch (TransientException) when (attempt &lt; 3)</code> &mdash; an <strong>exception
+        filter</strong>. Crucially it is evaluated <em>before</em> the stack unwinds, so when it is
+        false the exception continues to propagate with its original stack intact &mdash; unlike
+        catching and rethrowing, which damages it.</li>
+    <li><code>await Task.Delay(200 * attempt, ct)</code> &mdash; <strong>linear back-off</strong>: 200
+        ms, then 400. Passing <code>ct</code> means a cancelled request stops waiting immediately
+        instead of sleeping out the delay.</li>
+    <li><code>protected abstract Task SendCoreAsync(...);</code> &mdash; the
+        <strong>hook</strong>. <code>abstract</code> with no body forces every subclass to supply one;
+        <code>protected</code> keeps it invisible from outside. This is the Template Method pattern:
+        the base owns the algorithm, the subclass fills in one step.</li>
+    <li><code>public sealed class EmailSender : RetryingSender</code> &mdash; <strong>sealed</strong>
+        means nothing may inherit further. A good default: inheritance you did not design for is
+        inheritance somebody will misuse.</li>
+    <li><code>protected override Task SendCoreAsync(...) =&gt; _smtp.SendAsync(...);</code> &mdash;
+        no <code>async</code> and no <code>await</code>. It simply <strong>returns the Task</strong>
+        it was given, which avoids generating a state machine for a method that only forwards.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   That structure has a name &mdash; the <strong>Template Method</strong> pattern: the base fixes
@@ -310,6 +405,35 @@ order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
 <span class="ty">Console</span>.WriteLine(a.Describe());     <span class="cm">// <span class="out">good</span>  — dispatched on the real type</span>
 <span class="ty">Console</span>.WriteLine(b.Describe());     <span class="cm">// <span class="out">base</span>  — dispatched on the variable's type ⚠</span>
 <span class="ty">Console</span>.WriteLine(((<span class="ty">Bad</span>)b).Describe()); <span class="cm">// <span class="out">bad</span>   — same object, different answer</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public virtual string Describe()</code> &mdash; <strong>virtual</strong> is
+        permission. A method is <em>not</em> overridable in C# unless it says so, the opposite of
+        Java's default, and that is a deliberate design decision about what you are willing to
+        support.</li>
+    <li><code>public override string Describe()</code> &mdash; <strong>override</strong> genuinely
+        replaces the base implementation. The call is resolved at run time from the object's real
+        type, which is <em>polymorphism</em> and <em>virtual dispatch</em>.</li>
+    <li><code>public new string Describe()</code> &mdash; <strong>new</strong> does not replace
+        anything. It declares a second, unrelated method that happens to share a name and
+        <em>hides</em> the first. Without the keyword the compiler warns; the keyword only silences
+        the warning.</li>
+    <li><code>Base a = new Good();</code> &mdash; the <strong>static type</strong> of
+        <code>a</code> is <code>Base</code>; its <strong>dynamic type</strong> is <code>Good</code>.
+        Every surprise on this page is the gap between those two.</li>
+    <li><code>a.Describe()</code> prints <code>good</code> &mdash; overridden, so the
+        <strong>dynamic</strong> type decides.</li>
+    <li><code>b.Describe()</code> prints <code>base</code> &mdash; hidden, so the
+        <strong>static</strong> type decides. The same object gives a different answer depending on
+        which variable you reach it through.</li>
+    <li><code>((Bad)b).Describe()</code> prints <code>bad</code> &mdash; the cast changes the static
+        type, so the hiding method is chosen. One object, three answers, and nothing failed.</li>
+    <li><strong>The rule.</strong> Use <code>override</code>. <code>new</code> is almost always a
+        mistake, and the one honest use is a base class outside your control adding a method whose
+        name you already had.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Why <code>new</code> is a trap</div>
@@ -370,6 +494,35 @@ order.Status = <span class="ty">OrderStatus</span>.Draft;</code></pre>
     <span class="kw">public decimal</span> Price(<span class="ty">Order</span> o) =&gt;
         rules.Aggregate(o.Subtotal, (total, rule) =&gt; rule.Apply(o, total));
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>class DiscountedOrder : Order</code> and <code>class UrgentOrder : Order</code>
+        &mdash; each new axis of variation doubles the class count, because a type can have only
+        <strong>one base class</strong>. An order that is both needs a class that cannot exist without
+        duplicating one of them.</li>
+    <li><strong>The failure is structural, not stylistic.</strong> Inheritance forces every
+        combination to be named in advance, and the combinations are decided later, by the
+        business.</li>
+    <li><code>PriceCalculator(IEnumerable&lt;IPricingRule&gt; rules)</code> &mdash; a
+        <strong>primary constructor</strong> taking a sequence of rules. Depending on
+        <code>IEnumerable&lt;T&gt;</code> rather than <code>List&lt;T&gt;</code> asks for the least it
+        needs, and the DI container will inject every registered
+        <code>IPricingRule</code> automatically.</li>
+    <li><code>sealed</code> &mdash; this class is not designed to be inherited. The variation lives in
+        the rules, deliberately, not in subclasses of the calculator.</li>
+    <li><code>rules.Aggregate(o.Subtotal, (total, rule) =&gt; rule.Apply(o, total))</code> &mdash;
+        <strong><code>Aggregate</code> is a fold</strong>: start from a seed and combine the running
+        value with each element. <code>o.Subtotal</code> is the seed;
+        <code>(total, rule)</code> is a lambda with two parameters &mdash; the running total and the
+        current rule &mdash; and its result becomes the next <code>total</code>.</li>
+    <li><strong>Adding a rule now adds a file</strong> and changes nothing that already works. That is
+        the Open/Closed principle, and it is why composition scales where inheritance stops.</li>
+    <li>Order matters, because <code>Aggregate</code> is sequential: applying a percentage discount
+        before a fixed one gives a different answer. If that matters, the rules need an explicit
+        priority rather than whatever order DI happened to resolve them in.</li>
+  </ul>
+</div>
 
 <h2 id="solid">SOLID, in one screen</h2>
 

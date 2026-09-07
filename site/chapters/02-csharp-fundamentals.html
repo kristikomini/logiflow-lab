@@ -143,6 +143,25 @@ original.Add(<span class="st">"c"</span>);
 
 <span class="cm">// A real copy:</span>
 <span class="kw">var</span> realBackup = <span class="kw">new</span> <span class="ty">List</span>&lt;<span class="ty">string</span>&gt;(original);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>new List&lt;string&gt; { "a", "b" }</code> &mdash; <code>new</code> creates the
+        object on the <strong>heap</strong>; the braces are a <strong>collection initialiser</strong>,
+        which the compiler turns into two <code>Add</code> calls.</li>
+    <li><code>var backup = original;</code> &mdash; the assignment copies <strong>the reference, not
+        the object</strong>. <code>List&lt;T&gt;</code> is a class, so both names now denote one list.
+        Nothing was duplicated and nothing warns you.</li>
+    <li><code>original.Add("c")</code> &mdash; mutates the single shared object. The name you used to
+        reach it is irrelevant.</li>
+    <li><code>backup.Count</code> is <code>3</code> &mdash; <code>Count</code> is a
+        <strong>property</strong>, hence no parentheses, and it reports the same list.</li>
+    <li><code>new List&lt;string&gt;(original)</code> &mdash; a real copy, because this constructor
+        <em>reads</em> the argument and fills a new list from it. Note it is a
+        <strong>shallow</strong> copy: with a <code>List&lt;Order&gt;</code> you would get a new list
+        holding references to the very same orders.</li>
+  </ul>
+</div>
 
 <h3>class vs struct &mdash; when to choose which</h3>
 
@@ -214,6 +233,31 @@ name ??= <span class="st">"(unknown)"</span>;
 
 <span class="cm">// !   null-forgiving: "trust me, compiler." A promise, not a check.</span>
 <span class="ty">int</span> risky = name!.Length;         <span class="cm">// silences the warning, keeps the crash</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>string? name</code> &mdash; the <code>?</code> is a declaration that null is
+        <strong>expected here</strong>. It changes no run-time behaviour at all; it changes which
+        lines the compiler warns about.</li>
+    <li><code>name?.Length</code> &mdash; the <strong>null-conditional</strong> operator. If
+        <code>name</code> is null the whole expression stops and produces null instead of throwing.
+        The rest of a chain is skipped too: <code>a?.B.C</code> never evaluates <code>.C</code>.</li>
+    <li><code>int? length</code> &mdash; and this is why the target must be <code>int?</code>. Since
+        the expression can now produce null, it no longer fits in a plain <code>int</code>, which is a
+        value type and has nowhere to put "nothing". <code>int?</code> is
+        <code>Nullable&lt;int&gt;</code>, a struct wrapping a value and a <code>HasValue</code>
+        flag.</li>
+    <li><code>name ?? "(unknown)"</code> &mdash; <strong>null-coalescing</strong>: use the left unless
+        it is null, in which case use the right. The right side is only evaluated when needed, so an
+        expensive fallback costs nothing in the common case.</li>
+    <li><code>name ??= "(unknown)"</code> &mdash; <strong>null-coalescing assignment</strong>. Assign
+        only if currently null. Shorthand for an <code>if</code> nobody enjoys writing.</li>
+    <li><code>name!.Length</code> &mdash; the <strong>null-forgiving</strong> operator. It is
+        <em>not</em> a check and it generates no code: it only tells the compiler to stop warning. If
+        you are wrong you still get a <code>NullReferenceException</code>, now with the warning that
+        would have caught it deliberately switched off. Rare, local, commented.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The <code>!</code> operator</div>
@@ -270,6 +314,31 @@ name ??= <span class="st">"(unknown)"</span>;
 
 <span class="cm">// ✓✓ better still, when the shape allows it</span>
 <span class="ty">string</span> csv3 = <span class="ty">string</span>.Join(<span class="st">','</span>, orders.Select(o =&gt; o.Id));</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>csv += o.Id + ","</code> &mdash; the trap. Strings are <strong>immutable</strong>, so
+        <code>+=</code> cannot extend one: it allocates a whole new string, copies the old contents in,
+        and abandons the previous one. Ten thousand orders means ten thousand allocations, each larger
+        than the last, so the total work grows with the <em>square</em> of the input.</li>
+    <li><code>o.Id + ","</code> &mdash; an implicit conversion is hiding here. <code>Id</code> is
+        probably not a string, so <code>+</code> calls <code>ToString()</code> on it before
+        concatenating.</li>
+    <li><code>new StringBuilder()</code> &mdash; a <strong>mutable</strong> buffer. It grows by
+        doubling rather than reallocating per append, which is what turns the quadratic cost back into
+        a linear one.</li>
+    <li><code>sb.Append(o.Id).Append(',')</code> &mdash; <code>Append</code> returns the builder
+        itself, which is what allows the <strong>chaining</strong>. Note <code>','</code> in single
+        quotes: a <code>char</code>, and there is an <code>Append</code> overload for it that skips
+        the string machinery entirely.</li>
+    <li><code>sb.ToString()</code> &mdash; materialises the final string, <strong>once</strong>. Until
+        this call there is no string, only a buffer.</li>
+    <li><code>string.Join(',', orders.Select(o =&gt; o.Id))</code> &mdash; best when it fits.
+        <code>Select</code> projects each order to its id lazily, and <code>Join</code> walks that
+        sequence once, sizing the result as it goes. Fewer moving parts than the builder and it states
+        the intent rather than the mechanism.</li>
+  </ul>
+</div>
 
 <p>Two more string features worth having at your fingertips:</p>
 
@@ -285,6 +354,33 @@ name ??= <span class="st">"(unknown)"</span>;
     FROM   dbo.Orders AS o
     WHERE  o.CustomerId = @customerId</span>
 <span class="st">    """</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>1234.5m</code> &mdash; the <code>m</code> suffix makes this a <code>decimal</code>.
+        Without it the literal would be a <code>double</code> and would not fit.</li>
+    <li><code>$"..."</code> &mdash; an <strong>interpolated string</strong>. Modern C# does not compile
+        this to <code>string.Concat</code>: it builds an <em>interpolated string handler</em> that
+        appends into a pooled buffer, so the readable form is also the fast one.</li>
+    <li><code>{total:C}</code> &mdash; the part after the colon is a <strong>format
+        specifier</strong>, not part of the expression. <code>C</code> means currency, and it is
+        <em>culture-sensitive</em>: this is <code>&euro;1.234,50</code> on an Italian machine and
+        <code>$1,234.50</code> on an American one.</li>
+    <li><code>{DateTime.UtcNow:yyyy-MM-dd}</code> &mdash; a <strong>custom format string</strong>.
+        Capital <code>MM</code> is months; lower-case <code>mm</code> would be minutes, and that
+        single character is a real and frequent bug. <code>UtcNow</code> rather than
+        <code>Now</code>, because a stored timestamp with no time zone is a future argument.</li>
+    <li><code>&quot;&quot;&quot;</code> &mdash; a <strong>raw string literal</strong>, C# 11 and later. Three or more
+        quotes open and close it, so quotes and backslashes inside need no escaping &mdash; which is
+        exactly what SQL, JSON and regular expressions are full of.</li>
+    <li><strong>The closing <code>&quot;&quot;&quot;</code> sets the indentation.</strong> Whatever whitespace
+        precedes it is stripped from every line, so the literal is indented to match your code without
+        the indentation ending up in the value.</li>
+    <li><code>@customerId</code> &mdash; a SQL <strong>parameter placeholder</strong>, and the reason
+        this is a raw literal rather than an interpolated one. Interpolating a value into SQL is how
+        injection happens; see <a href="15-api-security.html">chapter 15</a>.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Culture &mdash; and this one is about Italy</div>
@@ -338,6 +434,31 @@ name ??= <span class="st">"(unknown)"</span>;
 
 <span class="ty">Console</span>.WriteLine(a == b);            <span class="cm">// <span class="out">True</span>  — value equality, not reference</span>
 <span class="kw">var</span> moved = a <span class="kw">with</span> { City = <span class="st">"Bologna"</span> };  <span class="cm">// copy, one field changed</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public record Address(string Street, string City, string Cap);</code> &mdash; a
+        <strong>positional record</strong>, and the semicolon at the end means there is no body at
+        all. One line generates a constructor, an init-only property per parameter,
+        <code>Equals</code>, <code>GetHashCode</code>, <code>ToString</code>, a deconstructor and
+        <code>with</code>.</li>
+    <li><strong>A <code>record</code> is still a class</strong> &mdash; a reference type, on the heap.
+        What changes is <em>equality</em>, not storage.</li>
+    <li><code>a == b</code> is <code>True</code> &mdash; <strong>value equality</strong>. Two distinct
+        objects with equal contents compare equal, because the generated <code>Equals</code> compares
+        field by field. A plain <code>class</code> here would print <code>False</code>, comparing
+        references.</li>
+    <li><code>a with { City = "Bologna" }</code> &mdash; a <strong><code>with</code>
+        expression</strong>: copy the whole object, then change the named properties on the copy.
+        <code>a</code> is untouched, which is the point &mdash; the properties are init-only and
+        cannot be assigned after construction.</li>
+    <li><code>Cap</code> &mdash; <em>codice di avviamento postale</em>, the Italian postcode. A
+        <code>string</code> and never an <code>int</code>: <code>41121</code> survives, but a CAP with
+        a leading zero would lose it.</li>
+    <li><strong>When not to use one.</strong> Not for entities. Two <code>Order</code>s with identical
+        values are still different orders, and identity is exactly what a record throws away.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   A <code>record</code> is still a reference type &mdash; it just <em>compares</em> like a value.
@@ -356,6 +477,36 @@ name ??= <span class="st">"(unknown)"</span>;
     <span class="kw">null</span>                                    =&gt; <span class="kw">throw new</span> <span class="ty">ArgumentNullException</span>(<span class="kw">nameof</span>(o)),
     _                                       =&gt; 19.00m       <span class="cm">// discard: everything else</span>
 };</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>decimal Shipping(Order o) =&gt; o switch</code> &mdash; an expression-bodied method
+        whose body is a <strong>switch expression</strong>. The whole thing evaluates to one
+        <code>decimal</code>.</li>
+    <li><code>{ Total: &gt; 100 }</code> &mdash; a <strong>property pattern</strong>. Braces test
+        properties of the subject; <code>&gt; 100</code> inside is a <strong>relational
+        pattern</strong>. Read it as "an order whose Total is greater than 100" &mdash; no
+        <code>o.</code> prefix is needed, because the subject is already known.</li>
+    <li><code>{ Country: "IT", Weight: &lt; 2 }</code> &mdash; a comma inside a property pattern means
+        <strong>and</strong>. Both must hold.</li>
+    <li><strong>Order matters, and this list is deliberately ordered.</strong> The first match wins, so
+        the narrower <code>{ Country: "IT", Weight: &lt; 2 }</code> has to come before the broader
+        <code>{ Country: "IT" }</code>. Swap them and the cheap rate becomes unreachable &mdash; the
+        compiler catches that particular case as a subsumption error.</li>
+    <li><code>"FR" or "DE" or "ES"</code> &mdash; an <strong>or-pattern</strong>. This is
+        <code>or</code> the pattern combinator, not <code>||</code> the boolean operator; the others
+        are <code>and</code> and <code>not</code>.</li>
+    <li><code>null =&gt; throw new ArgumentNullException(...)</code> &mdash; <code>null</code> is
+        itself a pattern, and <code>throw</code> is usable as an expression here rather than a
+        statement.</li>
+    <li><code>nameof(o)</code> &mdash; produces the string <code>"o"</code> at
+        <strong>compile time</strong>. Rename the parameter and the message follows, which a literal
+        <code>"o"</code> would not.</li>
+    <li><code>_</code> &mdash; the <strong>discard</strong>, matching anything. Without it the compiler
+        warns that the switch is not exhaustive, and an unmatched value would throw
+        <code>SwitchExpressionException</code> at run time.</li>
+  </ul>
+</div>
 
 <p>
   The compiler checks that a <code>switch</code> expression is exhaustive and warns if it is not
@@ -381,6 +532,29 @@ b2.Value = 99;
 <span class="ty">Console</span>.WriteLine(b1.Value);      <span class="cm">// ?</span>
 <span class="ty">Console</span>.WriteLine(p1 == <span class="kw">new</span> <span class="ty">Point</span>(1, 2));  <span class="cm">// ?</span>
 <span class="ty">Console</span>.WriteLine(b1 == <span class="kw">new</span> <span class="ty">Box</span> { Value = 1 });  <span class="cm">// ?</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>record struct Point(int X, int Y);</code> &mdash; a <strong>value type</strong> with
+        record features. Assignment copies the data; equality compares the fields.</li>
+    <li><code>class Box { public int Value; }</code> &mdash; a <strong>reference type</strong> with a
+        public <em>field</em>, not a property. Assignment copies the reference; equality compares
+        references.</li>
+    <li><code>var p2 = p1;</code> &mdash; copies the two integers. <code>p2</code> is an independent
+        <code>Point</code> from this moment on.</li>
+    <li><code>var b2 = b1;</code> &mdash; copies the reference. One object, two names.</li>
+    <li><code>p2 = p2 with { X = 99 };</code> &mdash; builds a modified copy and reassigns
+        <code>p2</code>. <code>p1</code> could not be affected even in principle.</li>
+    <li><code>b2.Value = 99;</code> &mdash; reaches through the reference and mutates the shared
+        object, so <code>b1.Value</code> is <code>99</code> too.</li>
+    <li><strong>The four answers:</strong> <code>1</code>, then <code>99</code>, then
+        <code>True</code> (a <code>record struct</code> compares by value), then <code>False</code>
+        (a plain class compares references, and these are two different objects).</li>
+    <li><strong>The rule underneath all four.</strong> Assignment copies what is in the variable: the
+        data for a value type, the reference for a reference type. Every aliasing bug in C# is this
+        sentence, forgotten.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Answers: <code>1</code>, <code>99</code>, <code>True</code>, <code>False</code>. The last one is
     the whole chapter in one line &mdash; two different <code>Box</code> objects are never equal by

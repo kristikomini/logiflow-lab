@@ -167,6 +167,34 @@
 
     <span class="kw">return new</span> <span class="ty">OrderDto</span>(order.Id, order.Total, order.Status);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public async Task&lt;OrderDto?&gt; GetAsync(...)</code> &mdash; <code>async</code> is
+        an <strong>implementation detail, not part of the signature's contract</strong>. It permits
+        <code>await</code> inside and makes the compiler rewrite the body into a state machine. A
+        caller cannot tell, which is why interfaces never declare it.</li>
+    <li><code>Task&lt;OrderDto?&gt;</code> &mdash; a <strong>promise of a value, later</strong>. The
+        <code>?</code> belongs to <code>OrderDto</code>: the eventual result may be null.</li>
+    <li><strong>The body runs synchronously to the first <code>await</code>.</strong> Calling an async
+        method does not hand anything to a thread pool; it just starts running on the caller's
+        thread.</li>
+    <li><code>.AsNoTracking()</code> &mdash; tells EF Core not to keep a change-tracking snapshot.
+        Correct for a read-only query and measurably cheaper; wrong the moment you intend to modify
+        what comes back.</li>
+    <li><code>await</code> &mdash; the release point. If the operation has not completed, the method
+        <strong>returns</strong> to its caller and the thread goes back to the pool to serve other
+        requests. It does not block and it does not create a thread.</li>
+    <li><code>, ct)</code> &mdash; the token passed to the database call. Without it the query keeps
+        running after the caller has given up.</li>
+    <li><strong>Execution resumes on a different thread</strong> in ASP.NET Core, because there is no
+        synchronization context to capture. Anything thread-affine &mdash; a
+        <code>ThreadLocal</code>, a UI control &mdash; is therefore unsafe across an
+        <code>await</code>.</li>
+    <li><code>return new OrderDto(...)</code> &mdash; a plain value. The compiler wraps it in the
+        <code>Task</code> the signature promised; you never write that yourself.</li>
+  </ul>
+</div>
 
 <h3>The return types</h3>
 <div class="table-wrap">
@@ -229,6 +257,28 @@ GetOrderAsync(id).Wait();
 <span class="cm">// ✓ async all the way up — the caller becomes async too, and so does its caller,</span>
 <span class="cm">//   until you reach the framework, which is async already.</span>
 <span class="kw">var</span> order = <span class="kw">await</span> GetOrderAsync(id);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>.Result</code> and <code>.Wait()</code> &mdash; both <strong>block the current
+        thread</strong> until the task finishes. That undoes the entire point: a thread that could
+        have served another request is parked doing nothing.</li>
+    <li><strong>The deadlock.</strong> Where a synchronization context exists &mdash; WinForms, WPF,
+        old ASP.NET &mdash; the continuation after <code>await</code> must run on the captured
+        context. If that context's one thread is the thread now blocked in <code>.Result</code>, the
+        continuation can never run, and the thread can never unblock. Permanent, and it looks like a
+        hang rather than a crash.</li>
+    <li><code>.GetAwaiter().GetResult()</code> &mdash; the same block, chosen because it throws the
+        original exception instead of an <code>AggregateException</code> wrapper. It fixes the error
+        message and not the deadlock.</li>
+    <li><strong>It is worse under load.</strong> It usually passes in development, where there is one
+        user, and deadlocks in production when the pool is saturated &mdash; the hardest failure to
+        reproduce.</li>
+    <li><code>await GetOrderAsync(id)</code> &mdash; the fix, and it is contagious on purpose. The
+        caller becomes async, and its caller, up to the framework, which was async already. "Async all
+        the way" is a description of the only shape that works.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   "Async all the way" is not a stylistic preference. There is no safe way to block on async code
@@ -266,6 +316,27 @@ GetOrderAsync(id).Wait();
     ct.ThrowIfCancellationRequested();
     <span class="kw">await</span> ProcessAsync(batch, ct);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>[HttpGet("{id:int}")]</code> &mdash; the route, with <code>:int</code> as a
+        <strong>constraint</strong>, so a non-numeric id never reaches the method.</li>
+    <li><code>CancellationToken ct</code> &mdash; <strong>ASP.NET Core supplies this
+        automatically</strong>. You declare the parameter and the framework binds it; it is triggered
+        when the client disconnects.</li>
+    <li><strong>A token is a signal, not a power.</strong> Nothing is forcibly stopped. It carries a
+        flag that cooperating code chooses to observe, which is why passing it down every call is the
+        entire mechanism.</li>
+    <li><code>ct.ThrowIfCancellationRequested()</code> &mdash; for loops that do your own work, where
+        there is no library call to hand the token to. It throws
+        <code>OperationCanceledException</code> when the flag is set.</li>
+    <li><strong>That exception is not an error.</strong> ASP.NET Core translates it to a 499-style
+        abort and does not log it as a failure. Catching it and returning a normal result turns a
+        cancelled request into a fabricated answer.</li>
+    <li><code>await ProcessAsync(batch, ct)</code> &mdash; the token continues downward. A token that
+        stops being passed on is the commonest reason cancellation "does not work".</li>
+  </ul>
+</div>
 
 <h3>Running things at the same time</h3>
 <div class="code-head">sequential vs parallel</div>
@@ -280,6 +351,29 @@ GetOrderAsync(id).Wait();
 
 <span class="kw">var</span> c = <span class="kw">await</span> customerTask;
 <span class="kw">var</span> o = <span class="kw">await</span> ordersTask;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>var customer = await GetCustomerAsync(...)</code> then
+        <code>var orders = await GetOrdersAsync(...)</code> &mdash; the second call does not
+        <em>start</em> until the first has finished, because <code>await</code> is a suspension point.
+        100 ms + 200 ms = 300 ms, and the two operations were independent.</li>
+    <li><code>var customerTask = GetCustomerAsync(id, ct);</code> &mdash; <strong>no
+        <code>await</code></strong>. Calling an async method starts it and hands back a
+        <code>Task</code> immediately, so by the next line both are in flight.</li>
+    <li><code>await Task.WhenAll(customerTask, ordersTask)</code> &mdash; completes when the slowest
+        completes. Total is 200 ms, not 300. Do not confuse it with
+        <code>Task.WaitAll</code>, which blocks.</li>
+    <li><strong>Exceptions change shape here.</strong> If both fail,
+        <code>await Task.WhenAll</code> rethrows only the <em>first</em>. To see them all, inspect
+        <code>Task.Exception</code> on the <code>WhenAll</code> task itself.</li>
+    <li><code>await customerTask</code> afterwards &mdash; already complete, so this simply unwraps the
+        value at no cost. It is also how you rethrow that task's exception if it had one.</li>
+    <li><strong>Do not do this with a <code>DbContext</code>.</strong> It is not thread-safe, and two
+        concurrent queries on one context throw. Parallelism here means two independent
+        <em>services</em>, not two queries on one connection.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Not with a DbContext</div>
@@ -339,6 +433,32 @@ GetOrderAsync(id).Wait();
     <span class="cm">// runs whether or not it threw — cleanup belongs here</span>
     _metrics.RecordAttempt(order.Id);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>catch (HttpRequestException ex) when (...)</code> &mdash; <code>when</code> is an
+        <strong>exception filter</strong>. It is evaluated <em>before the stack unwinds</em>, so when
+        it is false the exception carries on with its original stack intact. Catching and rethrowing
+        to achieve the same test destroys that information.</li>
+    <li><code>ex.StatusCode == HttpStatusCode.TooManyRequests</code> &mdash; catching a
+        <em>type</em> is too coarse here; the filter narrows it to the one case that is worth
+        retrying. A 400 is not.</li>
+    <li><code>await Task.Delay(1000, ct)</code> &mdash; asynchronous waiting. <code>Thread.Sleep</code>
+        would block a pool thread for a second. Passing <code>ct</code> means a cancelled request stops
+        waiting at once.</li>
+    <li><code>throw;</code> &mdash; bare, no operand. <strong>Rethrows the current exception and
+        preserves the original stack trace.</strong></li>
+    <li><code>throw ex;</code> &mdash; the same variable, and it <strong>resets the stack trace to this
+        line</strong>. The log then points at your catch block instead of where the failure happened.
+        One character apart, and this is a favourite interview question.</li>
+    <li><code>finally</code> &mdash; runs whether or not an exception was thrown, and whether or not it
+        was caught. Cleanup belongs here, never after the <code>try</code>, because after is skipped
+        on the failing path.</li>
+    <li><strong>Catch what you can act on.</strong> A retry, a fallback, a translation to a status code
+        are actions. A <code>catch</code> that logs and swallows converts a loud failure into a
+        corrupted result.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -369,6 +489,28 @@ GetOrderAsync(id).Wait();
 
 <span class="cm">// It is exactly this, and the finally runs even if you throw:</span>
 <span class="cm">// try { ... } finally { connection.Dispose(); }</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>using var connection = ...</code> &mdash; a <strong>using declaration</strong>: no
+        braces, no extra nesting. <code>Dispose()</code> is called at the end of the enclosing scope,
+        in a compiler-generated <code>finally</code>.</li>
+    <li><strong>It is exactly a try/finally.</strong> Disposal happens even if the block throws, which
+        is the whole reason the construct exists &mdash; a connection released only on the happy path
+        is a connection leak under errors, and the pool exhausts.</li>
+    <li><code>await connection.OpenAsync(ct)</code> &mdash; opening a connection is I/O and has an
+        async form. Prefer it over <code>Open()</code>.</li>
+    <li><code>await using</code> &mdash; for types implementing <code>IAsyncDisposable</code>. It
+        <em>awaits</em> <code>DisposeAsync()</code>, so flushing a stream does not block a thread.
+        Using plain <code>using</code> on such a type compiles and silently takes the synchronous
+        path.</li>
+    <li><strong>Disposal order is reverse of declaration</strong>, like nested blocks, which is what
+        you want when a reader wraps a stream that wraps a file.</li>
+    <li>Do not <code>using</code> something you did not create &mdash; an injected
+        <code>HttpClient</code> or <code>DbContext</code> is owned by the container, and disposing it
+        early breaks every later user in the same request.</li>
+  </ul>
+</div>
 
 <div class="tryit">
   <div class="box-title">Try it yourself</div>
@@ -383,6 +525,27 @@ GetOrderAsync(id).Wait();
 <span class="cm">// Then break it on purpose — from a WinForms button handler, call:</span>
 <span class="cm">//     var r = SomethingAsync().Result;</span>
 <span class="cm">// and watch the UI freeze permanently. That is the deadlock, live.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Environment.CurrentManagedThreadId</code> &mdash; the CLR's own thread id, not the OS
+        one. Printing it either side of an <code>await</code> makes the invisible visible.</li>
+    <li><code>await Task.Delay(100)</code> &mdash; a timer, not a sleep. No thread is held for those
+        100 ms; a continuation is scheduled when the timer fires.</li>
+    <li><strong>The two numbers usually differ</strong> in a console app or ASP.NET Core, because there
+        is no synchronization context to resume on and the continuation runs on whichever pool thread
+        is free.</li>
+    <li><strong>Sometimes they match, and that is not a refutation.</strong> If the task completed
+        before the <code>await</code> was reached, execution continues synchronously on the same
+        thread &mdash; an optimisation, not a guarantee. Never write code that depends on either
+        outcome.</li>
+    <li><code>SomethingAsync().Result</code> from a WinForms handler &mdash; the deadlock, on purpose.
+        The UI has a single-threaded context; the handler blocks it; the continuation needs it. The
+        window stops repainting and never recovers.</li>
+    <li><strong>Do run this one.</strong> Ten seconds of a frozen form teaches the rule better than
+        the paragraph above it, and you will never write <code>.Result</code> again.</li>
+  </ul>
+</div>
 </div>
 
 <div class="box note">

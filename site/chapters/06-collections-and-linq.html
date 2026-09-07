@@ -98,6 +98,27 @@
     <span class="kw">var</span> customer = byId[order.CustomerId];                          <span class="cm">// O(1)</span>
     ...
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>customers.First(c =&gt; c.Id == order.CustomerId)</code> &mdash; <code>First</code>
+        on a <code>List&lt;T&gt;</code> walks from the beginning until the lambda returns true. That is
+        <strong>O(n)</strong>, and it is inside a loop, so the whole thing is O(n&times;m).</li>
+    <li><strong>The lambda is not the cost.</strong> The cost is where it sits: run once it is
+        nothing, run ten million times it is the request.</li>
+    <li><code>customers.ToDictionary(c =&gt; c.Id)</code> &mdash; builds a
+        <code>Dictionary&lt;TKey, TValue&gt;</code> by calling the lambda on each element to obtain its
+        <strong>key</strong>. One pass, O(n).</li>
+    <li><code>byId[order.CustomerId]</code> &mdash; the <strong>indexer</strong>. A dictionary hashes
+        the key and jumps straight to the bucket, so this is <strong>O(1)</strong> regardless of size.
+        That is the whole trick.</li>
+    <li><code>ToDictionary</code> <strong>throws on a duplicate key</strong>. If ids might repeat you
+        want <code>ToLookup</code>, which allows many values per key.</li>
+    <li><code>byId[missingId]</code> throws <code>KeyNotFoundException</code>. Use
+        <code>TryGetValue(key, out var c)</code> when absence is expected &mdash; the same shape as
+        <code>TryParse</code> in <a href="00b-variables-and-types.html">00b</a>.</li>
+  </ul>
+</div>
 
 <p>
   This exact transformation &mdash; <em>"build a dictionary first"</em> &mdash; is the single most
@@ -224,6 +245,25 @@
 
 <span class="cm">// ✓ Materialise once when you will use it more than once.</span>
 <span class="kw">var</span> list = orders.Where(o =&gt; SlowCheck(o)).ToList();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>orders.Where(o =&gt; SlowCheck(o))</code> &mdash; <strong>nothing runs here.</strong>
+        <code>Where</code> returns an object that <em>knows how</em> to filter, not a filtered result.
+        This is <strong>deferred execution</strong>, and it is the single most misunderstood thing
+        about LINQ.</li>
+    <li><code>expensive.Count()</code> &mdash; a <strong>terminal operation</strong>. It enumerates the
+        sequence, so <code>SlowCheck</code> runs on every order, now.</li>
+    <li><code>foreach (var o in expensive)</code> &mdash; enumerates it <strong>again</strong>, from
+        scratch, running <code>SlowCheck</code> on everything a second time. The variable holds a
+        recipe, and a recipe can be cooked repeatedly.</li>
+    <li><code>.ToList()</code> &mdash; forces execution once and keeps the results. From then on you
+        are iterating a real list, not re-running the query.</li>
+    <li><strong>The rule.</strong> Compose while it is a query; materialise once, at the moment you
+        know you need the values. Enumerating twice by accident is a doubling nobody sees in a code
+        review.</li>
+  </ul>
+</div>
 
 <div class="code-head">bug 2 — the captured variable</div>
 <pre><code><span class="kw">var</span> threshold = 100m;
@@ -232,6 +272,27 @@
 threshold = 1000m;                                  <span class="cm">// ← changed before enumeration</span>
 
 <span class="kw">var</span> result = big.ToList();   <span class="cm">// filters on 1000, not 100. The query ran now.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>var threshold = 100m;</code> &mdash; an ordinary local. The <code>m</code> suffix makes
+        it a <code>decimal</code>.</li>
+    <li><code>o =&gt; o.Total &gt; threshold</code> &mdash; the lambda <strong>captures the variable,
+        not its value</strong>. The compiler lifts <code>threshold</code> into a hidden class, and both
+        your code and the lambda now read the same field.</li>
+    <li><code>threshold = 1000m;</code> &mdash; writes to that shared field. The query has not run yet,
+        so nothing has been filtered against 100.</li>
+    <li><code>big.ToList()</code> &mdash; <strong>now</strong> the lambda runs, reads
+        <code>threshold</code>, and sees <code>1000</code>. The result is filtered on a value assigned
+        after the query was written.</li>
+    <li><strong>This is deferred execution and closures colliding.</strong> Each is reasonable alone;
+        together they produce a query whose meaning depends on <em>when</em> you enumerate it.</li>
+    <li><strong>The fix is a local copy:</strong> <code>var limit = threshold;</code> immediately
+        before the query, then capture <code>limit</code>. It is also why a <code>foreach</code>
+        variable is a fresh variable per iteration &mdash; the language was changed in C# 5 precisely
+        because this bug was so common.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   The lambda closes over the <em>variable</em>, not its value at the time of the call. Chapter 07
@@ -295,6 +356,34 @@ threshold = 1000m;                                  <span class="cm">// ← chan
     .OrderByDescending(o =&gt; o.Total)
     .Take(3)
     .ToList();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>db.Orders</code> &mdash; an <strong><code>IQueryable&lt;Order&gt;</code></strong>, not
+        a collection. It represents a query that has not been sent anywhere yet.</li>
+    <li><code>.Where(o =&gt; o.CustomerId == id)</code> &mdash; on an <code>IQueryable</code> the
+        lambda is <strong>not compiled into a function</strong>. It is captured as an
+        <em>expression tree</em>, a data structure describing the code, which EF Core reads and
+        translates into SQL.</li>
+    <li><code>.OrderByDescending(...).Take(3)</code> &mdash; still building. Each call adds to the
+        tree; nothing has touched the database.</li>
+    <li><code>await ...ToListAsync()</code> &mdash; the terminal call. <em>Now</em> the tree becomes
+        <code>SELECT TOP(3) ... ORDER BY Total DESC</code>, one statement, and three rows come
+        back.</li>
+    <li><code>@id</code> in the generated SQL &mdash; a <strong>parameter</strong>, not an
+        interpolated value. That is what makes this immune to SQL injection and what lets SQL Server
+        reuse the execution plan.</li>
+    <li><code>.ToList()</code> in the second version &mdash; the disaster, and it is one word. It is a
+        terminal operation, so it executes <code>SELECT * FROM Orders</code> immediately: every row,
+        every column, across the network, into memory.</li>
+    <li><strong>Its return type is <code>List&lt;Order&gt;</code></strong>, so every call after it is
+        <code>IEnumerable</code> LINQ running in your process. The code reads almost identically and
+        the work moved from the database to your web server.</li>
+    <li><strong>The rule, and it decides interviews:</strong> <code>IEnumerable</code> runs
+        <em>here</em>, <code>IQueryable</code> runs <em>there</em>. Assigning one to the other, or
+        calling <code>ToList</code> early, silently relocates the filtering.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ How to spot it in a code review</div>
@@ -314,12 +403,58 @@ orders.Select(o =&gt; o.CustomerName)            <span class="cm">// project (ma
 orders.SelectMany(o =&gt; o.Lines)               <span class="cm">// flatten one level</span>
 orders.OrderBy(o =&gt; o.Date).ThenByDescending(o =&gt; o.Total)
 orders.Distinct() / .Skip(20).Take(10)        <span class="cm">// dedupe / page</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Where(o =&gt; o.Total &gt; 100)</code> &mdash; <strong>filter</strong>. Takes a
+        predicate (a lambda returning <code>bool</code>) and keeps the elements that satisfy it. The
+        element type does not change.</li>
+    <li><code>Select(o =&gt; o.CustomerName)</code> &mdash; <strong>project</strong>, called
+        <em>map</em> elsewhere. It <em>does</em> change the element type: a sequence of
+        <code>Order</code> becomes a sequence of <code>string</code>.</li>
+    <li><code>SelectMany(o =&gt; o.Lines)</code> &mdash; <strong>flatten one level</strong>. Each order
+        yields a collection of lines, and <code>SelectMany</code> concatenates them into one flat
+        sequence. Plain <code>Select</code> here would give you a sequence of collections.</li>
+    <li><code>OrderBy(...).ThenByDescending(...)</code> &mdash; <code>ThenBy</code> and not a second
+        <code>OrderBy</code>. A second <code>OrderBy</code> would <strong>discard</strong> the first
+        ordering and re-sort from scratch; <code>ThenBy</code> is the tie-breaker.</li>
+    <li><code>Distinct()</code> &mdash; removes duplicates using the element's own
+        <code>Equals</code> and <code>GetHashCode</code>. For your own classes that means
+        <em>reference</em> equality unless you overrode them, which is why <code>Distinct</code> so
+        often appears to do nothing.</li>
+    <li><code>Skip(20).Take(10)</code> &mdash; paging, and the order matters: skip first, then take.
+        Against a database this becomes <code>OFFSET</code>/<code>FETCH</code>, and it needs a
+        <strong>deterministic <code>OrderBy</code></strong> or page 3 can repeat rows from page 2.</li>
+  </ul>
+</div>
 
 <div class="code-head">the four "get me one" operators — and their differences</div>
 <pre><code>orders.First(o =&gt; o.Paid)            <span class="cm">// throws if none</span>
 orders.FirstOrDefault(o =&gt; o.Paid)   <span class="cm">// null if none          ← the usual choice</span>
 orders.Single(o =&gt; o.Id == 7)        <span class="cm">// throws if none OR if more than one</span>
 orders.SingleOrDefault(o =&gt; o.Id == 7) <span class="cm">// null if none, throws if many</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>First(o =&gt; o.Paid)</code> &mdash; the first match, and <strong>throws
+        <code>InvalidOperationException</code></strong> if there is none. Correct only when "none"
+        would be a bug.</li>
+    <li><code>FirstOrDefault(...)</code> &mdash; the first match or the type's default:
+        <code>null</code> for a reference type, <code>0</code> for an <code>int</code>. That
+        difference matters &mdash; on a sequence of value types "not found" and "found a zero" are
+        indistinguishable.</li>
+    <li><code>Single(o =&gt; o.Id == 7)</code> &mdash; throws if there is none <strong>and throws if
+        there is more than one</strong>. That second throw is the entire point: it asserts uniqueness,
+        so a duplicate becomes a loud failure instead of a silently arbitrary answer.</li>
+    <li><code>SingleOrDefault(...)</code> &mdash; tolerates zero, still refuses two. This is the right
+        choice for a look-up by primary key where absence is normal.</li>
+    <li><strong>How to choose.</strong> Ask what should happen with two matches. If the answer is "that
+        cannot happen", say <code>Single</code> and let it prove you right. Reaching for
+        <code>First</code> to quieten an exception hides the broken unique index that caused it.</li>
+    <li>Against a database <code>Single</code> costs slightly more than <code>First</code>: it fetches
+        two rows to check there is not a second. Rarely a reason to prefer the weaker guarantee.</li>
+  </ul>
+</div>
 
 <p>
   <code>Single</code> is a <em>claim</em>: "exactly one of these exists, and if that is ever untrue
@@ -343,6 +478,34 @@ orders.Max(o =&gt; o.Date)
         Count      = g.Count(),
         Revenue    = g.Sum(o =&gt; o.Total)
     });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Any(o =&gt; o.Paid)</code> &mdash; <strong>stops at the first match</strong> and
+        returns <code>bool</code>. Against a database it becomes <code>EXISTS</code>.</li>
+    <li><code>Count(o =&gt; o.Paid) &gt; 0</code> &mdash; the same answer, computed by examining every
+        element first. On a large table it is the difference between a seek and a full scan.
+        <code>Any()</code> with no arguments also beats <code>Count() != 0</code> for "is it
+        empty".</li>
+    <li><code>Sum(o =&gt; o.Total)</code> &mdash; the lambda selects the number to add.
+        <code>Sum</code> on an empty sequence returns <code>0</code>, but <code>Max</code> on an empty
+        sequence <strong>throws</strong> &mdash; an inconsistency worth remembering.</li>
+    <li><code>GroupBy(o =&gt; o.CustomerId)</code> &mdash; produces a sequence of
+        <strong>groups</strong>, each an <code>IGrouping&lt;TKey, TElement&gt;</code>: a key plus the
+        elements that share it. Unlike SQL's <code>GROUP BY</code>, LINQ hands you the members
+        themselves, not only the aggregates.</li>
+    <li><code>g.Key</code> &mdash; the value that was grouped on. <code>g</code> is
+        <em>also</em> enumerable, which is why <code>g.Count()</code> and <code>g.Sum(...)</code> work
+        directly on it.</li>
+    <li><code>new { CustomerId = ..., Count = ..., Revenue = ... }</code> &mdash; an
+        <strong>anonymous type</strong>: <code>new</code> with no type name. The compiler generates a
+        class with those three read-only properties. It cannot be named, so it cannot be returned from
+        a method &mdash; project into a real DTO at the boundary.</li>
+    <li>Against EF Core this whole expression translates to a real <code>GROUP BY</code> and the
+        aggregation happens in SQL Server. Put a <code>ToList()</code> before the
+        <code>GroupBy</code> and you have downloaded the table to count it.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ <code>Any()</code> vs <code>Count() &gt; 0</code></div>
@@ -369,6 +532,27 @@ orders.Max(o =&gt; o.Date)
         <span class="kw">where</span> o.Paid
         <span class="kw">orderby</span> o.Date
         <span class="kw">select</span> o.Id;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>These two are the same query.</strong> Query syntax is compiled into method calls
+        before anything else happens; there is no performance difference and no capability
+        difference.</li>
+    <li><code>from o in orders</code> &mdash; the <strong>range variable</strong>. It is not a loop
+        variable: nothing iterates here, it just names each element for the clauses below.</li>
+    <li><code>where o.Paid</code> &mdash; becomes <code>.Where(o =&gt; o.Paid)</code>. No lambda arrow
+        is written because the compiler supplies it.</li>
+    <li><code>orderby o.Date</code> &mdash; one word, no camel case, and it becomes
+        <code>.OrderBy(...)</code>. <code>orderby x descending</code> maps to
+        <code>OrderByDescending</code>.</li>
+    <li><code>select o.Id</code> &mdash; becomes <code>.Select(o =&gt; o.Id)</code>. A query expression
+        <strong>must</strong> end in <code>select</code> or <code>group</code>.</li>
+    <li><strong>When query syntax genuinely wins:</strong> joins and <code>let</code>. A multi-source
+        join reads far better with <code>join ... on ... equals ...</code> than as nested
+        <code>SelectMany</code> calls. Most code uses method syntax; use whichever is clearer for the
+        query in front of you.</li>
+  </ul>
+</div>
 
 <div class="tryit">
   <div class="box-title">Try it yourself</div>
@@ -390,6 +574,28 @@ source.Add(4);                              <span class="cm">// ← added AFTER 
 <span class="kw">foreach</span> (<span class="kw">var</span> n <span class="kw">in</span> query) { }
 <span class="ty">Console</span>.WriteLine(<span class="st">"second enumeration:"</span>);
 <span class="kw">foreach</span> (<span class="kw">var</span> n <span class="kw">in</span> query) { }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>source.Select(n =&gt; { ...; return n * 2; })</code> &mdash; a
+        <strong>statement lambda</strong>: braces, so it needs an explicit <code>return</code>. The
+        <code>Console.WriteLine</code> inside is there to make the invisible timing visible.</li>
+    <li><code>Console.WriteLine("query built")</code> prints <strong>before</strong> any "evaluating"
+        line. Building a query runs none of it.</li>
+    <li><code>source.Add(4)</code> &mdash; added after the query was written, and it
+        <strong>will</strong> appear in the results. The query holds a reference to the list, not a
+        snapshot of it.</li>
+    <li><strong>First enumeration</strong> prints four "evaluating" lines, interleaved with the
+        consumer rather than all at once: LINQ <em>streams</em>, pulling one element through the whole
+        chain before starting the next.</li>
+    <li><strong>Second enumeration</strong> prints them all again. Nothing was cached. Two
+        <code>foreach</code> loops over one query variable is twice the work.</li>
+    <li><strong>Three lessons in one output:</strong> queries are lazy, they see later changes to
+        their source, and they re-run every time. <code>ToList()</code> ends all three &mdash; which
+        is why it is both the fix and, used too early, the bug in the
+        <code>IQueryable</code> example above.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     "query built" prints <em>before</em> any evaluation; the 4 <em>is</em> included, because the
     query reads the list when it runs, not when it was written; and everything is evaluated twice.

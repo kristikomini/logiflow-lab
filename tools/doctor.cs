@@ -1372,7 +1372,7 @@ IEnumerable<string> SourceFiles() =>
 IEnumerable<Issue> CheckCodeDissection()
 {
     // RAISE THIS as chapters are annotated. Never lower it.
-    const int floor = 37;
+    const int floor = 70;
 
     int blocks = 0, dissected = 0;
     List<(string Chapter, int Done, int Total)> perChapter = [];

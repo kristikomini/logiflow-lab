@@ -209,6 +209,22 @@ dotnet --version
 dotnet --info
 dotnet --list-sdks
 dotnet --list-runtimes</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet --version</code> &mdash; prints the SDK that <strong>would be used in this
+        folder</strong>, not the newest one installed. Run it somewhere else and the answer can
+        differ, because a <code>global.json</code> higher up the tree can pin it.</li>
+    <li><code>dotnet --info</code> &mdash; everything at once: the SDK in effect, the runtimes, the
+        architecture and the install paths. This is the output to paste into a bug report.</li>
+    <li><code>dotnet --list-sdks</code> and <code>--list-runtimes</code> &mdash; two lists, because
+        they are two different things. You can have many SDKs and many runtimes side by side; an
+        application built against .NET 8 keeps running on the .NET 8 runtime even with .NET 10
+        installed.</li>
+    <li><code>#</code> &mdash; a shell comment, not C#. Nothing on these lines is a language
+        construct: this is the terminal.</li>
+  </ul>
+</div>
 
 <p>
   A <code>global.json</code> in the repository root pins the SDK, so every developer and every
@@ -223,6 +239,25 @@ dotnet --list-runtimes</code></pre>
     <span class="st">"allowPrerelease"</span>: <span class="kw">false</span>
   }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is JSON, not C#.</strong> <code>global.json</code> sits at the repository root
+        and is read by the <code>dotnet</code> tool before it does anything else.</li>
+    <li><code>"sdk"</code> &mdash; the object naming which SDK this repository expects. It constrains
+        the <em>build</em>, never what the finished application runs on.</li>
+    <li><code>"version": "10.0.300"</code> &mdash; the requested SDK. Without this file, whoever has
+        the newest SDK installed builds with a different compiler from everyone else, and the
+        difference shows up as a build that fails only in CI.</li>
+    <li><code>"rollForward": "latestFeature"</code> &mdash; what to do when that exact version is
+        absent. <code>latestFeature</code> accepts a newer feature band of the same major version;
+        <code>disable</code> would demand the exact number and fail otherwise.</li>
+    <li><code>"allowPrerelease": false</code> &mdash; never silently select a release candidate. A
+        developer who installed a preview for something else does not get a surprise compiler.</li>
+    <li>JSON has <strong>no comments</strong> and no trailing commas, which is why the reasoning for
+        a file like this lives in the repository's documentation rather than beside it.</li>
+  </ul>
+</div>
 
 <h2 id="the-project-file">The project file</h2>
 
@@ -249,6 +284,43 @@ dotnet --list-runtimes</code></pre>
   <span class="kw">&lt;/ItemGroup&gt;</span>
 
 <span class="kw">&lt;/Project&gt;</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A <code>.csproj</code> is XML</strong>, and it is an MSBuild file rather than a
+        manifest. The angle brackets are elements, and <code>Include="..."</code> is an attribute.</li>
+    <li><code>Sdk="Microsoft.NET.Sdk.Web"</code> &mdash; selects the <strong>project SDK</strong>,
+        which imports a large set of default build rules. <code>.Web</code> adds the ASP.NET Core
+        framework reference and the static-file conventions; plain <code>Microsoft.NET.Sdk</code>
+        would be a class library or console app.</li>
+    <li><code>&lt;PropertyGroup&gt;</code> &mdash; holds <strong>single-valued settings</strong>.
+        <code>&lt;ItemGroup&gt;</code> below holds <strong>lists</strong>. That is the whole
+        distinction, and it is why references never go in a PropertyGroup.</li>
+    <li><code>&lt;TargetFramework&gt;net10.0&lt;/TargetFramework&gt;</code> &mdash; which framework to
+        compile against. It decides which APIs exist at all, and therefore which runtime can execute
+        the result.</li>
+    <li><code>&lt;Nullable&gt;enable&lt;/Nullable&gt;</code> &mdash; switches on nullable reference
+        types, so <code>string</code> means "never null" and <code>string?</code> means "may be
+        null". It is <strong>compile-time analysis only</strong> &mdash; nothing is checked at run
+        time, and data arriving from JSON or a database can still be null.</li>
+    <li><code>&lt;ImplicitUsings&gt;enable&lt;/ImplicitUsings&gt;</code> &mdash; the compiler adds the
+        common <code>using</code> directives for you. This is why a modern file can call
+        <code>Console.WriteLine</code> with no <code>using System;</code> at the top.</li>
+    <li><code>&lt;TreatWarningsAsErrors&gt;true&lt;/TreatWarningsAsErrors&gt;</code> &mdash; a warning
+        now fails the build. Deliberate: warnings that nobody has to fix accumulate until they hide
+        the one that mattered.</li>
+    <li><code>&lt;PackageReference Include="..." /&gt;</code> &mdash; a <strong>NuGet
+        package</strong>, downloaded from a feed. Note there is no <code>Version</code> attribute:
+        this repository uses central package management, so every version lives in one
+        <code>Directory.Packages.props</code> and cannot drift between projects.</li>
+    <li><code>&lt;ProjectReference Include="..\..." /&gt;</code> &mdash; <strong>another project in
+        the same solution</strong>, compiled from source. This is the wire that decides which project
+        is allowed to mention which, and it is how the layering in
+        <a href="23-architecture-and-cqrs.html">chapter 23</a> is enforced by the compiler rather
+        than by good intentions.</li>
+    <li><code>&lt;!-- ... --&gt;</code> &mdash; an XML comment. Unlike JSON, XML has them.</li>
+  </ul>
+</div>
 
 <p>Four things to be able to explain:</p>
 <ul>
@@ -287,6 +359,32 @@ dotnet publish -c Release -o out    <span class="cm"># everything needed to depl
 
 dotnet add package Serilog          <span class="cm"># add a dependency</span>
 dotnet list package --outdated      <span class="cm"># what has moved on without you</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet new webapi -o LogiFlow.Api</code> &mdash; creates a project from a template.
+        <code>-o</code> is the output folder.</li>
+    <li><code>dotnet restore</code> &mdash; resolves and downloads NuGet packages. You will rarely
+        type it: <code>build</code>, <code>run</code>, <code>test</code> and <code>publish</code> all
+        restore first unless told not to.</li>
+    <li><code>dotnet build</code> &mdash; compiles to <strong>IL</strong> in a <code>.dll</code> under
+        <code>bin/</code>. Not machine code &mdash; that translation happens later, at run time.</li>
+    <li><code>dotnet run</code> &mdash; builds and then starts the application. It is a developer
+        convenience and not how anything is started in production, where you run the published
+        <code>.dll</code> directly.</li>
+    <li><code>dotnet watch</code> &mdash; rebuilds and restarts on every save. For a web project it
+        also does hot reload, applying many edits without a restart at all.</li>
+    <li><code>dotnet publish -c Release -o out</code> &mdash; produces a folder containing everything
+        needed to deploy. <code>-c Release</code> is the <strong>configuration</strong>: optimisations
+        on, no debug-only checks. Publishing a Debug build is a small, common and entirely avoidable
+        production mistake.</li>
+    <li><code>dotnet add package Serilog</code> &mdash; adds a <code>&lt;PackageReference&gt;</code>
+        to the <code>.csproj</code>. It edits the file you saw above; there is no hidden state
+        anywhere else.</li>
+    <li><code>dotnet list package --outdated</code> &mdash; what has moved on without you. Worth
+        running before an interview about a codebase you claim to maintain.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Debug vs Release</div>
@@ -331,6 +429,26 @@ dotnet build
 <span class="cm"># The output is not machine code. Open it and look:</span>
 <span class="cm"># bin/Debug/net10.0/IlDemo.dll</span>
 <span class="cm"># Paste it into https://sharplab.io and switch the output to "IL"</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet new console -o IlDemo</code> then <code>cd IlDemo</code> &mdash; a throwaway
+        project, because the point is to look at the output rather than to keep it.</li>
+    <li><code>dotnet build</code> &mdash; produces <code>bin/Debug/net10.0/IlDemo.dll</code>. The
+        extension says DLL and the file is <strong>not a native library</strong>: it is an
+        <em>assembly</em>, holding IL plus metadata describing every type inside it.</li>
+    <li><strong>IL</strong> &mdash; Intermediate Language. The C# compiler stops here. Turning IL into
+        instructions your processor understands is the <strong>JIT</strong>'s job, and it happens the
+        first time each method actually runs.</li>
+    <li><strong>Why this matters rather than being trivia.</strong> It is why the same
+        <code>.dll</code> runs on x64 and on ARM; why a decompiler can reconstruct readable C# from a
+        shipped binary; and why the first request to a freshly started service is measurably slower
+        than the second.</li>
+    <li><code>sharplab.io</code> &mdash; paste C# in, choose IL or "C#" as the output, and watch what
+        the compiler generates. Switching the output to C# is the fastest way to see what
+        <code>async</code>, <code>foreach</code>, records and lambdas actually expand into.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     SharpLab is the fastest way to answer "what does this C# actually compile to?" &mdash; it is
     also how you win arguments about whether <code>foreach</code> allocates.
