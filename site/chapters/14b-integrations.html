@@ -81,6 +81,24 @@
 //      never notices that DNS changed — so a failover the other side performed
 //      is invisible to you until a restart.</span>
 <span class="kw">private static readonly</span> <span class="ty">HttpClient</span> Shared = <span class="kw">new</span>();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>using var client = new HttpClient();</code> &mdash; it implements
+        <code>IDisposable</code>, so this looks like textbook-correct C#. It is the single most common
+        .NET networking bug.</li>
+    <li><strong>Disposal does not free the socket.</strong> The TCP connection enters the OS
+        <code>TIME_WAIT</code> state for up to four minutes, so a busy service exhausts the ephemeral
+        port range.</li>
+    <li><strong>The error message points at the wrong thing.</strong> "Address already in use" reads
+        like a server misconfiguration, which is why this costs people a day.</li>
+    <li><strong>One static client forever</strong> fixes the sockets and introduces the opposite fault:
+        the connection is never re-established, so <strong>DNS changes are never noticed</strong>.
+        Invisible until a failover, then total.</li>
+    <li><strong>Both are correct-looking.</strong> That is the lesson: the right answer is neither
+        lifetime but a factory that manages it, which is the next block.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ a typed client, registered once</div>
 <pre><code><span class="cm">// Program.cs — IHttpClientFactory pools the handlers and rotates them
@@ -104,6 +122,26 @@ builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span cla
         <span class="kw">return</span> Map(<span class="kw">await</span> res.Content.ReadFromJsonAsync&lt;<span class="ty">CarrierParcelDto</span>&gt;(ct));
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddHttpClient&lt;ICarrierApi, CarrierApi&gt;(...)</code> &mdash; a
+        <strong>typed client</strong>. It registers the interface, the implementation, and an
+        <code>HttpClient</code> configured for it.</li>
+    <li><strong>It pools handlers and rotates them</strong>, two minutes by default. The socket is
+        reused, so no exhaustion; the handler is periodically replaced, so DNS is re-resolved. Both
+        problems, one registration.</li>
+    <li><code>c.BaseAddress = new Uri(options.BaseUrl)</code> &mdash; set once here, so every call site
+        uses a relative path and no URL is duplicated.</li>
+    <li><code>c.Timeout = TimeSpan.FromSeconds(10)</code> &mdash; <strong>always set this</strong>. The
+        default is 100 seconds, which under load is indistinguishable from a hang: your thread pool
+        fills with requests waiting on a service that is already gone.</li>
+    <li><strong>The client takes <code>HttpClient</code> in its constructor</strong> and nothing else in
+        the application knows the carrier exists. That is the boundary this whole chapter is about.</li>
+    <li>The typed client is registered <strong>transient</strong>, which is fine: it is a thin wrapper,
+        and the expensive handler underneath is the pooled part.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Injecting <code>HttpClient</code> is not injecting a singleton</div>
@@ -187,6 +225,29 @@ builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span cla
 builder.Services.AddTransient&lt;<span class="ty">BearerTokenHandler</span>&gt;();
 builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span class="ty">CarrierApi</span>&gt;()
        .AddHttpMessageHandler&lt;<span class="ty">BearerTokenHandler</span>&gt;();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>DelegatingHandler</code> &mdash; middleware for outgoing requests. The same nested
+        pipeline shape as ASP.NET Core's, pointing the other way.</li>
+    <li><code>protected override async Task&lt;HttpResponseMessage&gt; SendAsync(...)</code> &mdash;
+        the one method to override. Everything before <code>base.SendAsync</code> happens on the way
+        out; everything after, on the way back.</li>
+    <li><code>await tokens.GetAsync(ct)</code> &mdash; the token comes from a service that caches and
+        refreshes it. Fetching one per request would be an extra round trip on every call.</li>
+    <li><code>new("Bearer", token)</code> &mdash; a target-typed <code>new</code> for
+        <code>AuthenticationHeaderValue</code>. The scheme and the value are separate arguments, which
+        is why no string concatenation appears.</li>
+    <li><code>await base.SendAsync(req, ct)</code> &mdash; <strong>calls the rest of the
+        pipeline</strong>. Forgetting it is the outgoing equivalent of not calling
+        <code>next</code>.</li>
+    <li><strong>The 401 retry is the point of the class.</strong> Their token lifetime and your clock
+        will eventually disagree, and one retry with a fresh token turns a scattered class of
+        intermittent failures into nothing.</li>
+    <li><strong>Retry once, not in a loop.</strong> If the second attempt is also rejected the
+        credentials are genuinely wrong, and looping just delays finding that out.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The token stampede</div>
@@ -217,6 +278,28 @@ builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span cla
            })
            .AddCircuitBreaker(<span class="kw">new</span>() { FailureRatio = <span class="nu">0.5</span>, MinimumThroughput = <span class="nu">10</span> })
            .AddTimeout(<span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">30</span>)));       <span class="cm">// total, across all attempts</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Microsoft.Extensions.Http.Resilience</code> &mdash; the supported package, with Polly
+        v8 underneath. Worth using rather than hand-rolling: the failure modes here are well
+        understood and easy to get subtly wrong.</li>
+    <li><code>.AddStandardResilienceHandler()</code> &mdash; sensible defaults for timeout, retry,
+        circuit breaker and rate limiting in one line. Start here.</li>
+    <li><code>.AddTimeout(TimeSpan.FromSeconds(5))</code> &mdash; <strong>per attempt</strong>, which is
+        not the same as the client's overall timeout. Three attempts at five seconds is fifteen seconds
+        of waiting, so the two numbers have to be chosen together.</li>
+    <li><code>BackoffType = DelayBackoffType.Exponential</code> &mdash; wait longer after each failure.
+        Retrying immediately three times is not resilience; it is three times the load on a service
+        that is already struggling.</li>
+    <li><strong>Jitter matters more than it looks.</strong> Without randomisation every client retries
+        at the same instant and the recovering service is knocked over again &mdash; the thundering
+        herd. The standard handler adds it for you.</li>
+    <li><strong>Only retry what is safe to repeat.</strong> A <code>GET</code> is; a
+        <code>POST</code> that creates an order is not, unless the API supports idempotency &mdash;
+        which is the next block.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Why each piece is there</div>
@@ -251,6 +334,25 @@ builder.Services.AddHttpClient&lt;<span class="ty">ICarrierApi</span>, <span cla
 // they use to recognise a repeat. Most serious APIs support this header;
 // if theirs does not, ask what does — there is usually something.</span>
 req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Idempotency-Key</code> &mdash; a header carrying <strong>a key you generate</strong>,
+        stable across retries, that the other side uses to recognise a repeat.</li>
+    <li><strong>It exists because of the ambiguous failure.</strong> A timeout does not tell you whether
+        the request arrived. Retrying might create a second order; not retrying might lose the
+        first.</li>
+    <li><code>order.Id.ToString()</code> &mdash; the key must be <strong>the same on every
+        attempt</strong>. Generating a fresh <code>Guid</code> per attempt makes the header useless,
+        which is the obvious mistake.</li>
+    <li><strong>The other side does the work.</strong> They record the key and return the original
+        response for a repeat, so the retry is safe. Without support on their end the header is
+        ignored.</li>
+    <li><strong>If their API does not support it, ask what does.</strong> There is usually some natural
+        key &mdash; your order number &mdash; that they will reject as a duplicate, which achieves the
+        same thing less politely.</li>
+  </ul>
+</div>
   <p>Chapter 22 makes the general argument. This is the same rule pointing outwards.</p>
 </div>
 
@@ -271,6 +373,24 @@ req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());
     <span class="kw">public string</span>? parcel_status { get; set; }     <span class="cm">// "IN_TRANSIT", "DELIVERED", "CANC"</span>
     <span class="kw">public string</span>? eta { get; set; }               <span class="cm">// "2026-03-04 14:00" — no zone. Whose?</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public string? parcel_status { get; set; }</code> &mdash; <strong>snake_case in
+        C#</strong>. It is their JSON, and letting it into your code means their naming convention is
+        now in your domain.</li>
+    <li><code>"IN_TRANSIT", "DELIVERED", "CANC"</code> &mdash; and note the third is truncated. Their
+        vocabulary is arbitrary, inconsistent, and about to become load-bearing in your entities.</li>
+    <li><code>string? eta</code> &mdash; <strong>a date as a string, with no time zone</strong>.
+        "2026-03-04 14:00" &mdash; whose two o'clock? Yours, theirs, or UTC? Nothing in the type
+        says.</li>
+    <li>Every property is <strong>nullable</strong>, correctly: it is data from outside, so any field
+        may be missing however confident their documentation sounds.</li>
+    <li><strong>The real cost is versioning.</strong> If this type reaches your domain, their next
+        release breaks you in twenty places instead of one. That is the argument for the mapping in the
+        next block.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ one translation, in one place</div>
 <pre><code><span class="cm">// The DTO stays internal to the Infrastructure project and is mapped at the
@@ -289,6 +409,26 @@ req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());
     Eta: <span class="ty">DateTime</span>.TryParse(d.eta, <span class="ty">CultureInfo</span>.InvariantCulture,
                           <span class="ty">DateTimeStyles</span>.AssumeUniversal, <span class="kw">out var</span> t)
          ? t : <span class="kw">null</span>);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>private static TrackingResult Map(CarrierParcelDto d)</code> &mdash;
+        <strong>private and static</strong>: the DTO never leaves the Infrastructure project, and the
+        mapping is a pure function that is trivial to test.</li>
+    <li><code>d.parcel_status switch { ... }</code> &mdash; translation from their vocabulary to yours,
+        in exactly one place. Their spelling of "cancelled" stops here.</li>
+    <li><strong>The default arm is the important one.</strong> An unknown value is their new feature,
+        not your bug. Throwing is usually right &mdash; loudly, with the value in the message &mdash;
+        because silently mapping it to "Unknown" means a parcel state you have never handled flows
+        through your system unnoticed.</li>
+    <li><code>TrackingResult</code> &mdash; <strong>your</strong> type, with your enum and a real
+        <code>DateTimeOffset</code>. The ambiguity in their date is resolved here, once, by someone who
+        went and asked.</li>
+    <li><strong>This is chapter 23's dependency rule applied to a third party.</strong> The domain must
+        not know this carrier exists, so that replacing them is a new mapper rather than a
+        migration.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">Read that date parse again</div>
@@ -371,6 +511,28 @@ req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());
     <span class="kw">await</span> queue.EnqueueAsync(raw, ct);
     <span class="kw">return</span> <span class="ty">Results</span>.Accepted();
 });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>app.MapPost("/webhooks/carrier", ...)</code> &mdash; a minimal API endpoint. Inbound
+        integration: they call you, so you cannot control retries or timing.</li>
+    <li><code>req.EnableBuffering()</code> &mdash; the request body is a forward-only stream and can
+        normally be read once. This allows a second read, which model binding will need later.</li>
+    <li><strong>Read the RAW bytes.</strong> Deserialising and re-serialising changes whitespace, key
+        order and number formatting, so the signature will never match again. This is the bug that
+        costs a whole day, and it is why the raw string is captured before anything else.</li>
+    <li><code>leaveOpen: true</code> &mdash; a <strong>named argument</strong>, and it matters:
+        disposing the reader would close the body stream that the framework still needs.</li>
+    <li><strong>Verify the signature before trusting anything</strong> &mdash; the URL is public, so
+        anyone can post to it. And compare using a fixed-time comparison, not
+        <code>==</code>, which returns early and leaks the correct prefix through timing.</li>
+    <li><code>IWebhookQueue queue</code> &mdash; <strong>enqueue and return 200 fast</strong>. Doing the
+        work inline means their timeout fires, they retry, and you process it twice. Acknowledge, then
+        work.</li>
+    <li><strong>Assume duplicates.</strong> Webhook delivery is at-least-once everywhere, so the
+        handler must be idempotent on their event id.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ You will receive the same event twice</div>
@@ -444,6 +606,28 @@ req.Headers.Add(<span class="st">"Idempotency-Key"</span>, order.Id.ToString());
 [Fact] <span class="kw">public async</span> <span class="ty">Task</span> Timeout_is_not_treated_as_failure() { … }
 [Fact] <span class="kw">public async</span> <span class="ty">Task</span> Retries_stop_after_three() { … }
 [Fact] <span class="kw">public async</span> <span class="ty">Task</span> Malformed_json_is_reported_not_swallowed() { … }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>HttpMessageHandler</code> &mdash; the seam. <code>HttpClient</code> is a thin wrapper
+        over one, so substituting the handler lets you test the client with no network and no
+        server.</li>
+    <li><code>StubHandler(HttpStatusCode code, string body)</code> &mdash; a primary constructor taking
+        the canned response. One small class replaces a mocking framework here.</li>
+    <li><code>public List&lt;HttpRequestMessage&gt; Seen { get; } = [];</code> &mdash; records what was
+        sent, so a test can assert on the URL, the headers and the body. Get-only with a collection
+        expression initialiser.</li>
+    <li><code>Task.FromResult(...)</code> &mdash; a completed task. No <code>async</code> is needed
+        because nothing is awaited, and this avoids generating a state machine for a method that
+        returns immediately.</li>
+    <li><code>new StringContent(body, Encoding.UTF8, "application/json")</code> &mdash; the content type
+        matters: a client that checks it will reject a response without it, and the test would pass for
+        the wrong reason.</li>
+    <li><strong>The tests that matter are the unhappy ones.</strong> A 500, a timeout, malformed JSON, a
+        status value you have never seen. The happy path works on the first day; the others are what
+        wake you up.</li>
+  </ul>
+</div>
 
 <p>
   For anything larger, <strong>WireMock.Net</strong> gives you a real HTTP server in the test

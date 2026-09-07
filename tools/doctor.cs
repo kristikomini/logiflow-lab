@@ -1377,7 +1377,7 @@ IEnumerable<Issue> CheckCodeDissection()
     // ratio flattered itself — the one direction a progress metric must not
     // be wrong in.
     // RAISE THIS as chapters are annotated. Never lower it.
-    const int floor = 134;
+    const int floor = 163;
 
     int blocks = 0, dissected = 0;
     List<(string Chapter, int Done, int Total)> perChapter = [];

@@ -63,6 +63,40 @@ app.MapControllers();
 app.MapHealthChecks(<span class="st">"/health"</span>);
 
 app.Run();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WebApplication.CreateBuilder(args)</code> &mdash; builds the host: configuration from
+        appsettings, environment variables and the command line, plus logging and an empty service
+        container.</li>
+    <li><strong>The file has exactly two halves</strong>, and the comments mark them. Before
+        <code>Build()</code> you say what exists; after it you say what happens. Mixing them up is the
+        commonest confusion in this file.</li>
+    <li><code>AddControllers()</code> &mdash; registers the MVC services and discovers controllers by
+        convention. It does not route anything yet; that is <code>MapControllers()</code> in the second
+        half.</li>
+    <li><code>AddDbContext&lt;...&gt;(o =&gt; o.UseSqlServer(...))</code> &mdash; registers the context
+        as <strong>scoped</strong>: one per request, which is the only correct lifetime for something
+        that is not thread-safe.</li>
+    <li><code>AddScoped&lt;IOrderService, OrderService&gt;()</code> &mdash; <strong>interface first,
+        implementation second</strong>. These are the only lines in the application that know both
+        names.</li>
+    <li><code>AddHttpClient&lt;IPricingClient, PricingClient&gt;()</code> &mdash; a
+        <strong>typed client</strong>, and the right answer to the <code>HttpClient</code> trap from
+        <a href="08-disposal-and-thread-safety.html">chapter 08</a>: the factory pools handlers and
+        rotates them so DNS changes are picked up.</li>
+    <li><code>AddHealthChecks().AddDbContextCheck&lt;...&gt;()</code> &mdash; a readiness probe that
+        actually opens the database, rather than one that returns 200 because the process is
+        alive.</li>
+    <li><code>builder.Build()</code> &mdash; the container closes. Registering anything after this line
+        throws.</li>
+    <li><strong>The three lifetimes:</strong> <code>Singleton</code> for the process,
+        <code>Scoped</code> per request, <code>Transient</code> per injection. <strong>A singleton must
+        never hold a scoped service</strong> &mdash; it would capture one request's
+        <code>DbContext</code> forever. Scope validation catches it in Development and is off in
+        Production.</li>
+  </ul>
+</div>
 
 <h2 id="middleware">The middleware pipeline</h2>
 
@@ -152,6 +186,31 @@ app.Run();</code></pre>
             sw.ElapsedMilliseconds);
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>RequestDelegate next</code> &mdash; <strong>the rest of the pipeline, as a single
+        function</strong>. That is the whole design: the pipeline is one nested function built in
+        reverse.</li>
+    <li><code>ILogger&lt;RequestTimingMiddleware&gt;</code> &mdash; the generic parameter sets the log
+        category to the class name, which is how you filter this component's output later.</li>
+    <li><code>InvokeAsync(HttpContext ctx)</code> &mdash; discovered <strong>by convention, not by an
+        interface</strong>. Misspell it and the class compiles and is simply never called.</li>
+    <li><code>await next(ctx)</code> &mdash; the hinge. Everything before it runs on the way
+        <em>in</em>; everything after runs on the way <em>out</em>, after the response has been
+        produced.</li>
+    <li><strong>Not calling <code>next</code> short-circuits the pipeline</strong> &mdash; which is
+        exactly how authentication rejects a request, and exactly how a bug makes every response
+        empty.</li>
+    <li><code>"{Method} {Path} → {Status} in {Ms}ms"</code> &mdash; <strong>structured
+        logging</strong>. The braces are named holes, not string interpolation: the message template
+        and the values are stored separately, so a log system can query
+        <code>Ms &gt; 500</code>. Writing <code>$"..."</code> here would destroy that.</li>
+    <li><strong>Order is behaviour.</strong> Registration order in the second half of
+        <code>Program.cs</code> decides what wraps what, and authorization must sit between routing and
+        endpoint execution or it guards nothing.</li>
+  </ul>
+</div>
 
 <h2 id="di">Dependency injection</h2>
 
@@ -250,6 +309,35 @@ app.Run();</code></pre>
         };
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>[ApiController]</code> &mdash; switches on automatic <strong>400 on an invalid
+        model</strong>, binding-source inference and Problem Details for errors. Without it you write
+        <code>if (!ModelState.IsValid)</code> in every action.</li>
+    <li><code>[Route("api/v1/[controller]")]</code> &mdash; <code>[controller]</code> is a
+        <strong>token</strong> replaced by the class name minus the <code>Controller</code> suffix, so
+        this becomes <code>/api/v1/orders</code>. Renaming the class silently changes the URL, which is
+        an argument for writing the literal.</li>
+    <li><code>OrdersController(IOrderService service) : ControllerBase</code> &mdash;
+        <code>ControllerBase</code> and not <code>Controller</code>: the latter adds view rendering an
+        API does not need.</li>
+    <li><code>[HttpGet("{id:int}")]</code> &mdash; verb plus route template.
+        <code>:int</code> is a <strong>constraint</strong>, so <code>/orders/abc</code> does not match
+        this action at all and never reaches your code.</li>
+    <li><code>[ProducesResponseType&lt;OrderDto&gt;(StatusCodes.Status200OK)]</code> &mdash;
+        documentation for OpenAPI. It changes no behaviour; it is what makes the generated client and
+        the Swagger page correct.</li>
+    <li><code>ActionResult&lt;OrderDto&gt;</code> &mdash; "either the DTO or an HTTP result". It is what
+        lets one method return both <code>Ok(dto)</code> and <code>NotFound()</code> while still
+        declaring the success shape.</li>
+    <li><code>int id, CancellationToken ct</code> &mdash; neither is passed by the caller as C#.
+        <strong>Model binding</strong> fills <code>id</code> from the route by name; the framework
+        supplies the token.</li>
+    <li><strong>Three lines is the right length for an action.</strong> Bind, call one thing, choose a
+        status code. Anything longer has taken work belonging to the service.</li>
+  </ul>
+</div>
 
 <h3>Where binding gets its values</h3>
 <div class="table-wrap">
@@ -302,6 +390,30 @@ app.Run();</code></pre>
     .Where(o =&gt; o.Id == id)
     .Select(o =&gt; <span class="kw">new</span> <span class="ty">OrderDto</span>(o.Id, o.OrderNumber, o.Total, o.Status.ToString()))
     .FirstOrDefaultAsync(ct);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>CreateOrderRequest</code> &mdash; the <strong>inbound</strong> shape, and what it omits
+        is the design: no <code>Id</code>, no <code>Status</code>. The client does not get to choose
+        those, and a type that cannot express them cannot be over-posted.</li>
+    <li><code>[property: Required]</code> &mdash; the <code>property:</code> prefix is an
+        <strong>attribute target</strong>, and it is required on a positional record. Without it the
+        attribute lands on the constructor <em>parameter</em>, where the validation system never looks
+        &mdash; so it compiles, and validates nothing.</li>
+    <li><code>[MinLength(1)]</code> on the lines &mdash; an order with zero lines is rejected before
+        your code runs, by <code>[ApiController]</code>.</li>
+    <li><code>IReadOnlyList&lt;T&gt;</code> &mdash; the caller cannot mutate what it sent, and neither
+        can you by accident.</li>
+    <li><code>string? Notes</code> &mdash; the <code>?</code> says optional, in the type, matching the
+        absence of <code>[Required]</code>. The two must agree or the API's documentation lies.</li>
+    <li><code>OrderDto</code> &mdash; the <strong>outbound</strong> shape: exactly what you are willing
+        to publish, and a separate type from the inbound one because what a caller may send and what it
+        may see are different questions.</li>
+    <li><code>.Select(o =&gt; new OrderDto(...))</code> &mdash; the mapping happens
+        <strong>inside the query</strong>, so it becomes one SQL statement fetching four columns.
+        Fetching entities and mapping afterwards would read whole rows and track them.</li>
+  </ul>
+</div>
 
 <h2 id="validation">Validation and error handling</h2>
 
@@ -345,6 +457,31 @@ app.Run();</code></pre>
 builder.Services.AddExceptionHandler&lt;<span class="ty">GlobalExceptionHandler</span>&gt;();
 builder.Services.AddProblemDetails();
 app.UseExceptionHandler();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>IExceptionHandler</code> &mdash; the modern hook (ASP.NET Core 8+), replacing the older
+        exception-handling middleware. Register several and they are tried in order.</li>
+    <li><code>ValueTask&lt;bool&gt;</code> &mdash; <code>ValueTask</code> avoids an allocation on the
+        common synchronous path. The <code>bool</code> means <strong>"I handled it"</strong>; returning
+        false passes the exception to the next handler.</li>
+    <li><code>log.LogError(ex, "...")</code> &mdash; <strong>the exception is the first
+        argument</strong>, not interpolated into the message. That is what preserves the stack trace as
+        structured data rather than flattening it into a string.</li>
+    <li><code>ex switch { ... }</code> &mdash; a <strong>type pattern</strong> per arm, mapping
+        exception types to status codes. This is the one place in the application where that mapping
+        should live.</li>
+    <li><code>NotFoundException =&gt; (404, "Not found")</code> &mdash; each arm produces a
+        <strong>tuple</strong>, deconstructed into <code>status</code> and <code>title</code> by the
+        <code>var (status, title) =</code> on the left.</li>
+    <li><code>DbUpdateConcurrencyException =&gt; 409</code> &mdash; the optimistic-concurrency
+        exception from <a href="11-tsql-performance.html">chapter 11</a>, surfacing as the correct HTTP
+        status rather than a 500.</li>
+    <li><code>_ =&gt; (500, "An unexpected error occurred")</code> &mdash; the discard arm, and the
+        message is deliberately vague. <strong>Never return the exception message</strong> for an
+        unexpected error: it leaks table names, file paths and connection details to whoever asked.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Returning a <code>traceId</code> is a small thing that makes support enormously easier: a user
@@ -367,6 +504,28 @@ builder.Services
     .Bind(builder.Configuration.GetSection(<span class="ty">PricingOptions</span>.Section))
     .ValidateDataAnnotations()
     .ValidateOnStart();          <span class="cm">// fail at boot, not at 3am on the first call</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public const string Section = "Pricing"</code> &mdash; the configuration section name,
+        as a constant on the type that uses it. Better than a magic string at the registration
+        site.</li>
+    <li><code>{ get; init; }</code> &mdash; <strong>init-only</strong>. Settable while binding, frozen
+        afterwards, so nothing can mutate configuration at run time.</li>
+    <li><code>[Required, Url]</code> and <code>[Range(1, 60)]</code> &mdash; data annotations, the same
+        attributes used on request models. Configuration is input too, and deserves the same
+        treatment.</li>
+    <li><code>= ""</code> and <code>= 10</code> &mdash; defaults, so the type is valid before binding
+        and the nullable analysis is satisfied.</li>
+    <li><code>.Bind(builder.Configuration.GetSection(...))</code> &mdash; maps the section onto the
+        object by property name, from any provider: JSON, environment variables, Key Vault.</li>
+    <li><code>.ValidateDataAnnotations()</code> &mdash; enforces the attributes above. Without it they
+        are decoration.</li>
+    <li><code>.ValidateOnStart()</code> &mdash; <strong>the line that earns the pattern</strong>.
+        Options are otherwise validated lazily, on first use, so a typo in a URL becomes a failure at
+        three in the morning on the first call rather than at deployment.</li>
+  </ul>
+</div>
 
 <p>
   Configuration sources are layered, each overriding the last: <code>appsettings.json</code> &rarr;
@@ -394,6 +553,27 @@ builder.Services
     .WithName(<span class="st">"GetOrder"</span>)
     .Produces&lt;<span class="ty">OrderDto</span>&gt;()
     .Produces(<span class="ty">StatusCodes</span>.Status404NotFound);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>app.MapGet("/api/v1/orders/{id:int}", ...)</code> &mdash; route and handler in one
+        call. No class, no attributes: the <strong>minimal API</strong> style.</li>
+    <li><code>async (int id, IOrderService service, CancellationToken ct) =&gt;</code> &mdash; a lambda
+        as the handler, and <strong>the parameters are resolved by source</strong>: <code>id</code> from
+        the route by name, <code>service</code> from DI because it is a registered type,
+        <code>ct</code> from the framework.</li>
+    <li><code>Results.NotFound()</code> and <code>Results.Ok(dto)</code> &mdash; the minimal-API
+        equivalents of <code>ControllerBase</code>'s helpers. <code>TypedResults</code> is the newer
+        form and is preferable, because it is statically typed and therefore unit-testable.</li>
+    <li><code>.WithName("GetOrder")</code> &mdash; a name for link generation and for the generated
+        OpenAPI operation id.</li>
+    <li><code>.Produces&lt;OrderDto&gt;()</code> &mdash; the fluent counterpart of
+        <code>[ProducesResponseType]</code>. Same job, different spelling.</li>
+    <li><strong>Choose by shape, not by fashion.</strong> Minimal APIs suit small, focused endpoints;
+        controllers still earn their place when many actions share filters, a route prefix and
+        conventions. Both use the same routing, DI and middleware underneath.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Minimal APIs are leaner and marginally faster; controllers scale better organisationally with
@@ -405,6 +585,21 @@ builder.Services
   <div class="box-title">Try it yourself</div>
   <pre><code>dotnet new webapi -o DemoApi
 <span class="kw">cd</span> DemoApi &amp;&amp; dotnet run</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet new webapi -o DemoApi</code> &mdash; the template. It scaffolds a working API
+        with OpenAPI already wired up.</li>
+    <li><code>cd DemoApi &amp;&amp; dotnet run</code> &mdash; <code>&amp;&amp;</code> is the shell's
+        "only if the previous succeeded". Not C#.</li>
+    <li><strong>Open the Swagger page and then read <code>Program.cs</code>.</strong> Everything on that
+        page was generated from the two halves of that one file, which is the fastest way to make the
+        register-then-pipeline split concrete.</li>
+    <li>Then delete a line and watch what breaks &mdash; remove <code>MapControllers()</code> and every
+        route returns 404 with no error printed anywhere, which is the lesson about registration being
+        unchecked until run time.</li>
+  </ul>
+</div>
   <p>Then, in order:</p>
   <ol>
     <li>Open <code>/swagger</code> and call the default endpoint.</li>

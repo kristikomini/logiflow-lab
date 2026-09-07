@@ -71,6 +71,26 @@
   </p>
   <pre><code>app.UseAuthentication();   <span class="cm">// who are you  → fills HttpContext.User</span>
 app.UseAuthorization();    <span class="cm">// may you      → reads HttpContext.User</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>UseAuthentication()</code> &mdash; <strong>who are you</strong>. It reads the
+        credential (here a bearer token), validates it, and fills
+        <code>HttpContext.User</code> with a <code>ClaimsPrincipal</code>. It never rejects anyone: an
+        anonymous request simply arrives with an empty identity.</li>
+    <li><code>UseAuthorization()</code> &mdash; <strong>may you</strong>. It reads the user that the
+        first line produced and decides. This is the one that returns 401 or 403.</li>
+    <li><strong>Order is not stylistic.</strong> Authorization reads what authentication wrote, so
+        reversing these two means every policy evaluates an empty user and denies everything &mdash; or
+        worse, allows it, if the policy only checks for a specific failing claim.</li>
+    <li><strong>Both must sit after <code>UseRouting</code> and before the endpoints.</strong>
+        Authorization needs to know which endpoint matched in order to read its attributes, and it has
+        to run before that endpoint executes.</li>
+    <li><strong>401 versus 403</strong> falls straight out of the split: 401 means "I do not know who
+        you are", 403 means "I know, and no". Returning 401 for a permission failure is the commonest
+        mix-up.</li>
+  </ul>
+</div>
   <p>
     Reverse them and authorization runs against an empty principal. Every request is then
     anonymous, every <code>[Authorize]</code> fails, and — worse, in some configurations — a
@@ -219,6 +239,31 @@ app.UseAuthorization();    <span class="cm">// may you      → reads HttpContex
             ClockSkew = <span class="ty">TimeSpan</span>.FromSeconds(<span class="nu">30</span>)  <span class="cm">// default is 5 MINUTES</span>
         };
     });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddAuthentication(JwtBearerDefaults.AuthenticationScheme)</code> &mdash; sets the
+        default scheme. An application can have several &mdash; cookies for the UI, bearer for the API
+        &mdash; and the default is what runs when nothing names one.</li>
+    <li><code>TokenValidationParameters</code> &mdash; <strong>every one of these four is a separate
+        check, and every one can be switched off.</strong> Turning one off to make a test pass is how
+        real breaches begin.</li>
+    <li><code>ValidateIssuer</code> &mdash; <strong>who minted it</strong>. Without it, a token from any
+        identity provider is accepted, including one the attacker controls.</li>
+    <li><code>ValidateAudience</code> &mdash; <strong>who it was minted for</strong>. Without it, a
+        perfectly valid token for a different application of yours works here too, which is a real
+        privilege-escalation path in a suite of services.</li>
+    <li><code>ValidateLifetime</code> &mdash; the <code>exp</code> and <code>nbf</code> claims. Note
+        there is a default five-minute clock skew allowance, so a token is accepted slightly past its
+        expiry; that is deliberate, and adjustable.</li>
+    <li><code>ValidateIssuerSigningKey</code> &mdash; <strong>the signature itself</strong>, and the one
+        that must never be off. A JWT is not encrypted: anyone can read the payload, and without a
+        signature check anyone can also rewrite it. The <code>alg: none</code> family of attacks lives
+        exactly here.</li>
+    <li><strong>A JWT is signed, not secret.</strong> Never put anything in it you would not put on a
+        postcard &mdash; the middle segment is base64, not encryption.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Turning any of the first four to <code>false</code> to "make it work" is how tokens from a
@@ -246,6 +291,26 @@ builder.Services.AddAuthorization(o =&gt;
 <span class="cm">// …referenced everywhere.</span>
 app.MapPost(<span class="st">"/products"</span>, CreateProduct)
    .RequireAuthorization(<span class="ty">AuthorizationPolicies</span>.CatalogManager);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddPolicy(name, p =&gt; ...)</code> &mdash; the policy is defined <strong>once</strong>,
+        centrally, and referenced by name everywhere else.</li>
+    <li><code>AuthorizationPolicies.CatalogManager</code> &mdash; a constant rather than a string
+        literal. A typo in a policy name is not a compile error: the endpoint just fails closed, or
+        worse, is silently unprotected if the attribute is missed entirely.</li>
+    <li><code>p.RequireRole("Admin", "CatalogManager")</code> &mdash; multiple roles are
+        <strong>OR</strong>, not AND. Either role satisfies it, which is what people usually want and
+        occasionally do not.</li>
+    <li><strong>Policies beat scattering <code>[Authorize(Roles = "...")]</code> everywhere.</strong>
+        When the rule changes you edit one line rather than grepping for a string, and the policy can
+        later become "role or claim or resource check" without touching a single endpoint.</li>
+    <li><code>.RequireAuthorization(...)</code> &mdash; the minimal-API spelling of
+        <code>[Authorize]</code>. Attach it to a whole route group and every endpoint inside inherits
+        it &mdash; which is the safer default, because it fails closed when someone adds an endpoint
+        and forgets.</li>
+  </ul>
+</div>
 
 <p>
   Why this and not <code>[Authorize(Roles = "Admin,CatalogManager")]</code> on twenty endpoints?
@@ -273,6 +338,25 @@ app.MapPost(<span class="st">"/products"</span>, CreateProduct)
 <span class="kw">var</span> order = <span class="kw">await</span> db.Orders
     .Where(o =&gt; o.Id == id &amp;&amp; o.CustomerId == currentUserCustomerId)
     .FirstOrDefaultAsync(ct);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>db.Orders.FindAsync(id)</code> &mdash; <strong>authenticated but not authorized for
+        this row</strong>. The user is genuinely logged in and genuinely has the role; they are simply
+        reading somebody else's order.</li>
+    <li><strong>This is IDOR</strong> &mdash; insecure direct object reference &mdash; and it is one of
+        the most common real API vulnerabilities. Change the number in the URL and read another
+        customer's data.</li>
+    <li><code>&amp;&amp; o.CustomerId == currentUserCustomerId</code> &mdash; <strong>ownership is part
+        of the query</strong>, not a check afterwards. It cannot be forgotten on one code path, and
+        there is no window between reading and checking.</li>
+    <li><code>FirstOrDefaultAsync</code> returning null &mdash; and the correct response is
+        <strong>404, not 403</strong>. Saying "forbidden" confirms the order exists, which leaks
+        information to anyone probing ids.</li>
+    <li><strong>Role checks are not enough on their own.</strong> Roles answer "may you do this kind of
+        thing"; only the data can answer "may you do it to <em>this</em>".</li>
+  </ul>
+</div>
   <p>
     Return <code>404</code> rather than <code>403</code> when even confirming the row exists would
     leak something.
@@ -355,6 +439,24 @@ app.MapPost(<span class="st">"/products"</span>, CreateProduct)
   <pre><code>dotnet user-jwts create --project src/LogiFlow.Api --role CatalogManager
 <span class="cm"># copy the token it prints, then decode the middle segment:</span>
 echo <span class="st">'&lt;paste-the-payload-segment&gt;'</span> | base64 -d</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet user-jwts create</code> &mdash; a built-in tool that mints a development token
+        and configures the API to trust it. No identity provider needed to test an endpoint.</li>
+    <li><code>--role CatalogManager</code> &mdash; adds a role claim, so you can exercise the policy
+        from the previous block.</li>
+    <li><code>#</code> &mdash; a shell comment.</li>
+    <li><code>base64 -d</code> &mdash; decodes the payload, and <strong>this is the exercise</strong>.
+        A JWT is three dot-separated base64 segments: header, payload, signature. Decoding the middle
+        one requires no key and no permission.</li>
+    <li><strong>Do it once and the lesson sticks.</strong> Everything in that token &mdash; the user
+        id, the roles, the expiry &mdash; is readable by anyone holding it, including the browser it
+        was sent to and anything that logged the header.</li>
+    <li>The signature is what makes it <em>trustworthy</em>, not private. Tampering is detected;
+        reading is not, and never can be.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     You will see your own claims in plain JSON, with no key and no tooling. Now change one
     character anywhere in the token, call the API with it, and watch the 401: readable, but not

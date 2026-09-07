@@ -152,6 +152,29 @@
         <span class="kw">return</span> RedirectToAction(<span class="kw">nameof</span>(Index));   <span class="cm">// ← Post/Redirect/Get</span>
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>: Controller</code> and <strong>not <code>ControllerBase</code></strong> &mdash; the
+        difference is view support. <code>Controller</code> adds <code>View()</code>,
+        <code>TempData</code> and the view engine; an API uses the leaner base.</li>
+    <li><code>public async Task&lt;IActionResult&gt; Index(...)</code> &mdash; the method name
+        <strong>is</strong> the route by convention: <code>Index</code> on
+        <code>OrdersController</code> is <code>/Orders</code>.</li>
+    <li><code>Views/Orders/Index.cshtml</code> &mdash; found by convention too:
+        <code>Views/{Controller}/{Action}.cshtml</code>. Nothing links them explicitly, which is fast
+        to write and easy to break by renaming.</li>
+    <li><code>OrderFilter filter</code> &mdash; a <strong>complex type bound from the query
+        string</strong>, property by property. No attribute is needed; MVC infers the source.</li>
+    <li><code>return View(vm)</code> &mdash; picks the view by convention and passes the model to it.
+        <code>View("Other", vm)</code> overrides the name.</li>
+    <li><code>vm is null ? ...</code> &mdash; an action returns <code>IActionResult</code> so it can
+        return either a view or <code>NotFound()</code>, exactly as an API action can return either a
+        DTO or a status.</li>
+    <li><strong>The action is still three lines.</strong> Bind, call one service, choose a result. The
+        same discipline as chapter 14, with a different renderer.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Post/Redirect/Get, and why it exists</div>
@@ -204,6 +227,34 @@
 
 @* partial view: reusable fragment *@
 &lt;partial name=<span class="st">"_Pager"</span> model=<span class="st">"Model.Paging"</span> /&gt;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>@model OrderListViewModel</code> &mdash; declares the type of <code>Model</code>, so
+        the whole view is <strong>strongly typed</strong> and a renamed property is a compile
+        error.</li>
+    <li><code>@</code> &mdash; the Razor transition character. It switches from HTML into C#, and Razor
+        works out where the expression ends. To print a literal at sign, write <code>@@</code>.</li>
+    <li><code>@{ ... }</code> &mdash; a <strong>code block</strong> rather than an expression. It runs
+        statements and outputs nothing by itself.</li>
+    <li><code>ViewData["Title"]</code> &mdash; a loosely typed dictionary shared with the layout. Useful
+        for exactly this sort of chrome, and a bad place for real data because nothing checks the key
+        or the type.</li>
+    <li><code>TempData["Success"]</code> &mdash; survives <strong>one redirect</strong> and is then
+        gone. It exists for the POST-redirect-GET pattern: show a message after redirecting, without it
+        reappearing on refresh.</li>
+    <li><code>@if</code> and <code>@foreach</code> &mdash; ordinary C# control flow. Inside the braces
+        Razor switches back to HTML on the first tag, which is why no closing marker is needed.</li>
+    <li><strong>Everything printed with <code>@</code> is HTML-encoded automatically.</strong> That is
+        the XSS defence, and it is on by default. <code>@Html.Raw(...)</code> turns it off and should
+        be rare, local and commented.</li>
+    <li><code>@* ... *@</code> &mdash; a Razor comment, and unlike an HTML comment it is not sent to the
+        browser.</li>
+    <li><code>@o.Total.ToString("C")</code> &mdash; currency in the <strong>request culture</strong>, so
+        an Italian visitor sees <code>1.234,50 &euro;</code>. Correct here because a human is reading
+        it; the opposite of what you want in an API payload.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">Razor escapes HTML for you</div>
@@ -258,6 +309,31 @@
     &lt;button type=<span class="st">"submit"</span> <span class="ty">class</span>=<span class="st">"btn btn-primary"</span>&gt;Salva&lt;/button&gt;
     &lt;a asp-action=<span class="st">"Index"</span> <span class="ty">class</span>=<span class="st">"btn btn-link"</span>&gt;Annulla&lt;/a&gt;
 &lt;/form&gt;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>asp-action</code>, <code>asp-route-id</code>, <code>asp-for</code> &mdash;
+        <strong>tag helpers</strong>. They are ordinary HTML attributes that ASP.NET Core interprets
+        server-side, so the markup stays readable HTML rather than
+        <code>@Html.TextBoxFor(...)</code>.</li>
+    <li><code>&lt;form&gt;</code> with a tag helper <strong>injects the antiforgery hidden field
+        automatically</strong>, and the framework validates it on POST. That is CSRF protection you get
+        by not fighting the defaults.</li>
+    <li><code>asp-validation-summary="ModelOnly"</code> &mdash; shows errors that belong to the model as
+        a whole rather than to one field, which are the ones that otherwise appear nowhere.</li>
+    <li><code>asp-for="Notes"</code> on a <code>&lt;label&gt;</code> &mdash; renders the display name
+        from the <code>[Display]</code> attribute, and the <code>for</code> attribute pointing at the
+        right input.</li>
+    <li><code>asp-for</code> on an <code>&lt;input&gt;</code> &mdash; sets <code>name</code>,
+        <code>id</code>, the current value <em>and</em> the HTML5 validation attributes derived from
+        the data annotations. One attribute, five outputs, and the name matches what model binding
+        expects on the way back.</li>
+    <li><code>asp-validation-for="Notes"</code> &mdash; where that field's message appears, filled
+        server-side after a failed post and client-side if the validation scripts are included.</li>
+    <li><strong>Client-side validation is convenience, never enforcement.</strong> The same annotations
+        run on the server, which is the only place that counts.</li>
+  </ul>
+</div>
 
 <p>
   <code>asp-for</code> reads the property, so the label text, the input <code>name</code>, the
@@ -283,6 +359,29 @@
     <span class="cm">// data the VIEW needs that the entity has no reason to carry</span>
     <span class="kw">public</span> <span class="ty">IEnumerable</span>&lt;<span class="ty">SelectListItem</span>&gt; StatusOptions { <span class="kw">get</span>; <span class="kw">init</span>; } = [];
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A view model is not the entity.</strong> Same argument as a DTO in
+        <a href="14-web-api.html">chapter 14</a>: binding a form straight onto an entity is
+        over-posting, and lets a crafted form set fields you never rendered.</li>
+    <li><code>public int Id { get; init; }</code> &mdash; <strong>init-only</strong>, so it can be set
+        when the view model is built and not by model binding from the form.</li>
+    <li><code>[Display(Name = "Note")]</code> &mdash; the label text, in Italian, living beside the
+        property rather than being repeated in every view that renders it.</li>
+    <li><code>[StringLength(500, ErrorMessage = "Massimo 500 caratteri.")]</code> &mdash; the rule and
+        its message together. The message is what the user reads, so it is written in their
+        language.</li>
+    <li><code>[Required]</code> on <code>OrderStatus Status</code> &mdash; note it is an enum, a value
+        type, so it always has a value. This guards the "nothing selected" case, which arrives as the
+        default rather than as null.</li>
+    <li><code>IEnumerable&lt;SelectListItem&gt; StatusOptions</code> &mdash; <strong>data the view needs
+        that the entity has no reason to carry</strong>. The dropdown's options are a presentation
+        concern, and this is exactly why a separate type exists.</li>
+    <li><code>= []</code> &mdash; a collection expression, so the view can loop over it without a null
+        check even on a failed post.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Over-posting / mass assignment</div>
@@ -363,6 +462,21 @@
   <div class="box-title">Try it yourself</div>
   <pre><code>dotnet new mvc -o DemoMvc
 <span class="kw">cd</span> DemoMvc &amp;&amp; dotnet run</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet new mvc -o DemoMvc</code> &mdash; the MVC template, with layout, validation
+        scripts and a working example already wired together.</li>
+    <li><code>cd DemoMvc &amp;&amp; dotnet run</code> &mdash; <code>&amp;&amp;</code> is the shell's
+        "only if the previous succeeded".</li>
+    <li><strong>Then view the page source in the browser.</strong> Comparing the
+        <code>asp-for</code> markup you wrote with the plain HTML it produced is what makes tag helpers
+        click &mdash; including the antiforgery field you never typed.</li>
+    <li>Then submit the form with JavaScript disabled and watch the same validation messages arrive
+        from the server. That is the fastest way to internalise that client-side validation is
+        decoration.</li>
+  </ul>
+</div>
   <ol>
     <li>Add an <code>Orders</code> controller with <code>Index</code> and <code>Edit</code>
         actions and a view model.</li>

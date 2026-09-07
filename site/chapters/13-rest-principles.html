@@ -187,6 +187,31 @@
 <pre><code>GET /api/v1/orders?customerId=42&amp;status=submitted&amp;page=2&amp;pageSize=20&amp;sort=-createdAt
 
 <span class="cm"># the path identifies WHICH resources; the query says how to slice them</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>/api/v1/orders</code> &mdash; the <strong>path identifies the resource</strong>, and
+        it is a plural noun. Not <code>/getOrders</code>: the verb is
+        <code>GET</code>, supplied by HTTP, so putting one in the path says it twice.</li>
+    <li><code>v1</code> &mdash; the <strong>version</strong>. In the path is the crudest of the three
+        options (header and media type are the others) and by far the easiest to read in a log or
+        curl.</li>
+    <li><code>?</code> &mdash; separates path from <strong>query string</strong>. The path says
+        <em>which</em> resources; the query says <em>how to slice them</em>. That division is the
+        single most useful rule for designing a URL.</li>
+    <li><code>&amp;</code> &mdash; separates parameters. In HTML it must be written
+        <code>&amp;amp;</code>, which is why a copied URL sometimes arrives broken.</li>
+    <li><code>status=submitted</code> &mdash; a filter. Note it is the lower-case wire name, not the
+        C# enum's <code>Submitted</code> or its underlying number; the API's vocabulary is its own
+        contract.</li>
+    <li><code>page=2&amp;pageSize=20</code> &mdash; <strong>paging is not optional</strong>. A
+        collection endpoint with no limit is one that returns a million rows the day the table grows,
+        so cap <code>pageSize</code> server-side regardless of what is asked for.</li>
+    <li><code>sort=-createdAt</code> &mdash; the <strong>leading minus means descending</strong>, a
+        widespread convention. Whatever you choose, whitelist the sortable fields: passing this
+        straight into an <code>ORDER BY</code> is an injection hole.</li>
+  </ul>
+</div>
 
 <h2 id="status-codes">Status codes that matter</h2>
 
@@ -237,6 +262,30 @@
     <span class="st">"Lines"</span>:      [<span class="st">"An order must have at least one line."</span>]
   }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is RFC 9457 Problem Details</strong>, the standard error shape for HTTP APIs,
+        and ASP.NET Core produces it for you. Inventing your own means every client writes a special
+        case for you.</li>
+    <li><code>"type"</code> &mdash; a <strong>URI identifying the kind of problem</strong>. It is an
+        identifier rather than a link to fetch; it need not resolve, though pointing it at your own
+        documentation is a kindness.</li>
+    <li><code>"title"</code> &mdash; a short, <strong>stable</strong> summary of the problem type. It
+        should not vary per occurrence, which is what lets a client group errors by it.</li>
+    <li><code>"status"</code> &mdash; the HTTP status code, repeated in the body. Redundant on purpose:
+        it survives logging and proxies that lose the response line.</li>
+    <li><code>"traceId"</code> &mdash; the <strong>W3C trace context id</strong> for this request. It is
+        the single most valuable field here: a user can quote it and you can find the exact request in
+        the logs. It links directly to
+        <a href="25-observability.html">chapter 25</a>.</li>
+    <li><code>"errors"</code> &mdash; the validation extension: field name to list of messages. Note it
+        is a <strong>list</strong> per field, because one field can fail two rules.</li>
+    <li><strong>What is deliberately absent</strong> is a stack trace or an exception type. Those are
+        for your logs, not for the caller, and shipping them is how internals leak into a public
+        contract.</li>
+  </ul>
+</div>
 
 <h2 id="statelessness">Statelessness</h2>
 
