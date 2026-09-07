@@ -357,6 +357,47 @@ pre code {
   background: none; border: 0; padding: 0; color: inherit; font-size: inherit;
   overflow-wrap: normal;
 }
+/* ==========================================================================
+   Line-by-line dissection — the box that sits under a code block
+   ==========================================================================
+   WHY IT IS ITS OWN THING
+   A comment inside the code can say WHAT a line does. It cannot say what the
+   line IS — that `var` is inference and not a type, that `Set<Product>()` is a
+   method call and `Products` is the property returning it, that `(int)` is a
+   cast and `int.Parse` is a conversion and they fail differently. A beginner
+   reading `await db.Products.ToListAsync(ct)` sees one blur; the dissection
+   names the five separate things in it.
+
+   WHY IT IS ATTACHED TO THE <pre> RATHER THAN FLOATING BELOW IT
+   The negative top margin cancels `pre`'s 1.1em and the flat top corners meet
+   its bottom ones, so a block and its dissection read as one object. That is
+   not decoration: it is what stops the eye treating the explanation as the
+   next paragraph, which is how these get skipped.
+
+   It is deliberately NOT another coloured callout. There are already five
+   (kid, pro, trap, note, tryit) and a sixth competing for attention would make
+   every page shout. This is apparatus — sunken, quiet, and read on demand.
+   ========================================================================== */
+.dissect {
+  margin: -1.05em 0 1.4em;
+  padding: 12px 17px 14px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  font-size: 14px;
+}
+.dissect-title {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: .55em;
+}
+.dissect ul { margin: 0; padding-left: 1.15em; }
+.dissect li { margin: .4em 0; color: var(--ink-soft); line-height: 1.58; }
+/* The line being dissected, first in its bullet: full-strength ink so the eye
+   can run down the left edge and find one line without reading the prose. */
+.dissect li > code:first-child { color: var(--ink); font-weight: 600; }
+.dissect strong { color: var(--ink); font-weight: 600; }
+
 pre .cm  { color: #7f8ba3; font-style: italic; }  /* comment */
 pre .kw  { color: #c792ea; }                      /* keyword */
 pre .st  { color: #a5d6a7; }                      /* string  */

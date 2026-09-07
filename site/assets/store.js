@@ -109,7 +109,7 @@
        *
        * A separate map rather than a prefix in `cards`, for one blunt reason:
        * review.html counts `cards` against the size of the question bank and
-       * says "N of 440 questions are in your schedule". Mixing 362 rules into
+       * says "N of 464 questions are in your schedule". Mixing 362 rules into
        * that map makes every one of those sentences a lie. The scheduler itself
        * is shared — see `schedule()`.
        */

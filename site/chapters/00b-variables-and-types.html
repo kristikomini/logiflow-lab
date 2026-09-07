@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>00b · Variables, types and conversion — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="00b-variables-and-types">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00b</p>
+<h1>Variables, types and conversion</h1>
+<p class="lede">
+  A variable is a named box. A type is the rule about what may go in it. Almost every confusing
+  thing a beginner meets in C# &mdash; why <code>5 / 2</code> is <code>2</code>, why money must not
+  be a <code>double</code>, why the text <code>"7"</code> is not the number <code>7</code> &mdash;
+  is one of those rules, met without warning.
+</p>
+
+<nav id="toc"></nav>
+
+<h2 id="variables">Declaring a variable</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A variable is a labelled box. You say what kind of thing the box holds, you write a label on
+    it, and you put something in. Later you say the label and get the thing back.
+  </p>
+  <p>
+    The unusual part in C# is the <em>first</em> step: you must say what kind of thing the box
+    holds, and after that the box will refuse anything else. A box marked "whole numbers" will not
+    accept the word "banana", and you find out immediately rather than an hour later.
+  </p>
+</div>
+
+<pre><code><span class="kw">int</span> age = <span class="nu">30</span>;                  <span class="cm">// declare, and assign, in one statement</span>
+age = <span class="nu">31</span>;                       <span class="cm">// assign again — the type is not repeated</span>
+
+<span class="kw">int</span> count;                      <span class="cm">// declare with no value: legal, but unusable so far</span>
+count = <span class="nu">0</span>;                      <span class="cm">// now it has one, and may be read</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>int</code> &mdash; the <strong>type</strong>. It is a keyword, and it means a whole
+        number. Writing the type first is a <strong>declaration</strong>: it creates the variable
+        and fixes what it may hold for the rest of its life.</li>
+    <li><code>age</code> &mdash; the <strong>identifier</strong>, your name for it. Must start with
+        a letter or underscore, no spaces, and cannot be a keyword. Convention is
+        <strong>camelCase</strong> for locals.</li>
+    <li><code>=</code> &mdash; <strong>assignment</strong>. Right side first: work out the value on
+        the right, then put it in the box on the left. It is not a statement of equality.</li>
+    <li><code>30</code> &mdash; an <strong>integer literal</strong>. Written without quotes and
+        without a decimal point, so the compiler types it as <code>int</code>.</li>
+    <li><code>age = 31;</code> &mdash; <strong>assignment without declaration</strong>. The type is
+        absent because <code>age</code> already exists and already has a type. Writing
+        <code>int age = 31;</code> again would be an error: the name is taken.</li>
+    <li><code>int count;</code> &mdash; a declaration with no assignment. C# calls this
+        <strong>unassigned</strong> and will not let you read it until something is put in.
+        <em>Definite assignment</em> is the compiler rule that guarantees this, and it is why C#
+        has no "undefined variable" bugs.</li>
+  </ul>
+</div>
+
+<h2 id="the-types">The types you will actually use</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Type</th><th>Holds</th><th>Example literal</th><th>Use it for</th></tr></thead>
+  <tbody>
+    <tr><td><code>int</code></td><td>whole number, ±2.1 billion</td><td><code>42</code></td>
+        <td>counts, ids, indexes. The default choice for a whole number.</td></tr>
+    <tr><td><code>long</code></td><td>whole number, very large</td><td><code>42L</code></td>
+        <td>when <code>int</code> is not enough — file sizes, milliseconds since 1970.</td></tr>
+    <tr><td><code>double</code></td><td>approximate decimal</td><td><code>3.14</code></td>
+        <td>measurement: distance, weight, temperature, anything from a sensor.</td></tr>
+    <tr><td><code>decimal</code></td><td>exact decimal</td><td><code>19.99m</code></td>
+        <td><strong>money.</strong> Always. Nothing else.</td></tr>
+    <tr><td><code>bool</code></td><td><code>true</code> or <code>false</code></td><td><code>true</code></td>
+        <td>a yes/no fact. Only those two values — no 0, no 1, no null.</td></tr>
+    <tr><td><code>char</code></td><td>exactly one character</td><td><code>'A'</code></td>
+        <td>rare on its own. Note the single quotes.</td></tr>
+    <tr><td><code>string</code></td><td>text, any length</td><td><code>"hello"</code></td>
+        <td>text. Double quotes. Zero characters is still a valid string.</td></tr>
+    <tr><td><code>DateTime</code></td><td>a date and a time</td><td><code>DateTime.Now</code></td>
+        <td>timestamps. Never store one as a string.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠️ Money is <code>decimal</code>, and this is not a preference</div>
+  <p>
+    <code>double</code> stores numbers in binary, and <code>0.1</code> has no exact binary form
+    &mdash; just as ⅓ has no exact decimal form. The error is tiny and it accumulates.
+  </p>
+  <pre><code><span class="kw">double</span> a = <span class="nu">0.1</span> + <span class="nu">0.2</span>;      <span class="cm">// 0.30000000000000004  ← not 0.3</span>
+<span class="kw">decimal</span> b = <span class="nu">0.1m</span> + <span class="nu">0.2m</span>;   <span class="cm">// 0.3                 ← exact</span></code></pre>
+  <div class="dissect">
+    <div class="dissect-title">Line by line</div>
+    <ul>
+      <li><code>0.1</code> &mdash; a <strong>literal with a decimal point</strong>, which C# types as
+          <code>double</code> by default.</li>
+      <li><code>0.1m</code> &mdash; the <code>m</code> is a <strong>literal suffix</strong> meaning
+          "this is a <code>decimal</code>" (m for money). Without it, the compiler would make a
+          <code>double</code> and then refuse to put it in a <code>decimal</code> box. The other
+          suffixes are <code>L</code> for <code>long</code>, <code>f</code> for <code>float</code>
+          and <code>d</code> for <code>double</code>.</li>
+    </ul>
+  </div>
+  <p>
+    An invoice that is out by 0.00000000000004 fails a reconciliation, and the bug is discovered
+    by an accountant, months later. Use <code>decimal</code> for anything with a currency symbol
+    in front of it.
+  </p>
+</div>
+
+<h2 id="var">Writing <code>var</code> instead of the type</h2>
+
+<pre><code><span class="kw">var</span> total = <span class="nu">10</span>;              <span class="cm">// compiler reads the right side: this is an int</span>
+<span class="kw">var</span> name  = <span class="st">"Kristi"</span>;        <span class="cm">// …and this is a string</span>
+
+total = <span class="nu">20</span>;                   <span class="cm">// fine — still an int</span>
+total = <span class="st">"twenty"</span>;             <span class="cm">// ERROR CS0029: cannot convert string to int</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>var</code> &mdash; <strong>type inference</strong>, not a type. It tells the compiler
+        "work the type out from the right-hand side and use that". The variable is still
+        <code>int</code>; you simply did not type the word.</li>
+    <li><code>total = "twenty";</code> &mdash; still an error, and this is the point.
+        <code>var</code> is <em>not</em> the loosely-typed <code>var</code> of JavaScript and it is
+        not <code>dynamic</code>. The type was decided once, at compile time, and it is now
+        permanent.</li>
+    <li><code>var x;</code> on its own &mdash; would not compile at all. With no right-hand side
+        there is nothing to infer from.</li>
+  </ul>
+</div>
+
+<h2 id="conversion">Conversion: the part that catches everyone</h2>
+
+<p>
+  Values change type constantly, and C# has four different mechanisms for it with four different
+  failure behaviours. Knowing which one you are looking at is most of the skill.
+</p>
+
+<h3>1. Implicit — safe, silent, automatic</h3>
+
+<pre><code><span class="kw">int</span> small = <span class="nu">42</span>;
+<span class="kw">long</span> big = small;              <span class="cm">// int → long: allowed with nothing written</span>
+<span class="kw">double</span> d = small;             <span class="cm">// int → double: also allowed</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>long big = small;</code> &mdash; an <strong>implicit conversion</strong>. C# permits
+        it with no syntax at all because it <em>cannot lose information</em>: every
+        <code>int</code> fits in a <code>long</code>. This is called <strong>widening</strong>.</li>
+    <li>The reverse, <code>int n = big;</code>, would <strong>not</strong> compile. Most
+        <code>long</code> values do not fit in an <code>int</code>, so C# refuses to do it behind
+        your back and makes you ask.</li>
+  </ul>
+</div>
+
+<h3>2. Cast — you assert it, and you own the consequences</h3>
+
+<pre><code><span class="kw">double</span> price = <span class="nu">3.99</span>;
+<span class="kw">int</span> whole = (<span class="kw">int</span>)price;        <span class="cm">// 3   ← truncated, NOT rounded</span>
+
+<span class="kw">long</span> huge = <span class="nu">5_000_000_000</span>;
+<span class="kw">int</span> wrapped = (<span class="kw">int</span>)huge;      <span class="cm">// 705032704  ← silently wrong</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>(int)</code> &mdash; a <strong>cast</strong>. A type name in parentheses in front of
+        a value. Read it as "I know this may lose something; do it anyway."</li>
+    <li><code>(int)3.99</code> is <code>3</code> &mdash; casting a decimal number to a whole one
+        <strong>truncates</strong>, it does not round. <code>(int)3.99</code> and
+        <code>(int)3.01</code> are both <code>3</code>. If you want rounding you must ask for it:
+        <code>Math.Round(price)</code>.</li>
+    <li><code>5_000_000_000</code> &mdash; the underscores are
+        <strong>digit separators</strong>. They are ignored by the compiler and exist purely so
+        humans can count the zeroes.</li>
+    <li><code>(int)huge</code> &mdash; the number does not fit, so the extra bits are discarded and
+        you get nonsense. <strong>No error, no warning, at compile time or run time.</strong> This
+        is what "you own the consequences" means, and it is why a cast should always be a decision
+        rather than a way to make a red squiggle go away.</li>
+  </ul>
+</div>
+
+<h3>3. Parsing — text into a number</h3>
+
+<p>
+  This is the one you will need constantly, because everything arriving from outside your program
+  &mdash; the console, a web form, a file, a query string &mdash; arrives as text.
+</p>
+
+<pre><code><span class="kw">string</span> typed = <span class="st">"42"</span>;
+
+<span class="kw">int</span> n = <span class="kw">int</span>.Parse(typed);                    <span class="cm">// 42 — but THROWS if it is not a number</span>
+
+<span class="kw">bool</span> ok = <span class="kw">int</span>.TryParse(typed, <span class="kw">out int</span> m);   <span class="cm">// true, and m is 42</span>
+<span class="kw">bool</span> no = <span class="kw">int</span>.TryParse(<span class="st">"banana"</span>, <span class="kw">out int</span> z);  <span class="cm">// false, and z is 0 — no exception</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>int.Parse</code> &mdash; a <strong>static method</strong> on the <code>int</code>
+        type. Static means you call it on the type itself, not on a value. It takes text and
+        returns a number.</li>
+    <li><strong>It throws.</strong> Given <code>"banana"</code> it raises a
+        <code>FormatException</code> and, unless you catch it, the program stops. So
+        <code>Parse</code> is correct only when text that is not a number is genuinely a
+        <em>bug</em> rather than an expected event.</li>
+    <li><code>int.TryParse</code> &mdash; the same conversion that <strong>reports failure instead
+        of throwing</strong>. It returns a <code>bool</code>: did it work?</li>
+    <li><code>out int m</code> &mdash; an <strong>out parameter</strong>. The method has two things
+        to give back — did it work, and the value — and a method can only return one. <code>out</code>
+        is the second channel. <code>out int m</code> also <em>declares</em> <code>m</code> right
+        there, which is why there is no separate line for it.</li>
+    <li><code>z</code> is <code>0</code> on failure &mdash; not null, not left alone. That is why
+        you must check the <code>bool</code>: a <code>0</code> from a failed
+        <code>TryParse</code> is indistinguishable from a genuine <code>0</code> if you ignore
+        it.</li>
+  </ul>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Which one, in one sentence</div>
+  <p>
+    Use <strong><code>TryParse</code> for anything a user typed</strong>, because a typo is not an
+    exceptional condition — it is Tuesday. Use <strong><code>Parse</code> for data you control</strong>,
+    a constant or a value your own code just wrote, where bad text really would be a bug you want
+    to hear about loudly.
+  </p>
+</div>
+
+<h3>4. <code>ToString</code> — anything into text</h3>
+
+<pre><code><span class="kw">int</span> quantity = <span class="nu">7</span>;
+<span class="kw">string</span> s1 = quantity.ToString();          <span class="cm">// "7"</span>
+<span class="kw">string</span> s2 = <span class="st">$"qty: {quantity}"</span>;             <span class="cm">// "qty: 7" — calls ToString for you</span>
+<span class="kw">string</span> s3 = <span class="st">"qty: "</span> + quantity;             <span class="cm">// "qty: 7" — so does +</span>
+
+<span class="kw">decimal</span> price = <span class="nu">1234.5m</span>;
+<span class="kw">string</span> s4 = price.ToString(<span class="st">"N2"</span>);           <span class="cm">// "1,234.50" — N2 = number, 2 decimals</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>quantity.ToString()</code> &mdash; called <strong>on the value</strong> with a dot,
+        unlike <code>int.Parse</code> which is called on the type. Every value in C# has a
+        <code>ToString()</code>, so this never fails to compile.</li>
+    <li><code>$"qty: {quantity}"</code> and <code>"qty: " + quantity</code> &mdash; both call
+        <code>ToString()</code> for you. Prefer the interpolated form: it reads better and it does
+        not build a chain of throwaway strings.</li>
+    <li><code>ToString("N2")</code> &mdash; a <strong>format string</strong>. <code>N2</code> means
+        "number, grouped, two decimal places". Others worth knowing: <code>C</code> for currency,
+        <code>P</code> for percent, <code>yyyy-MM-dd</code> for a date.</li>
+  </ul>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠️ Formatting is culture-dependent, and you are in Italy</div>
+  <p>
+    <code>1234.5m.ToString("N2")</code> is <code>"1,234.50"</code> on an English machine and
+    <code>"1.234,50"</code> on an Italian one &mdash; the separators swap. That is correct for
+    something a person reads and catastrophic for something a machine parses.
+  </p>
+  <p>
+    The rule: <strong>current culture for humans, <code>InvariantCulture</code> for
+    machines</strong> — files, APIs, databases, logs.
+    <a href="02-csharp-fundamentals.html">Chapter 02</a> returns to this.
+  </p>
+</div>
+
+<h2 id="operators">Operators, and the division that surprises everyone</h2>
+
+<pre><code><span class="kw">int</span> a = <span class="nu">5</span>, b = <span class="nu">2</span>;              <span class="cm">// two declarations of the same type, one statement</span>
+
+<span class="kw">int</span> sum  = a + b;               <span class="cm">// 7</span>
+<span class="kw">int</span> diff = a - b;               <span class="cm">// 3</span>
+<span class="kw">int</span> prod = a * b;               <span class="cm">// 10</span>
+<span class="kw">int</span> quot = a / b;               <span class="cm">// 2   ← not 2.5</span>
+<span class="kw">int</span> rem  = a % b;               <span class="cm">// 1   ← the remainder</span>
+
+<span class="kw">double</span> real = (<span class="kw">double</span>)a / b;    <span class="cm">// 2.5 ← cast one side FIRST</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>int a = 5, b = 2;</code> &mdash; one declaration statement, two variables, comma
+        separated. Both are <code>int</code>; the type is written once.</li>
+    <li><code>a / b</code> is <code>2</code> &mdash; <strong>integer division</strong>. When both
+        operands are whole numbers the result is a whole number, and the fraction is discarded.
+        This is the single most common surprise in the language and it is silent.</li>
+    <li><code>%</code> &mdash; the <strong>modulo</strong> or remainder operator. <code>5 % 2</code>
+        is <code>1</code>. It is how you test divisibility: <code>n % 2 == 0</code> means "even".</li>
+    <li><code>(double)a / b</code> &mdash; the cast applies to <code>a</code> alone, because a cast
+        binds tighter than division. One side being <code>double</code> is enough: C# widens the
+        other automatically, and the division becomes a real one.</li>
+    <li><code>(double)(a / b)</code> would be <code>2.0</code> &mdash; the parentheses would make
+        the integer division happen <em>first</em> and then widen the wrong answer. Where the cast
+        goes is the whole thing.</li>
+  </ul>
+</div>
+
+<pre><code><span class="kw">int</span> score = <span class="nu">10</span>;
+score += <span class="nu">5</span>;                     <span class="cm">// 15 — shorthand for score = score + 5</span>
+score++;                        <span class="cm">// 16 — add exactly one</span>
+
+<span class="kw">bool</span> passed = score &gt;= <span class="nu">10</span>;      <span class="cm">// true  — comparison produces a bool</span>
+<span class="kw">bool</span> exact  = score == <span class="nu">16</span>;      <span class="cm">// true  — two equals signs</span>
+<span class="kw">bool</span> both   = passed &amp;&amp; exact;  <span class="cm">// true  — AND: both must hold</span>
+<span class="kw">bool</span> either = passed || exact;  <span class="cm">// true  — OR: at least one</span>
+<span class="kw">bool</span> not    = !passed;          <span class="cm">// false — NOT: flips it</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>+=</code> &mdash; a <strong>compound assignment</strong>. Read and write in one step.
+        <code>-=</code>, <code>*=</code> and <code>/=</code> work the same way.</li>
+    <li><code>++</code> &mdash; <strong>increment</strong> by one. It is what drives nearly every
+        <code>for</code> loop you will write in <a href="00c-control-flow-and-methods.html">the
+        next chapter</a>.</li>
+    <li><code>&gt;=</code> &mdash; a <strong>comparison operator</strong>. Comparisons produce a
+        <code>bool</code>, which is why the results can be stored in <code>bool</code> variables.
+        The others are <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code> and
+        <code>!=</code> (not equal).</li>
+    <li><code>==</code> &mdash; <strong>equality</strong>, two characters. One character is
+        assignment. In C# this mistake is usually caught, because <code>if (x = 5)</code> produces
+        an <code>int</code> where a <code>bool</code> is required and will not compile &mdash; a
+        deliberate design fix for a famous C bug.</li>
+    <li><code>&amp;&amp;</code> and <code>||</code> &mdash; logical AND and OR. They
+        <strong>short-circuit</strong>: if the left side of <code>&amp;&amp;</code> is false the
+        right side is never evaluated at all. That is not an optimisation you can ignore — it is
+        what makes <code>if (name != null &amp;&amp; name.Length &gt; 0)</code> safe.</li>
+  </ul>
+</div>
+
+<h2 id="strings">Strings behave unlike everything else</h2>
+
+<pre><code><span class="kw">string</span> first = <span class="st">"Kristi"</span>;
+<span class="kw">string</span> greeting = <span class="st">$"Ciao, {first}!"</span>;      <span class="cm">// "Ciao, Kristi!"</span>
+
+<span class="kw">int</span> len = first.Length;                    <span class="cm">// 6 — a property, so no parentheses</span>
+<span class="kw">string</span> up = first.ToUpper();               <span class="cm">// "KRISTI" — a method, so parentheses</span>
+
+<span class="ty">Console</span>.WriteLine(first);                  <span class="cm">// still "Kristi" — up is a NEW string</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>first.Length</code> &mdash; a <strong>property</strong>. Properties look like data
+        and are accessed without parentheses. <code>first.Length()</code> is an error.</li>
+    <li><code>first.ToUpper()</code> &mdash; a <strong>method</strong>, so it needs parentheses.
+        The rough rule: a property describes the thing, a method does something.</li>
+    <li><code>up</code> is a new string, and <code>first</code> is unchanged. Strings in C# are
+        <strong>immutable</strong> &mdash; nothing can modify one once it exists. Every method
+        that appears to change a string actually returns a new one, so
+        <code>first.ToUpper();</code> on a line by itself accomplishes precisely nothing, and the
+        compiler will not stop you.</li>
+  </ul>
+</div>
+
+<h2 id="null">Null, and the question mark</h2>
+
+<pre><code><span class="kw">string</span>? maybe = <span class="kw">null</span>;              <span class="cm">// ? means: null is allowed here</span>
+<span class="kw">int</span> length = maybe.Length;         <span class="cm">// WARNING — and a crash if it really is null</span>
+
+<span class="kw">int</span> safe = maybe?.Length ?? <span class="nu">0</span>;    <span class="cm">// 0 — no crash</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>null</code> &mdash; the <strong>absence of an object</strong>. Not zero, not an empty
+        string: nothing at all. Asking a nothing for its <code>Length</code> is the famous
+        <code>NullReferenceException</code>.</li>
+    <li><code>string?</code> &mdash; the <code>?</code> declares that null is expected here. A
+        plain <code>string</code> declares that it is not, and the compiler warns when you break
+        either promise. This is compile-time analysis only; nothing checks it at run time.</li>
+    <li><code>?.</code> &mdash; the <strong>null-conditional operator</strong>. "If the left side
+        is null, stop and produce null; otherwise carry on." It turns a crash into a null.</li>
+    <li><code>??</code> &mdash; the <strong>null-coalescing operator</strong>. "Use the left side,
+        unless it is null, in which case use the right." Together, <code>?.</code> and
+        <code>??</code> read as: length, or zero if there is nothing to measure.</li>
+  </ul>
+</div>
+
+<h2 id="const">Values that must not change</h2>
+
+<pre><code><span class="kw">const double</span> Vat = <span class="nu">0.22</span>;                    <span class="cm">// fixed at compile time, baked into callers</span>
+<span class="kw">static readonly</span> <span class="ty">DateTime</span> Start = <span class="ty">DateTime</span>.Now;  <span class="cm">// fixed at run time, once</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>const</code> &mdash; a compile-time constant. Its value is <strong>copied into every
+        place that uses it</strong>. Only for things true by definition, because changing a public
+        <code>const</code> does not reach code that was compiled against the old value until that
+        code is rebuilt.</li>
+    <li><code>readonly</code> &mdash; assigned once, at run time, then frozen. Necessary here
+        because <code>DateTime.Now</code> is not knowable when compiling, and
+        <code>const</code> would not compile at all.</li>
+  </ul>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Finish the Celsius converter from <a href="00a-your-first-program.html">00a</a>. Read the line,
+    <code>TryParse</code> it, and print the result to one decimal place. Then type
+    <code>abc</code> at it on purpose &mdash; it must say something polite, not crash. Then write
+    it a second time with <code>int.Parse</code> and watch exactly how it dies, so you recognise a
+    <code>FormatException</code> when you meet one for real.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong><code>decimal</code> for money, <code>double</code> for measurement.</strong>
+        Binary floating point cannot represent 0.1, and the error accumulates.</li>
+    <li><code>int / int</code> is an <code>int</code>. <code>5 / 2</code> is <code>2</code>, and
+        nothing warns you. Cast one side <em>before</em> dividing.</li>
+    <li>A cast <code>(int)</code> <strong>truncates and can silently overflow</strong>. It is an
+        assertion, not a conversion — use <code>Math.Round</code> if you meant rounding.</li>
+    <li><code>TryParse</code> for anything a human typed; <code>Parse</code> only where bad input
+        would be a bug you want to hear about.</li>
+    <li>A failed <code>TryParse</code> leaves <code>0</code>, not null. Check the
+        <code>bool</code>.</li>
+    <li><code>var</code> is inference, not dynamic typing. The type is fixed at compile time; you
+        just did not write it.</li>
+    <li>Strings are <strong>immutable</strong>. Every method returns a new one, so ignoring the
+        return value does nothing at all.</li>
+    <li>Properties have no parentheses, methods do. <code>Length</code> versus
+        <code>ToUpper()</code>.</li>
+    <li><code>&amp;&amp;</code> and <code>||</code> short-circuit, which is what makes a null check
+        before a dereference actually work.</li>
+    <li><strong>Current culture for humans, <code>InvariantCulture</code> for machines.</strong>
+        In Italy the decimal separator is a comma, and this will bite you.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Why should money never be a <code>double</code>?"</p>
+  <p class="a">
+    <code>double</code> is binary floating point, so decimal fractions like 0.1 have no exact
+    representation and the rounding error accumulates across operations.
+    <code>decimal</code> is base-10 and exact for the values money actually takes. The cost is
+    speed and range, neither of which matters for an invoice.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between <code>Parse</code> and <code>TryParse</code>?"</p>
+  <p class="a">
+    <code>Parse</code> returns the value and throws a <code>FormatException</code> on bad input;
+    <code>TryParse</code> returns a <code>bool</code> and hands the value back through an
+    <code>out</code> parameter. Choose by whether bad input is expected: user input is expected, so
+    <code>TryParse</code>. Exceptions are also expensive, so parsing a large file with
+    <code>Parse</code> in a try/catch is slow as well as wrong.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Is <code>var</code> dynamic typing?"</p>
+  <p class="a">
+    No. It is compile-time type inference — the compiler determines the type from the initialiser
+    and it is fixed from then on, exactly as if you had written it. <code>dynamic</code> is the
+    keyword that actually defers type resolution to run time, and it is a different thing
+    entirely.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>?.</code> do?"</p>
+  <p class="a">
+    The null-conditional operator short-circuits the whole expression to null when the left side
+    is null, instead of throwing. It is usually paired with <code>??</code> to supply a fallback.
+    It does not make null go away — it makes the null travel instead of crashing, which is
+    sometimes the wrong choice, because a null that arrives somewhere far away is harder to
+    diagnose than one that threw at the source.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

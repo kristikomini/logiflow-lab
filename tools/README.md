@@ -58,7 +58,7 @@ Academy host serves `site/` only, so `course/` is not reachable over HTTP either
 Every cross-reference in the repository, checked in one command.
 
 ```bash
-dotnet run tools/doctor.cs            # twelve checks, exit 1 on any error
+dotnet run tools/doctor.cs            # thirteen checks, exit 1 on any error
 dotnet run tools/doctor.cs --quiet    # print only what failed
 dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 ```
@@ -66,7 +66,7 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | Check | What rots without it |
 | --- | --- |
 | `site/manifest` | a chapter file with no manifest entry is unreachable; an entry with no file 404s from every sidebar |
-| `site/links` | `../../src/...` links are the reason the site lives inside the repo; a rename kills them silently |
+| `site/links` | links into `src/` and `course/` are the reason the site lives inside the repo. They are absolute GitHub URLs, because every host serves `site/` alone and relative ones 404 there while passing locally — so the URL is decoded back to a repo path and checked against the working tree |
 | `site/quiz-bank` | a `c:` index past the end of `a:` makes a question nobody can answer, and caps that chapter's mastery forever |
 | `site/quiz-ids` | ids are positional **and** are spaced-repetition keys — see below |
 | `viva/deck` | `rules.js` is generated; editing a card without rerunning the generator drills last month's wording |
@@ -75,7 +75,7 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | `course/sections` | "module 13 section 2" survives a rename and dies on a renumber |
 | `code/covered-in` | 80 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
 | `labs/demos` | modules say `dotnet run race`; a renamed demo turns an instruction into a wrong one |
-| `docs/counts` | "48 chapters", "440 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
+| `docs/counts` | "51 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
 | `site/chapter-count` | the mastery formula is written twice, and the two copies divide by different numbers the moment somebody adds a chapter |
 
 Errors set the exit code. Warnings do not, because a gate people learn to ignore is worse

@@ -10,8 +10,8 @@
      * shows XP and badge toasts
 
    It never assumes an element exists. Any page can leave a hook out and the
-   rest still works, which is what keeps 48 hand-written chapter files from
-   becoming 48 things that can break.
+   rest still works, which is what keeps 51 hand-written chapter files from
+   becoming 51 things that can break.
    ========================================================================== */
 (function () {
   "use strict";

@@ -253,7 +253,7 @@ app.MapPost(<span class="st">"/products"</span>, CreateProduct)
   this Entra ID group", you edit one policy definition instead of finding every endpoint. That is
   <a href="05-solid-and-patterns.html#ocp">Open/Closed</a> applied to security. This repository
   does it in
-  <a href="../../src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>Authentication.cs</code></a>.
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>Authentication.cs</code></a>.
 </p>
 
 <h2 id="mistakes">The mistakes that actually ship</h2>
@@ -319,7 +319,7 @@ app.MapPost(<span class="st">"/products"</span>, CreateProduct)
     A stack trace, a SQL fragment or "user not found" versus "wrong password" all hand something
     over. Return Problem Details with a trace id, log the detail server-side, and let support
     correlate the two. This repository does it in
-    <a href="../../src/LogiFlow.Api/Infrastructure/GlobalExceptionHandler.cs"><code>GlobalExceptionHandler.cs</code></a>.
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Api/Infrastructure/GlobalExceptionHandler.cs"><code>GlobalExceptionHandler.cs</code></a>.
   </p>
 </div>
 
@@ -435,10 +435,10 @@ echo <span class="st">'&lt;paste-the-payload-segment&gt;'</span> | base64 -d</co
 <div class="box note">
   <div class="box-title">Going deeper</div>
   <p>
-    <a href="../../course/module-24-security/README.md">Module 24 — Security for a .NET API</a>
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/course/module-24-security/README.md">Module 24 — Security for a .NET API</a>
     covers the same ground against the running application, including password storage, transport
     and configuration. The endpoint-level wiring lives in
-    <a href="../../src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>src/LogiFlow.Api/Infrastructure/Authentication.cs</code></a>.
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Api/Infrastructure/Authentication.cs"><code>src/LogiFlow.Api/Infrastructure/Authentication.cs</code></a>.
   </p>
 </div>
 

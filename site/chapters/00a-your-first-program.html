@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>00a · Your first C# program — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="00a-your-first-program">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00a</p>
+<h1>Your first C# program</h1>
+<p class="lede">
+  From nothing installed to a program you wrote, running on your machine, in about fifteen
+  minutes. This chapter assumes <em>nothing</em> &mdash; not a line of C#, not a line of any other
+  language. Every character in every example below is explained.
+</p>
+
+<div class="box note">
+  <div class="box-title">Who this chapter is for</div>
+  <p>
+    If you can already write a <code>for</code> loop in any language, skim it for the
+    <code>dotnet</code> commands and go to <a href="00b-variables-and-types.html">00b</a>. If you
+    cannot, this is the right first page and nothing before it is missing.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="install">Installing the thing that runs C#</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    C# is a language for writing instructions. Your computer does not understand it. You need two
+    things: a <strong>translator</strong> that turns what you wrote into something the machine can
+    run, and an <strong>engine</strong> that runs it.
+  </p>
+  <p>
+    Both come in one download called the <strong>.NET SDK</strong>. Get it from
+    <a href="https://dotnet.microsoft.com/download">dotnet.microsoft.com/download</a> and take the
+    newest version offered.
+  </p>
+</div>
+
+<p>
+  When it has finished, open a terminal &mdash; PowerShell on Windows, Terminal on macOS or Linux
+  &mdash; and check it is really there:
+</p>
+
+<pre><code>dotnet --version        <span class="cm"># ask the tool to print its own version and stop</span>
+<span class="out">10.0.100</span>                <span class="cm"># what it prints back. Any 10.x is fine.</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet</code> &mdash; the <strong>command-line tool</strong> the SDK installed. It is
+        one program that does many jobs, chosen by the word after it. You will type it hundreds of
+        times.</li>
+    <li><code>--version</code> &mdash; an <strong>option</strong> (also called a flag or switch).
+        Two hyphens is the convention for the long, readable form of an option. It is not C#; this
+        is the shell, not the language.</li>
+    <li><code>10.0.100</code> &mdash; the <strong>output</strong>, printed by the program. Your
+        terminal shows it on the next line. If instead you see
+        <em>"dotnet is not recognised"</em>, the install did not finish or the terminal was open
+        before it did &mdash; close the terminal, open a new one, and try again.</li>
+    <li><code>#</code> &mdash; starts a <strong>comment</strong> in a shell. Everything after it on
+        that line is ignored. Comments in these examples explain the line; you never type them.
+        Note that C# uses <code>//</code> for this, not <code>#</code> &mdash; different language,
+        different comment marker.</li>
+  </ul>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 What you actually installed</div>
+  <p>
+    Two separate things, and the distinction is a real interview question:
+  </p>
+  <ul>
+    <li>The <strong>runtime</strong> executes a finished application. A server that only
+        <em>runs</em> your app needs nothing else.</li>
+    <li>The <strong>SDK</strong> contains the runtime <em>plus</em> the compiler and the
+        <code>dotnet</code> tool. It is what a developer machine and a build server need.</li>
+  </ul>
+  <p class="subtle">
+    That is why a production container is usually built in two stages: compile with the SDK image,
+    then copy the result into the much smaller runtime image and throw the SDK away.
+    <a href="01-dotnet-platform.html">Chapter 01</a> goes properly into this.
+  </p>
+</div>
+
+<h2 id="make-a-project">Making a project</h2>
+
+<p>
+  C# is not run one file at a time. It is organised into <strong>projects</strong>, and the tool
+  creates one for you:
+</p>
+
+<pre><code>dotnet new console -o Hello   <span class="cm"># create a console project in a new folder called Hello</span>
+cd Hello                      <span class="cm"># move the terminal into that folder</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>new</code> &mdash; the <strong>sub-command</strong>. It tells <code>dotnet</code>
+        which of its jobs you want: create something from a template.</li>
+    <li><code>console</code> &mdash; the <strong>template name</strong>. A console application is
+        one that talks to a terminal through text. Other templates you will meet are
+        <code>classlib</code> (a library, no entry point), <code>webapi</code> and
+        <code>blazor</code>.</li>
+    <li><code>-o Hello</code> &mdash; the <strong>output</strong> option and its
+        <strong>argument</strong>. <code>-o</code> is the short form of <code>--output</code>; one
+        hyphen for short, two for long. <code>Hello</code> is the folder to create.</li>
+    <li><code>cd</code> &mdash; "change directory", a shell command, nothing to do with .NET. Every
+        command after this runs <em>inside</em> the project folder, which matters because
+        <code>dotnet run</code> looks in the current folder for something to run.</li>
+  </ul>
+</div>
+
+<p>What it made:</p>
+
+<pre><code>Hello/
+├── Hello.csproj     <span class="cm">// the project file: what to build, and with what</span>
+├── Program.cs       <span class="cm">// your code. .cs is the extension for a C# source file</span>
+├── bin/             <span class="cm">// generated: the built application. Never edited, never committed</span>
+└── obj/             <span class="cm">// generated: the compiler's scratch space. Same</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Hello.csproj</code> &mdash; the <strong>project file</strong>, and it is XML rather
+        than C#. It lists the target framework, the NuGet packages and any referenced projects.
+        <em>Project</em> is the unit .NET builds: one <code>.csproj</code> produces one
+        assembly.</li>
+    <li><code>Program.cs</code> &mdash; a <strong>source file</strong>. <code>.cs</code> is the
+        extension for C#. Nothing lists it in the project file, because every <code>.cs</code>
+        under the folder is compiled automatically.</li>
+    <li><code>bin/</code> &mdash; the <strong>build output</strong>: the <code>.dll</code> the
+        compiler produced, plus everything needed to run it.</li>
+    <li><code>obj/</code> &mdash; the compiler's <strong>intermediate</strong> working files.
+        Deleting either folder costs nothing but a rebuild.</li>
+    <li><code>//</code> in this listing &mdash; not real syntax. A folder tree is not a language;
+        the comments are annotations for you, and there is nothing here to type.</li>
+  </ul>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠️ bin and obj are not yours</div>
+  <p>
+    They are produced by the build and reproduced from scratch every time. Deleting them costs you
+    nothing but a rebuild. They must never go into git &mdash; the template ships a
+    <code>.gitignore</code> that excludes them, and a repository containing <code>bin/</code> is a
+    reliable sign nobody checked.
+  </p>
+</div>
+
+<h2 id="the-program">The program, character by character</h2>
+
+<p>
+  Open <code>Program.cs</code>. The whole file is two lines:
+</p>
+
+<pre><code><span class="cm">// See https://aka.ms/new-console-template for more information</span>
+<span class="ty">Console</span>.WriteLine(<span class="st">"Hello, World!"</span>);</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>// See https://…</code> &mdash; a <strong>comment</strong>. Two forward slashes make
+        the compiler ignore the rest of the line. It is a note for humans and has no effect
+        whatsoever on what the program does. Delete it.</li>
+    <li><code>Console</code> &mdash; a <strong>class</strong>, which here means a named box of
+        related functionality that Microsoft wrote and shipped with .NET. It represents the
+        terminal window. It is capitalised because C# names types in
+        <strong>PascalCase</strong> &mdash; every word capitalised, no underscores &mdash; and
+        that convention is how you will recognise a type on sight.</li>
+    <li><code>.</code> &mdash; the <strong>member access operator</strong>. Read it as "the …
+        of …". <code>Console.WriteLine</code> is "the <code>WriteLine</code> of
+        <code>Console</code>". You will see this dot everywhere; it is the single most common
+        character in C#.</li>
+    <li><code>WriteLine</code> &mdash; a <strong>method</strong>. A method is a named block of
+        instructions you can trigger by name; other languages call it a function. This one prints
+        text and then moves to a new line. Its sibling <code>Console.Write</code> prints without
+        the new line.</li>
+    <li><code>( … )</code> &mdash; the <strong>parentheses that call it</strong>. This is the part
+        beginners miss: <code>Console.WriteLine</code> on its own only <em>names</em> the method.
+        Adding <code>()</code> is what actually runs it. What you put inside is the
+        <strong>argument</strong> &mdash; the information the method needs to do its job.</li>
+    <li><code>"Hello, World!"</code> &mdash; a <strong>string literal</strong>. Double quotes mean
+        "the characters between these quotes, exactly". <em>Literal</em> means the value is written
+        out in the source rather than calculated. Single quotes would be wrong here: in C#
+        <code>'A'</code> is a <code>char</code>, exactly one character, and
+        <code>"A"</code> is a <code>string</code>. They are different types.</li>
+    <li><code>;</code> &mdash; the <strong>semicolon</strong> that ends the statement. C# needs one
+        at the end of every statement. Forgetting it is the single most common error a beginner
+        sees, and the compiler will tell you which line.</li>
+  </ul>
+</div>
+
+<h2 id="run-it">Running it</h2>
+
+<pre><code>dotnet run
+<span class="out">Hello, World!</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">What that one word did</div>
+  <ul>
+    <li><strong>Restore.</strong> Read <code>Hello.csproj</code> and download anything the project
+        depends on. For this project, nothing.</li>
+    <li><strong>Build.</strong> Run the <strong>compiler</strong> over every <code>.cs</code> file.
+        It checks your code makes sense and translates it into an assembly &mdash; a
+        <code>.dll</code> file under <code>bin/</code>.</li>
+    <li><strong>Run.</strong> Start the runtime and hand it that assembly.</li>
+  </ul>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Two kinds of error, and the difference matters</div>
+  <ul>
+    <li>A <strong>compile-time error</strong> happens during the build. The program never runs.
+        The compiler found something it cannot make sense of &mdash; a missing semicolon, a
+        misspelled name, a type mismatch. These are the cheap ones: you are told before anything
+        happens.</li>
+    <li>A <strong>run-time error</strong> happens while the program is running. It compiled fine,
+        but something was wrong that could not be known in advance &mdash; a file that was not
+        there, a number that was actually text, dividing by zero.</li>
+  </ul>
+  <p class="subtle">
+    Most of what a language designer does is move errors from the second category into the first.
+    That is what people mean when they call C# a <em>statically typed</em> language, and it is why
+    <a href="00b-variables-and-types.html">the next chapter</a> is about types.
+  </p>
+</div>
+
+<h2 id="errors">Reading an error message</h2>
+
+<p>
+  Delete the semicolon and run again. Do this &mdash; meeting an error on purpose, while
+  everything else is known to be fine, is much cheaper than meeting your first one by accident.
+</p>
+
+<pre><code>Program.cs(2,42): error CS1002: ; expected [C:\Hello\Hello.csproj]</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Program.cs</code> &mdash; the <strong>file</strong>. With several files, this is how
+        you know which.</li>
+    <li><code>(2,42)</code> &mdash; <strong>line 2, column 42</strong>. In that order, always. Most
+        editors show the same pair in a corner, so you can navigate straight to it.</li>
+    <li><code>error</code> &mdash; the <strong>severity</strong>. An <code>error</code> stops the
+        build. A <code>warning</code> does not &mdash; the program still runs &mdash; but a warning
+        is the compiler saying "this is legal and I do not believe you meant it", and they are
+        worth reading.</li>
+    <li><code>CS1002</code> &mdash; the <strong>error code</strong>. <code>CS</code> is the C#
+        compiler. This code is the thing to paste into a search engine, because it is exact and
+        the surrounding words are not.</li>
+    <li><code>; expected</code> &mdash; the message. It says what the compiler wanted at that
+        position, not necessarily what you did wrong. The fault is often on the line
+        <em>above</em> the one reported, because the compiler only notices something is missing
+        when it reaches whatever came next.</li>
+  </ul>
+</div>
+
+<h2 id="input">Reading something in</h2>
+
+<p>Put the semicolon back, then replace the whole file with this:</p>
+
+<pre><code><span class="ty">Console</span>.Write(<span class="st">"What is your name? "</span>);   <span class="cm">// Write, not WriteLine: stay on this line</span>
+<span class="kw">string</span>? name = <span class="ty">Console</span>.ReadLine();       <span class="cm">// wait for the user, keep what they typed</span>
+
+<span class="ty">Console</span>.WriteLine(<span class="st">$"Hello, {name}!"</span>);     <span class="cm">// print it back inside a sentence</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Console.Write</code> &mdash; prints without a trailing new line, so the cursor stays
+        beside the question. The trailing space inside <code>"…name? "</code> is deliberate: it
+        keeps the typing off the question mark.</li>
+    <li><code>string</code> &mdash; a <strong>type</strong>. It says what kind of value this box
+        can hold: text. C# is <em>statically typed</em>, meaning every value has a type known at
+        compile time, and the compiler refuses code that mixes them wrongly.</li>
+    <li><code>?</code> &mdash; makes it <code>string?</code>, a
+        <strong>nullable</strong> string. It marks that the value is allowed to be
+        <strong>null</strong> &mdash; "no value at all", which is different from an empty string.
+        It is here because <code>ReadLine</code> genuinely can return null, and the type is
+        telling you the truth about that.</li>
+    <li><code>name</code> &mdash; the <strong>variable name</strong>, chosen by you. Local
+        variables are <strong>camelCase</strong>: first word lower, later words capitalised. That
+        is how you tell a variable from a type at a glance, since types are PascalCase.</li>
+    <li><code>=</code> &mdash; <strong>assignment</strong>, not equality. It means "put the thing
+        on the right into the box on the left". Comparing two values for equality is
+        <code>==</code>, with two characters, and confusing the two is a classic bug.</li>
+    <li><code>Console.ReadLine()</code> &mdash; a method call that <strong>returns a
+        value</strong>. The program stops and waits until Enter is pressed, then the whole
+        expression <em>becomes</em> the typed text, which assignment then stores in
+        <code>name</code>. Empty parentheses mean it needs no arguments &mdash; but they are still
+        required, because they are what makes it a call.</li>
+    <li><code>$"…"</code> &mdash; an <strong>interpolated string</strong>. The <code>$</code> in
+        front changes the rules inside the quotes: <code>{name}</code> is no longer those six
+        characters, it is replaced by the value of <code>name</code>. Without the <code>$</code>
+        the program would literally print <code>Hello, {name}!</code>.</li>
+    <li><code>{name}</code> &mdash; the <strong>hole</strong>. Whatever is inside the braces is
+        evaluated and converted to text. <code>{2 + 2}</code> would print <code>4</code>.</li>
+  </ul>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠️ A conversion is happening here that you did not write</div>
+  <p>
+    <code>Console.WriteLine</code> takes text, but <code>{2 + 2}</code> is a number. C# calls
+    <code>ToString()</code> on the value for you and inserts the result. Every type has a
+    <code>ToString()</code>, so this always compiles &mdash; which is convenient right up until it
+    prints something useless like <code>System.Int32[]</code> for an array, because the default
+    <code>ToString()</code> of most types is just its own name.
+  </p>
+</div>
+
+<h2 id="whats-hidden">What the two-line file is hiding</h2>
+
+<p>
+  A program has to start <em>somewhere</em>. In C# that place is a method called
+  <code>Main</code>, and until 2021 you had to write all of it yourself. That form still exists,
+  and you will meet it in older code, so it is worth seeing once:
+</p>
+
+<pre><code><span class="kw">using</span> <span class="ty">System</span>;                                   <span class="cm">// make the names in System usable unqualified</span>
+
+<span class="kw">namespace</span> <span class="ty">Hello</span>                                 <span class="cm">// a surname for the types in this file</span>
+{
+    <span class="kw">internal class</span> <span class="ty">Program</span>                     <span class="cm">// a class to hold the method, because methods need one</span>
+    {
+        <span class="kw">static void</span> Main(<span class="kw">string</span>[] args)          <span class="cm">// THE entry point: where the program begins</span>
+        {
+            <span class="ty">Console</span>.WriteLine(<span class="st">"Hello, World!"</span>);  <span class="cm">// the only line that does anything</span>
+        }
+    }
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>using System;</code> &mdash; a <strong>using directive</strong>. <code>Console</code>
+        is really called <code>System.Console</code>; this line lets you write the short name. It
+        is not an import of code &mdash; the code is already there &mdash; only of
+        <em>names</em>. Modern projects switch this on for common namespaces automatically, which
+        is why the two-line version needs no <code>using</code> at all.</li>
+    <li><code>namespace Hello</code> &mdash; a <strong>namespace</strong>, a surname for types. It
+        exists so that your <code>Program</code> and somebody else's <code>Program</code> can
+        coexist. It creates no object and costs nothing at run time.</li>
+    <li><code>{ … }</code> &mdash; <strong>braces</strong> delimit a block: everything belonging to
+        the namespace, then the class, then the method. C# ignores indentation entirely &mdash;
+        the braces are what define the structure. Indentation is for you.</li>
+    <li><code>internal</code> &mdash; an <strong>access modifier</strong>: visible inside this
+        project, invisible outside it. Its opposite is <code>public</code>.</li>
+    <li><code>class Program</code> &mdash; declares a class. In C# a method cannot float on its
+        own; it must live inside a type. That is why this class exists even though nothing ever
+        creates one.</li>
+    <li><code>static</code> &mdash; means the method belongs to the <em>class itself</em>, not to
+        an object made from it. It has to be static: at start-up no object exists yet, so there is
+        nothing to call it on.</li>
+    <li><code>void</code> &mdash; the <strong>return type</strong>, and this one means "returns
+        nothing". Every method states what it hands back. <code>string</code> would mean it hands
+        back text; <code>void</code> means it just does something.</li>
+    <li><code>Main</code> &mdash; the name the runtime looks for. Spelled with a capital M,
+        exactly. C# is <strong>case-sensitive</strong>: <code>main</code> is a different name and
+        the program would not start.</li>
+    <li><code>string[] args</code> &mdash; the <strong>parameter</strong>. A parameter is the name
+        a method gives to something handed in; an argument is the actual value handed in.
+        <code>string[]</code> is "array of string" &mdash; the words typed after the program name
+        on the command line.</li>
+  </ul>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Top-level statements</div>
+  <p>
+    The two-line <code>Program.cs</code> is the same program. The compiler generates the
+    namespace, the class and the <code>Main</code> around your statements &mdash; the feature is
+    called <strong>top-level statements</strong>, and only one file in a project may use it. The
+    <code>args</code> array is still available, and so is
+    <a href="07-async-and-errors.html"><code>await</code></a>, because the generated
+    <code>Main</code> adapts.
+  </p>
+  <p class="subtle">
+    So it is not a beginner's toy that you graduate from. It is the same thing with the ceremony
+    written for you, and new projects use it.
+  </p>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Make a second project, <code>dotnet new console -o Temperature</code>, and write a program
+    that asks for a temperature in Celsius and prints it in Fahrenheit. You do not know enough yet
+    &mdash; converting the typed text into a number is <a href="00b-variables-and-types.html">the
+    next chapter</a>. Get as far as printing the question and echoing the answer back, and leave
+    it open.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>The <strong>SDK</strong> builds and runs; the <strong>runtime</strong> only runs. Your
+        machine needs the SDK, a production server needs the runtime.</li>
+    <li>A method is only <em>called</em> when you write the parentheses. <code>WriteLine</code>
+        names it; <code>WriteLine()</code> runs it.</li>
+    <li>Every statement ends in a semicolon, and blocks are delimited by braces. Indentation is
+        for humans; C# does not read it.</li>
+    <li>C# is <strong>case-sensitive</strong> and conventional: <code>PascalCase</code> for types
+        and methods, <code>camelCase</code> for variables and parameters.</li>
+    <li><code>=</code> assigns, <code>==</code> compares. They are not interchangeable and the
+        compiler will not always save you.</li>
+    <li>Read the error code, not just the message. <code>CS1002</code> is exact; "; expected" is
+        not, and the real fault is often on the line above.</li>
+    <li>A compile-time error costs you a minute; a run-time error costs you a user. Most of what
+        the type system does is convert the second kind into the first.</li>
+    <li><code>bin/</code> and <code>obj/</code> are generated. Never edit them, never commit
+        them.</li>
+    <li><code>"a"</code> is a <code>string</code> and <code>'a'</code> is a <code>char</code>.
+        Different quotes, different types.</li>
+    <li>Top-level statements are not a lesser form of <code>Main</code>. They are
+        <code>Main</code>, with the ceremony generated.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"What is the difference between the .NET SDK and the .NET runtime?"</p>
+  <p class="a">
+    The SDK builds and runs &mdash; it contains the compiler, the CLI and the runtime. The runtime
+    only executes an already-built application. Developer machines and build agents need the SDK;
+    a production container only needs the runtime, which is why a Dockerfile builds in an SDK
+    image and copies the output into a runtime image.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the entry point of a C# program?"</p>
+  <p class="a">
+    A static method called <code>Main</code>. It is static because no instance exists at start-up.
+    Since C# 9 a single file may use top-level statements instead, and the compiler generates the
+    class and the <code>Main</code> around them &mdash; it is the same entry point, not a
+    different mechanism.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What does <code>using System;</code> actually do?"</p>
+  <p class="a">
+    It imports names, not code. The assembly is already referenced; the directive only lets you
+    write <code>Console</code> instead of <code>System.Console</code>. Modern project templates
+    enable implicit usings for the common namespaces, which is why new files often have none.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

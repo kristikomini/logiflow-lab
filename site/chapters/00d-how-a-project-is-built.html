@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>00b · How a C# project is built, in order — LogiFlow Academy</title>
+<title>00d · How a C# project is built, in order — LogiFlow Academy</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="../manifest.webmanifest">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -11,12 +11,12 @@
 <link rel="stylesheet" href="../assets/style.css">
 <link rel="stylesheet" href="../assets/learn.css">
 </head>
-<body data-chapter="00b-how-a-project-is-built">
+<body data-chapter="00d-how-a-project-is-built">
 <div class="layout">
   <aside class="sidebar" id="sidebar"></aside>
   <main class="main">
 
-<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00b</p>
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00d</p>
 <h1>How a C# project is built, in order</h1>
 <p class="lede">
   Every other chapter teaches you one file. This one teaches you the <em>order</em> &mdash; which
@@ -36,7 +36,7 @@
   <p>
     So read it now for the map, and again after
     <a href="14-web-api.html">chapter 14</a> for the meaning. That is the same advice the deeper
-    course gives about <a href="../../course/module-16-the-layer-map/README.md">its own layer
+    course gives about <a href="https://github.com/kristi2002/LogiFlow/blob/main/course/module-16-the-layer-map/README.md">its own layer
     map</a>, and for the same reason: the map is cheap to read early and expensive to skip.
   </p>
 </div>
@@ -237,6 +237,17 @@
     <span class="kw">public decimal</span> UnitPrice { <span class="kw">get</span>; <span class="kw">set</span>; }
     <span class="kw">public bool</span> IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public class Product</code> &mdash; <code>public</code> is an <strong>access modifier</strong>: every project that references this one may see the type. <code>class</code> declares a <strong>reference type</strong>, so a variable holds a reference to the object rather than the object itself.</li>
+    <li><code>public int Id { get; set; }</code> &mdash; an <strong>auto-property</strong>, not a field. The braces are a pair of generated methods, which is what lets a rule be added to <code>set</code> later without any caller changing.</li>
+    <li><code>Id</code> &mdash; named exactly this on purpose. EF Core's convention is that a property called <code>Id</code>, or <code>&lt;TypeName&gt;Id</code>, is the primary key, so nothing has to be configured.</li>
+    <li><code>string Sku { get; set; } = "";</code> &mdash; the <code>= ""</code> is a <strong>property initialiser</strong>. Without it the property would start as <code>null</code> and the compiler would warn, because <code>string</code> written without a <code>?</code> promises never to be null.</li>
+    <li><code>decimal UnitPrice</code> &mdash; <code>decimal</code> and not <code>double</code>, because this is money. See <a href="00b-variables-and-types.html">00b</a>.</li>
+    <li><strong>What is absent matters more.</strong> No <code>using</code> of Entity Framework, no attributes, no reference to any other file of yours. That is precisely why it can be written first.</li>
+  </ul>
+</div>
 
 <p>
   Notice what is <em>not</em> here: no <code>using</code> of Entity Framework, no attributes about
@@ -244,7 +255,7 @@
   first. Later, <a href="05-solid-and-patterns.html">chapter 05</a> and the deeper course will
   push behaviour back into this class so that an invalid <code>Product</code> cannot be
   constructed at all &mdash; see the real
-  <a href="../../src/LogiFlow.Domain/Catalog/Product.cs">Product.cs</a> in this repository, which
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Domain/Catalog/Product.cs">Product.cs</a> in this repository, which
   has private setters and a static factory for exactly that reason.
 </p>
 
@@ -263,6 +274,19 @@
         b.Entity&lt;<span class="ty">Product</span>&gt;().Property(p =&gt; p.UnitPrice).HasPrecision(<span class="nu">18</span>, <span class="nu">2</span>);
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>class CatalogDbContext(...) : DbContext(options)</code> &mdash; the colon means <strong>inherits from</strong>. Your class <em>is</em> a <code>DbContext</code> and gets all of its behaviour; you are adding to it, not starting over.</li>
+    <li><code>(DbContextOptions&lt;CatalogDbContext&gt; options)</code> &mdash; a <strong>primary constructor</strong>: constructor parameters written on the class line itself. The options carry the connection string, and they arrive from <code>Program.cs</code> rather than being built here.</li>
+    <li><code>DbContextOptions&lt;CatalogDbContext&gt;</code> &mdash; a <strong>generic type</strong>. The part in angle brackets is a <em>type argument</em>, so these options are known to belong to this context and not to another one.</li>
+    <li><code>public DbSet&lt;Product&gt; Products =&gt; Set&lt;Product&gt;();</code> &mdash; three things at once. <code>DbSet&lt;Product&gt;</code> is the type, a queryable table of products; <code>=&gt;</code> makes it an <strong>expression-bodied property</strong>, recomputed on each access; <code>Set&lt;Product&gt;()</code> is the inherited method call that produces it. This single line is the wire from your code to a table.</li>
+    <li><code>protected override void OnModelCreating</code> &mdash; <code>override</code> replaces a method inherited from <code>DbContext</code>, and <code>protected</code> means only this class and its descendants may call it. You never call it: EF Core does, once, when it first works out the model.</li>
+    <li><code>b.Entity&lt;Product&gt;().Property(p =&gt; p.Sku)</code> &mdash; a <strong>fluent chain</strong>, where each call returns something the next call can be made on. <code>p =&gt; p.Sku</code> is a <strong>lambda</strong>, an unnamed function meaning "given a product, this property" &mdash; used here as a way of <em>naming</em> the property, not of running anything.</li>
+    <li><code>.HasMaxLength(32).IsRequired()</code> &mdash; these become <code>NVARCHAR(32) NOT NULL</code> in the generated table. What is configured here decides the shape of the column.</li>
+    <li><code>.HasPrecision(18, 2)</code> &mdash; eighteen digits in total, two after the point. Omit it and SQL Server picks a default that silently rounds money.</li>
+  </ul>
+</div>
 
 <p>
   This is the first file that has to know about another one: <code>DbSet&lt;Product&gt;</code> is
@@ -274,6 +298,15 @@
 
 <pre><code>dotnet ef migrations add AddProduct
 dotnet ef database update</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet ef</code> &mdash; a <strong>separate tool</strong> from <code>dotnet</code> itself, installed once with <code>dotnet tool install --global dotnet-ef</code>. "Command not found" here means the tool is missing, not the SDK.</li>
+    <li><code>migrations add AddProduct</code> &mdash; compares your current model against the last migration and <strong>generates</strong> a C# file describing the difference. <code>AddProduct</code> is only a name, but make it descriptive: it becomes the filename.</li>
+    <li><code>database update</code> &mdash; a <em>separate</em> step that runs pending migrations against the real database. Generating and applying are deliberately not one command.</li>
+    <li><strong>Read the generated file before running it.</strong> A migration that drops a column and one that renames it look almost identical, and only one of them loses data.</li>
+  </ul>
+</div>
 
 <p>
   You do not write this file; EF Core generates it by comparing your model to the last migration.
@@ -294,6 +327,15 @@ dotnet ef database update</code></pre>
 
 <pre><code><span class="cm">// Contracts/ProductDto.cs</span>
 <span class="kw">public record</span> <span class="ty">ProductDto</span>(<span class="kw">int</span> Id, <span class="kw">string</span> Sku, <span class="kw">string</span> Name, <span class="kw">decimal</span> UnitPrice);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public record ProductDto(...)</code> &mdash; <code>record</code> declares a <strong>reference type compared by value</strong>: two <code>ProductDto</code>s with the same contents are equal. That is what you want for data, and not what you want for entities.</li>
+    <li><code>(int Id, string Sku, ...)</code> &mdash; a <strong>positional record</strong>. This parameter list generates a constructor, one read-only property per parameter, value equality and a readable <code>ToString</code> &mdash; the whole class, from one line.</li>
+    <li>The generated properties are <strong>init-only</strong>: settable while the object is being constructed, frozen afterwards. A DTO is a message, and a message should not change after it is sent.</li>
+    <li><strong>What is missing is the design.</strong> No <code>IsActive</code>, no cost price, no navigation back to <code>Order</code>. A DTO is a deliberate subset, and that is the entire reason it exists.</li>
+  </ul>
+</div>
 
 <p>
   One line, and it is one of the most important lines in the feature. <em>DTO</em> means
@@ -333,7 +375,7 @@ dotnet ef database update</code></pre>
     <code>CreateProductRequest</code> going in and a <code>ProductDto</code> coming out &mdash;
     because what a caller may <em>send</em> and what it may <em>see</em> are different questions.
     In this repository that pair lives in
-    <a href="../../src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>.
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>.
   </p>
 </div>
 
@@ -359,6 +401,21 @@ dotnet ef database update</code></pre>
                  .Select(p =&gt; <span class="kw">new</span> <span class="ty">ProductDto</span>(p.Id, p.Sku, p.Name, p.UnitPrice))
                  .SingleOrDefaultAsync(ct);
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public interface IProductService</code> &mdash; an <strong>interface</strong> is a list of members with no bodies: a contract. The leading <code>I</code> is a near-universal C# convention.</li>
+    <li><code>Task&lt;ProductDto?&gt; GetAsync(int id, CancellationToken ct);</code> &mdash; a signature ending in a semicolon, with no body at all. The interface says <em>what</em>; the class says <em>how</em>.</li>
+    <li><code>Task&lt;ProductDto?&gt;</code> &mdash; <code>Task&lt;T&gt;</code> is a <strong>promise of a T, later</strong>. The method returns as soon as it starts waiting, and the value arrives when the database answers. The <code>?</code> says the result may legitimately be null &mdash; no such product.</li>
+    <li><code>CancellationToken ct</code> &mdash; the caller's way of saying "stop, nobody is waiting any more". Pass it down through every async call; ASP.NET supplies one that is triggered when the browser disconnects.</li>
+    <li><code>class ProductService(CatalogDbContext db) : IProductService</code> &mdash; here the same colon means <strong>implements</strong>. The context arrives through the constructor and is never created by this class, which is exactly what lets a test hand it a different one.</li>
+    <li><code>public async Task&lt;...&gt; GetAsync(...) =&gt;</code> &mdash; <code>async</code> permits <code>await</code> inside and makes the compiler rewrite the method into a state machine. It is an implementation detail rather than part of the contract, which is why the interface does not mention it.</li>
+    <li><code>db.Products.Where(p =&gt; p.Id == id &amp;&amp; p.IsActive)</code> &mdash; this lambda is <strong>not run as C#</strong>. It is captured as an <em>expression tree</em> and translated into a SQL <code>WHERE</code> clause. That is the most important sentence on this page about performance.</li>
+    <li><code>.Select(p =&gt; new ProductDto(...))</code> &mdash; the <strong>projection</strong>, and it sits inside the query, so SQL Server is asked for four columns rather than whole rows. Move it after a <code>.ToList()</code> and it still works, still passes the test, and reads the entire table.</li>
+    <li><code>.SingleOrDefaultAsync(ct)</code> &mdash; the call that actually executes the query. <em>Single</em> means "throw if there is more than one"; <em>OrDefault</em> means "null is acceptable if there are none". <code>First</code> would silently tolerate duplicates, hiding a broken unique index.</li>
+    <li><code>await</code> &mdash; unwraps the <code>Task</code> and hands the thread back to the pool while the database works. It does not create a thread; it releases one.</li>
+  </ul>
+</div>
 
 <p>
   Two things in that method are worth more than they look. The <code>CatalogDbContext</code>
@@ -384,6 +441,20 @@ dotnet ef database update</code></pre>
         <span class="kw">return</span> dto <span class="kw">is null</span> ? NotFound() : Ok(dto);
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>[ApiController]</code> &mdash; an <strong>attribute</strong>: metadata attached to the class, written in square brackets. This one switches on automatic model validation, so an invalid body becomes a 400 before your code runs at all.</li>
+    <li><code>[Route("api/products")]</code> &mdash; the <strong>base URL</strong> for every action in this class. Attributes take arguments in parentheses because they really are constructor calls.</li>
+    <li><code>class ProductsController(IProductService products) : ControllerBase</code> &mdash; it depends on the <strong>interface</strong>, never the class. Nothing in this file knows that <code>ProductService</code> exists.</li>
+    <li><code>ControllerBase</code> &mdash; and not <code>Controller</code>. <code>Controller</code> adds view rendering, which an API does not need. The base class is what supplies <code>Ok()</code> and <code>NotFound()</code>.</li>
+    <li><code>[HttpGet("{id:int}")]</code> &mdash; the HTTP verb plus the rest of the route. <code>{id}</code> is a <strong>route parameter</strong> and <code>:int</code> is a <strong>route constraint</strong>, so <code>/api/products/abc</code> never reaches this method &mdash; it simply does not match.</li>
+    <li><code>ActionResult&lt;ProductDto&gt;</code> &mdash; a return type meaning "either a <code>ProductDto</code> or an HTTP result". It is what lets one method return both <code>Ok(dto)</code> and <code>NotFound()</code> while still documenting the success shape for OpenAPI.</li>
+    <li><code>int id, CancellationToken ct</code> &mdash; neither is written by the caller as C#. <strong>Model binding</strong> fills <code>id</code> from the URL by matching the name, and the framework supplies the token. Matching the route parameter's name is what makes the first one work.</li>
+    <li><code>dto is null ? NotFound() : Ok(dto)</code> &mdash; the <strong>conditional operator</strong>: a condition, then <code>?</code> value-if-true, then <code>:</code> value-if-false. <code>is null</code> rather than <code>== null</code> because <code>is</code> cannot be redefined by an overloaded operator.</li>
+    <li><strong>One decision, and it is about HTTP.</strong> No <code>db</code>, no <code>Product</code> &mdash; only <code>ProductDto</code>. That is the whole job of the file.</li>
+  </ul>
+</div>
 
 <p>
   Read what this file does <em>not</em> do. It does not touch <code>db</code>. It does not know
@@ -405,6 +476,20 @@ builder.Services.AddControllers();
 <span class="kw">var</span> app = builder.Build();
 app.MapControllers();
 app.Run();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WebApplication.CreateBuilder(args)</code> &mdash; builds the <strong>host</strong>: configuration, logging, and an empty service container. <code>args</code> is the command line, so any setting can be overridden at launch.</li>
+    <li><code>builder.Services</code> &mdash; the <strong>DI container's registry</strong>. Anything added here can later be requested by any constructor. Nothing is created yet; this is a list of recipes.</li>
+    <li><code>AddDbContext&lt;CatalogDbContext&gt;(o =&gt; ...)</code> &mdash; registers the context with a <strong>scoped</strong> lifetime, meaning one per HTTP request. That is the correct lifetime: a <code>DbContext</code> is not thread-safe and tracks changes for a single unit of work.</li>
+    <li><code>o =&gt; o.UseSqlServer(...)</code> &mdash; a <strong>configuration lambda</strong>. The framework hands you an options object and you set it up. It runs once, at registration.</li>
+    <li><code>GetConnectionString("Default")</code> &mdash; reads <code>ConnectionStrings:Default</code> from configuration, so the password never appears in source.</li>
+    <li><code>AddScoped&lt;IProductService, ProductService&gt;()</code> &mdash; the <strong>binding</strong>, with two type arguments: the contract that will be asked for, and the class that will be supplied. This is the only line in the entire application that knows both names.</li>
+    <li><code>builder.Build()</code> &mdash; the container closes. After this line registrations are fixed, and the app is ready to be configured.</li>
+    <li><code>app.MapControllers()</code> &mdash; scans for <code>[Route]</code> and <code>[HttpGet]</code> attributes and builds the routing table. Omit it and every request returns 404, with no error anywhere.</li>
+    <li><code>app.Run()</code> &mdash; starts listening and <strong>blocks</strong>. Nothing written after it runs until the process is shutting down.</li>
+  </ul>
+</div>
 
 <p>
   This is the only file in the whole application that knows both <code>IProductService</code> and
@@ -598,6 +683,15 @@ Dtos/           ProductDto.cs          OrderDto.cs          CustomerDto.cs
 Features/
   Products/     Product.cs  ProductDto.cs  ProductService.cs  ProductsController.cs
   Orders/       Order.cs    OrderDto.cs    OrderService.cs    OrdersController.cs</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Controllers/ Services/ Models/ Dtos/</code> &mdash; organised <strong>by kind</strong>: everything of a type together. Clear for two features, painful at twenty, because a single change is spread across four folders.</li>
+    <li><code>Features/Products/ ...</code> &mdash; organised <strong>by feature</strong>: everything one change touches sits in one folder, and the folder can be deleted when the feature is.</li>
+    <li><strong>The principle is the axis of change.</strong> Group by what changes together. A change is almost always one feature and almost never one kind.</li>
+    <li>Folders carry no meaning to the compiler. They do not have to match <code>namespace</code>s &mdash; though tooling assumes they do, and fighting that is not worth the trouble.</li>
+  </ul>
+</div>
 
 <p>
   The difference shows up when you change something. A change is almost always one
@@ -631,25 +725,25 @@ Features/
   <thead><tr><th>Step</th><th>The tutorial version</th><th>Here</th></tr></thead>
   <tbody>
     <tr><td>2 &mdash; entity</td><td><code>Models/Product.cs</code></td>
-        <td><a href="../../src/LogiFlow.Domain/Catalog/Product.cs">Domain/Catalog/Product.cs</a>
+        <td><a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Domain/Catalog/Product.cs">Domain/Catalog/Product.cs</a>
             &mdash; private setters, a <code>Create</code> factory, invariants it enforces
             itself</td></tr>
     <tr><td>3 &mdash; DbContext</td><td><code>Data/CatalogDbContext.cs</code></td>
-        <td><a href="../../src/LogiFlow.Infrastructure/Persistence/LogiFlowDbContext.cs">Infrastructure/Persistence/LogiFlowDbContext.cs</a>,
+        <td><a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Persistence/LogiFlowDbContext.cs">Infrastructure/Persistence/LogiFlowDbContext.cs</a>,
             with the column configuration split into
-            <a href="../../src/LogiFlow.Infrastructure/Persistence/Configurations/">its own files</a></td></tr>
+            <a href="https://github.com/kristi2002/LogiFlow/tree/main/src/LogiFlow.Infrastructure/Persistence/Configurations/">its own files</a></td></tr>
     <tr><td>5 &mdash; DTO</td><td><code>Dtos/ProductDto.cs</code></td>
-        <td><a href="../../src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>
+        <td><a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>
             &mdash; <code>ProductDto</code> out, <code>CreateProductCommand</code> in</td></tr>
     <tr><td>6 &mdash; service</td><td><code>Services/ProductService.cs</code></td>
         <td>the handlers in that same file &mdash; one class per operation instead of one class
             per noun, which is the CQRS shape of
             <a href="23-architecture-and-cqrs.html">chapter 23</a></td></tr>
     <tr><td>7 &mdash; controller</td><td><code>Controllers/ProductsController.cs</code></td>
-        <td><a href="../../src/LogiFlow.Api/Endpoints/CatalogAndReportingEndpoints.cs">Api/Endpoints/CatalogAndReportingEndpoints.cs</a>
+        <td><a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Api/Endpoints/CatalogAndReportingEndpoints.cs">Api/Endpoints/CatalogAndReportingEndpoints.cs</a>
             &mdash; minimal APIs rather than controllers, doing the identical job</td></tr>
     <tr><td>8 &mdash; wiring</td><td><code>Program.cs</code></td>
-        <td><a href="../../src/LogiFlow.Api/Program.cs">Api/Program.cs</a>, delegating to a
+        <td><a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Api/Program.cs">Api/Program.cs</a>, delegating to a
             <code>DependencyInjection.cs</code> per project</td></tr>
   </tbody>
 </table>

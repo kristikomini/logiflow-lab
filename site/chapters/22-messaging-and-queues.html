@@ -31,9 +31,9 @@
     RabbitMQ, Kafka and Azure Service Bus travel through Italian backend adverts alongside
     <em>microservizi</em>, <em>architetture event-driven</em>, DDD and CQRS &mdash; from Milano
     consultancies to product companies in Bologna. The repository already contains the hard half:
-    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxMessage.cs"><code>OutboxMessage</code></a>
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxMessage.cs"><code>OutboxMessage</code></a>
     and
-    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor</code></a>.
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor</code></a>.
     This chapter explains what they feed.
   </p>
 </div>
@@ -205,7 +205,7 @@
     to a commercial licence in 2026, with v8 reaching end of life at the end of the year. This is
     the same thing that happened to MediatR, and it is why this repository hand-writes its
     dispatcher (see
-    <a href="../../src/LogiFlow.Application/Abstractions/Messaging/IDispatcher.cs"><code>IDispatcher.cs</code></a>).
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Abstractions/Messaging/IDispatcher.cs"><code>IDispatcher.cs</code></a>).
     Knowing the <em>pattern</em> rather than the package is what turns that kind of news into a
     non-event. Mentioning it in an interview shows you follow the ecosystem.
   </p>
@@ -274,7 +274,7 @@ db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty
   And note why this is at-least-once and not exactly-once: if the process dies <em>after</em>
   publishing but <em>before</em> marking the row processed, it publishes again on restart. That is
   fine — the consumer is idempotent. This is the shape in
-  <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor.cs</code></a>,
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs"><code>OutboxProcessor.cs</code></a>,
   which is a <code>BackgroundService</code> and therefore a singleton that must create a DI scope
   per iteration rather than injecting a <code>DbContext</code>.
 </p>
@@ -407,10 +407,10 @@ db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty
 <div class="box note">
   <div class="box-title">Going deeper</div>
   <p>
-    <a href="../../course/module-25-distributed-systems/README.md">Module 25 — Distributed systems
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/course/module-25-distributed-systems/README.md">Module 25 — Distributed systems
     and integration</a> covers the outbox, idempotency, the four ways retries go wrong, and
     observability across a boundary. The implementation is in
-    <a href="../../src/LogiFlow.Infrastructure/Persistence/Outbox/"><code>src/LogiFlow.Infrastructure/Persistence/Outbox/</code></a>.
+    <a href="https://github.com/kristi2002/LogiFlow/tree/main/src/LogiFlow.Infrastructure/Persistence/Outbox/"><code>src/LogiFlow.Infrastructure/Persistence/Outbox/</code></a>.
   </p>
 </div>
 

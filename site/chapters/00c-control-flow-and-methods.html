@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>00c · Control flow and methods — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="00c-control-flow-and-methods">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00c</p>
+<h1>Control flow and methods</h1>
+<p class="lede">
+  Chapter 00b gave you values. This one gives you the four things you do with them: choose, repeat,
+  name a piece of work so it can be reused, and hold many values at once. After this page you can
+  read the code in every remaining chapter of this site.
+</p>
+
+<nav id="toc"></nav>
+
+<h2 id="if">Choosing: <code>if</code></h2>
+
+<pre><code><span class="kw">int</span> age = <span class="nu">20</span>;
+
+<span class="kw">if</span> (age &gt;= <span class="nu">18</span>)                        <span class="cm">// a condition — must produce a bool</span>
+{
+    <span class="ty">Console</span>.WriteLine(<span class="st">"Adult"</span>);        <span class="cm">// runs only when the condition is true</span>
+}
+<span class="kw">else if</span> (age &gt;= <span class="nu">13</span>)                   <span class="cm">// checked only if the first was false</span>
+{
+    <span class="ty">Console</span>.WriteLine(<span class="st">"Teenager"</span>);
+}
+<span class="kw">else</span>                                  <span class="cm">// everything the tests above did not catch</span>
+{
+    <span class="ty">Console</span>.WriteLine(<span class="st">"Child"</span>);
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>if</code> &mdash; a <strong>keyword</strong> introducing a conditional statement.</li>
+    <li><code>(age &gt;= 18)</code> &mdash; the <strong>condition</strong>, and the parentheses are
+        required. It must be a <code>bool</code>. Unlike C or JavaScript, C# will not accept a
+        number or an object here — <code>if (5)</code> does not compile, and neither does
+        <code>if (name)</code>.</li>
+    <li><code>{ … }</code> &mdash; the <strong>block</strong> that runs when the condition holds.
+        Braces are optional for a single statement and you should write them anyway: adding a
+        second line later without adding braces is a real and famous class of bug.</li>
+    <li><code>else if</code> &mdash; not one keyword but two: an <code>else</code> whose body is
+        another <code>if</code>. Order matters, and only the <strong>first</strong> matching branch
+        runs. Had the <code>&gt;= 13</code> test come first, no one would ever be "Adult".</li>
+    <li><code>else</code> &mdash; the fallback. Optional. It has no condition because it is
+        everything left over.</li>
+  </ul>
+</div>
+
+<h2 id="switch">Choosing between many: <code>switch</code></h2>
+
+<pre><code><span class="kw">string</span> status = <span class="st">"Shipped"</span>;
+
+<span class="kw">string</span> message = status <span class="kw">switch</span>          <span class="cm">// a switch EXPRESSION: it produces a value</span>
+{
+    <span class="st">"Draft"</span>     =&gt; <span class="st">"Not sent yet"</span>,       <span class="cm">// pattern => result, comma separated</span>
+    <span class="st">"Shipped"</span>   =&gt; <span class="st">"On its way"</span>,
+    <span class="st">"Delivered"</span> =&gt; <span class="st">"Arrived"</span>,
+    _          =&gt; <span class="st">"Unknown status"</span>      <span class="cm">// _ is the catch-all, like else</span>
+};                                     <span class="cm">// semicolon: this whole thing was one statement</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>status switch</code> &mdash; a <strong>switch expression</strong>. Note the order:
+        the value comes first, then the keyword. It <em>evaluates to</em> a value, which is why it
+        can sit on the right of an <code>=</code>.</li>
+    <li><code>=&gt;</code> &mdash; here it separates a <strong>pattern</strong> from the
+        <strong>result</strong> for that pattern. (The same arrow means "goes to" in a lambda,
+        which you will meet in <a href="06-collections-and-linq.html">chapter 06</a>. Same symbol,
+        different job.)</li>
+    <li><code>_</code> &mdash; the <strong>discard pattern</strong>: matches anything. It is the
+        <code>else</code> of a switch expression.</li>
+    <li><code>};</code> &mdash; a closing brace <em>and</em> a semicolon, because the whole switch
+        was part of an assignment statement. Forgetting the semicolon here is a very common early
+        error.</li>
+    <li><strong>Exhaustiveness</strong> is the reason to prefer this over a chain of
+        <code>if</code>s: with an <code>enum</code>, the compiler warns when you have missed a
+        case. An <code>if</code>/<code>else if</code> chain never tells you what you forgot.</li>
+  </ul>
+</div>
+
+<h2 id="loops">Repeating</h2>
+
+<pre><code><span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i &lt; <span class="nu">3</span>; i++)          <span class="cm">// start; keep going while; after each pass</span>
+{
+    <span class="ty">Console</span>.WriteLine(i);            <span class="cm">// prints 0, then 1, then 2</span>
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>for</code> &mdash; three clauses separated by <strong>semicolons</strong>, not
+        commas.</li>
+    <li><code>int i = 0</code> &mdash; the <strong>initialiser</strong>. Runs once, before
+        anything. <code>i</code> exists only inside the loop.</li>
+    <li><code>i &lt; 3</code> &mdash; the <strong>condition</strong>, tested <em>before</em> every
+        pass including the first. It is <code>&lt;</code> and not <code>&lt;=</code> because
+        counting from 0 for three items means 0, 1, 2 — writing <code>&lt;=</code> here is the
+        classic <em>off-by-one</em> error.</li>
+    <li><code>i++</code> &mdash; the <strong>iterator</strong>, run <em>after</em> each pass. Leave
+        it out and the loop never ends.</li>
+    <li>Starting at <strong>0</strong> is not a style choice — collection positions in C# begin at
+        0, so the first item is <code>[0]</code> and the last is <code>[Count - 1]</code>.</li>
+  </ul>
+</div>
+
+<pre><code><span class="kw">string</span>[] cities = { <span class="st">"Modena"</span>, <span class="st">"Bologna"</span>, <span class="st">"Parma"</span> };
+
+<span class="kw">foreach</span> (<span class="kw">string</span> city <span class="kw">in</span> cities)      <span class="cm">// take each item in turn</span>
+{
+    <span class="ty">Console</span>.WriteLine(city);        <span class="cm">// no index, no counter, no off-by-one</span>
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>foreach</code> &mdash; loops over the items of a collection directly. Prefer it: it
+        cannot run off the end, and it says "for each of these" rather than "count to a number and
+        use it to look things up".</li>
+    <li><code>string city</code> &mdash; declares the <strong>loop variable</strong>, a fresh one
+        per pass, holding the current item.</li>
+    <li><code>in</code> &mdash; a keyword, part of the <code>foreach</code> syntax.</li>
+    <li><strong>You cannot add to or remove from a collection while <code>foreach</code> is
+        walking it.</strong> Doing so throws <code>InvalidOperationException</code> at run time.
+        Collect what you want to change and act after the loop.</li>
+  </ul>
+</div>
+
+<pre><code><span class="kw">int</span> attempts = <span class="nu">0</span>;
+
+<span class="kw">while</span> (attempts &lt; <span class="nu">3</span>)                 <span class="cm">// test FIRST, so it may run zero times</span>
+{
+    attempts++;
+    <span class="kw">if</span> (attempts == <span class="nu">2</span>) <span class="kw">continue</span>;      <span class="cm">// skip the rest of THIS pass</span>
+    <span class="kw">if</span> (attempts == <span class="nu">3</span>) <span class="kw">break</span>;         <span class="cm">// leave the loop entirely</span>
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>while</code> &mdash; repeats while a condition holds, testing before each pass. Use
+        it when you do not know the number of passes in advance.</li>
+    <li><code>continue</code> &mdash; abandons this pass and goes to the next. In a
+        <code>for</code> loop the iterator still runs, which matters: a <code>continue</code>
+        placed before <code>i++</code> in a <code>while</code> loop is an infinite loop.</li>
+    <li><code>break</code> &mdash; exits the loop completely. It affects only the innermost loop it
+        sits in.</li>
+    <li><code>do { … } while (…);</code> &mdash; the variant that tests <em>after</em>, so the body
+        always runs at least once. Rare, and it takes a semicolon at the end.</li>
+  </ul>
+</div>
+
+<h2 id="methods">Methods: naming a piece of work</h2>
+
+<pre><code><span class="kw">static decimal</span> AddVat(<span class="kw">decimal</span> net, <span class="kw">decimal</span> rate = <span class="nu">0.22m</span>)
+{
+    <span class="kw">return</span> net * (<span class="nu">1</span> + rate);        <span class="cm">// hand the answer back and stop</span>
+}
+
+<span class="kw">decimal</span> a = AddVat(<span class="nu">100m</span>);           <span class="cm">// 122.00 — rate defaults to 0.22</span>
+<span class="kw">decimal</span> b = AddVat(<span class="nu">100m</span>, <span class="nu">0.10m</span>);    <span class="cm">// 110.00 — the default is overridden</span>
+<span class="kw">decimal</span> c = AddVat(rate: <span class="nu">0.04m</span>, net: <span class="nu">100m</span>);  <span class="cm">// 104.00 — named, so order is free</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>static</code> &mdash; belongs to the type rather than to an object of it. In a
+        top-level <code>Program.cs</code> your helper methods need this.</li>
+    <li><code>decimal</code> (the first one) &mdash; the <strong>return type</strong>: the kind of
+        value this method hands back. <code>void</code> would mean it hands back nothing.</li>
+    <li><code>AddVat</code> &mdash; the <strong>method name</strong>, PascalCase by convention, and
+        a verb because a method does something.</li>
+    <li><code>(decimal net, decimal rate = 0.22m)</code> &mdash; the
+        <strong>parameter list</strong>. Each parameter is a type and a name. A parameter is the
+        name inside the method; the value passed in at the call is the
+        <strong>argument</strong>.</li>
+    <li><code>rate = 0.22m</code> &mdash; an <strong>optional parameter</strong> with a default.
+        Optional parameters must come after all required ones.</li>
+    <li><code>return</code> &mdash; produces the value and <strong>exits the method
+        immediately</strong>. Anything written after it in the same block is unreachable, and the
+        compiler will say so.</li>
+    <li><code>AddVat(100m)</code> &mdash; the <strong>call</strong>. Control jumps into the method,
+        runs it, and the call expression becomes the returned value.</li>
+    <li><code>rate: 0.04m</code> &mdash; a <strong>named argument</strong>. It frees you from the
+        declared order and, more usefully, makes the call site readable:
+        <code>Send(retry: true)</code> beats <code>Send(true)</code>.</li>
+  </ul>
+</div>
+
+<pre><code><span class="kw">static bool</span> IsEven(<span class="kw">int</span> n) =&gt; n % <span class="nu">2</span> == <span class="nu">0</span>;   <span class="cm">// expression-bodied: one expression, no braces</span>
+
+<span class="kw">static void</span> Greet(<span class="kw">string</span> who)             <span class="cm">// void: does something, returns nothing</span>
+{
+    <span class="ty">Console</span>.WriteLine(<span class="st">$"Ciao, {who}"</span>);
+}                                          <span class="cm">// no return needed</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>=&gt; n % 2 == 0;</code> &mdash; an <strong>expression-bodied member</strong>.
+        Shorthand for a body that is a single expression; the value of that expression is
+        returned, so no <code>return</code> keyword appears. Identical to the braced form once
+        compiled.</li>
+    <li><code>void</code> &mdash; returns nothing, so it is called as a statement on its own line
+        and cannot appear on the right of an <code>=</code>. A bare <code>return;</code> is still
+        legal inside one, to leave early.</li>
+    <li><strong>Overloading</strong> &mdash; several methods may share a name if their parameters
+        differ. That is why <code>Console.WriteLine</code> accepts a string, an int or an object:
+        those are different methods with one name.</li>
+  </ul>
+</div>
+
+<h2 id="collections">Holding many values</h2>
+
+<pre><code><span class="kw">string</span>[] fixedSize = <span class="kw">new string</span>[<span class="nu">3</span>];      <span class="cm">// an ARRAY: length 3, forever</span>
+fixedSize[<span class="nu">0</span>] = <span class="st">"Modena"</span>;                  <span class="cm">// positions start at 0</span>
+<span class="kw">int</span> n = fixedSize.Length;                 <span class="cm">// 3 — array uses Length</span>
+
+<span class="ty">List</span>&lt;<span class="kw">string</span>&gt; growable = <span class="kw">new</span>();           <span class="cm">// a LIST: starts empty, grows</span>
+growable.Add(<span class="st">"Bologna"</span>);                  <span class="cm">// append one</span>
+growable.Add(<span class="st">"Parma"</span>);
+<span class="kw">int</span> m = growable.Count;                   <span class="cm">// 2 — list uses Count, not Length</span>
+<span class="kw">string</span> first = growable[<span class="nu">0</span>];              <span class="cm">// "Bologna" — same square brackets</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>string[]</code> &mdash; "array of string". The square brackets are
+        <strong>part of the type</strong>.</li>
+    <li><code>new string[3]</code> &mdash; <code>new</code> creates the object; <code>[3]</code> is
+        the length, fixed for its whole life. The three slots start as <code>null</code>, and for
+        an <code>int[]</code> they would start as <code>0</code>.</li>
+    <li><code>fixedSize[0]</code> &mdash; the <strong>indexer</strong>. Positions run
+        <code>0</code> to <code>Length - 1</code>; <code>fixedSize[3]</code> throws
+        <code>IndexOutOfRangeException</code> at run time.</li>
+    <li><code>List&lt;string&gt;</code> &mdash; a <strong>generic type</strong>. The
+        <code>&lt;string&gt;</code> is a type argument saying what it holds, and it is why
+        <code>growable[0]</code> is known to be a string with no cast. You will meet generics
+        properly in <a href="04-generics-delegates-events.html">chapter 04</a>.</li>
+    <li><code>new()</code> &mdash; a <strong>target-typed new</strong>. The type is already written
+        on the left, so C# lets you not repeat it. The long form
+        <code>new List&lt;string&gt;()</code> is identical.</li>
+    <li><code>.Length</code> versus <code>.Count</code> &mdash; arrays have
+        <code>Length</code>, lists have <code>Count</code>, and strings have
+        <code>Length</code>. There is no logic to memorise here; it is simply history, and mixing
+        them up is a compile error rather than a bug.</li>
+  </ul>
+</div>
+
+<h2 id="classes">Classes and objects, in sixty seconds</h2>
+
+<p>
+  You have enough now to read most code, except for the one shape everything in C# is packaged
+  into. <a href="03-oop.html">Chapter 03</a> is the real treatment; this is only enough to make the
+  next chapter readable.
+</p>
+
+<pre><code><span class="kw">public class</span> <span class="ty">Customer</span>                       <span class="cm">// a TEMPLATE — describes what a customer has</span>
+{
+    <span class="kw">public string</span> Name { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="st">""</span>;   <span class="cm">// a property: data with a door on it</span>
+    <span class="kw">public int</span> Orders { <span class="kw">get</span>; <span class="kw">set</span>; }
+
+    <span class="kw">public bool</span> IsLoyal() =&gt; Orders &gt; <span class="nu">10</span>;  <span class="cm">// a method: behaviour, using its own data</span>
+}
+
+<span class="ty">Customer</span> c = <span class="kw">new</span>() { Name = <span class="st">"Rossi"</span>, Orders = <span class="nu">12</span> };  <span class="cm">// an OBJECT, made from the template</span>
+<span class="ty">Console</span>.WriteLine(c.IsLoyal());                     <span class="cm">// True</span></code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>class Customer</code> &mdash; declares a <strong>type</strong>. A class is a
+        template, not a thing: no customer exists yet, in the same way a blueprint is not a
+        house.</li>
+    <li><code>public</code> &mdash; an <strong>access modifier</strong>: visible everywhere. Its
+        counterpart <code>private</code> means "only inside this class" and is the default when
+        you write nothing.</li>
+    <li><code>{ get; set; }</code> &mdash; an <strong>auto-property</strong>. It looks like a field
+        but is really a pair of hidden methods, so the class can later add a rule to
+        <code>set</code> without a single caller changing. That is why C# code exposes properties
+        and not raw fields.</li>
+    <li><code>= "";</code> &mdash; an <strong>initialiser</strong>, so <code>Name</code> starts as
+        an empty string rather than null.</li>
+    <li><code>IsLoyal()</code> &mdash; a method that reads <code>Orders</code> without any prefix,
+        because inside the class it means "this object's <code>Orders</code>".</li>
+    <li><code>new()</code> &mdash; creates an <strong>instance</strong>. The class is the template;
+        this is one actual customer, with its own values.</li>
+    <li><code>{ Name = "Rossi", … }</code> &mdash; an <strong>object initialiser</strong>: set
+        properties as part of construction. Commas between, not semicolons.</li>
+    <li><code>c.IsLoyal()</code> &mdash; calls the method <em>on that object</em>, so
+        <code>Orders</code> inside it means <code>12</code>.</li>
+  </ul>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Write a program that asks for numbers one at a time until the user types an empty line, then
+    prints how many were entered, their total, and their average. You will need a
+    <code>while</code> loop, <code>TryParse</code> from
+    <a href="00b-variables-and-types.html">00b</a>, a <code>List&lt;decimal&gt;</code>, and one
+    decision about what to print when the list is empty &mdash; because dividing by
+    <code>Count</code> when <code>Count</code> is zero is your first
+    <code>DivideByZeroException</code>.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li>A condition must be a <code>bool</code>. C# does not accept a number or an object where a
+        truth value belongs, and that is a feature.</li>
+    <li>Always write the braces, even for one statement. The bug arrives when somebody adds the
+        second statement.</li>
+    <li>Only the <strong>first</strong> matching branch of an <code>if</code>/<code>else if</code>
+        chain runs. Order the tests from most specific to least.</li>
+    <li>Prefer a <code>switch</code> expression over a long <code>if</code> chain: with an
+        <code>enum</code> the compiler tells you which case you forgot.</li>
+    <li>Indexes start at <strong>0</strong> and end at <code>Length - 1</code>. Use
+        <code>&lt;</code> in a <code>for</code>, not <code>&lt;=</code>.</li>
+    <li>Prefer <code>foreach</code> to <code>for</code> when you do not need the index &mdash; it
+        cannot run off the end.</li>
+    <li>Never add to or remove from a collection you are currently <code>foreach</code>-ing.</li>
+    <li><code>return</code> exits the method there and then.</li>
+    <li>Arrays are fixed length and use <code>Length</code>; <code>List&lt;T&gt;</code> grows and
+        uses <code>Count</code>.</li>
+    <li>A class is a template; an object is one thing made from it. Expose
+        <strong>properties</strong>, not fields, so a rule can be added later without breaking
+        callers.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"When would you use a <code>switch</code> expression over <code>if</code>/<code>else</code>?"</p>
+  <p class="a">
+    When you are choosing a <em>value</em> from a set of mutually exclusive cases. It is an
+    expression, so it can be assigned or returned directly, and over an <code>enum</code> the
+    compiler warns about unhandled cases &mdash; exhaustiveness an <code>if</code> chain can never
+    give you.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between an array and a <code>List&lt;T&gt;</code>?"</p>
+  <p class="a">
+    An array has a fixed length chosen at creation; a <code>List&lt;T&gt;</code> wraps an array and
+    grows by allocating a bigger one and copying when it fills. Use an array for a fixed-size
+    buffer or a hot path, a list for anything whose size you do not know up front. And it is
+    <code>Length</code> on one, <code>Count</code> on the other.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What is the difference between a parameter and an argument?"</p>
+  <p class="a">
+    A parameter is the variable declared in the method signature; an argument is the actual value
+    passed at the call site. The distinction matters as soon as you discuss <code>ref</code>,
+    <code>out</code> and pass-by-value, because those are all statements about how an argument
+    reaches a parameter.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why do C# classes expose properties instead of public fields?"</p>
+  <p class="a">
+    A property is a pair of methods behind field-like syntax, so validation, laziness, change
+    notification or logging can be added later without any caller changing or even recompiling
+    against a different shape. A public field is a permanent commitment to raw access, and data
+    binding and many serialisers only look at properties anyway.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

@@ -127,7 +127,7 @@
 <h2 id="dockerfile">A Dockerfile for a .NET API</h2>
 
 <p>
-  This repository ships a <a href="../../docker-compose.yml"><code>docker-compose.yml</code></a>
+  This repository ships a <a href="https://github.com/kristi2002/LogiFlow/blob/main/docker-compose.yml"><code>docker-compose.yml</code></a>
   for its <em>dependencies</em> (SQL Server, Redis, Elasticsearch) but no Dockerfile for the API
   itself, because the course runs it with <code>dotnet run</code>. Here is the one you would add,
   and every line in it is a decision:
@@ -184,7 +184,7 @@ ENTRYPOINT [<span class="st">"dotnet"</span>, <span class="st">"LogiFlow.Api.dll
 <p>
   One container is rarely the point. Compose describes a set of them, on a shared network, in one
   file — which is exactly what
-  <a href="../../docker-compose.yml"><code>docker-compose.yml</code></a> in this repository does:
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/docker-compose.yml"><code>docker-compose.yml</code></a> in this repository does:
 </p>
 
 <pre><code>services:
@@ -365,7 +365,7 @@ docker run --rm -p 8080:8080 \
 <div class="box note">
   <div class="box-title">Going deeper</div>
   <p>
-    <a href="../../course/module-13-deployment/README.md">Module 13 — Configuration, security and
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/course/module-13-deployment/README.md">Module 13 — Configuration, security and
     deployment</a> covers containerising this application properly, plus configuration precedence,
     supply-chain security and running migrations in CI rather than at startup. Then
     <a href="30-azure-devops-cicd.html">chapter 30</a> puts the image in a pipeline.

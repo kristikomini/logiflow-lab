@@ -23,7 +23,7 @@
 //   4. course/GOLDEN-RULES.md   <->  site/assets/rules.js      generated
 //   5. course/**.md + src/**.cs <->  course headings and files cross-refs
 //   6. course/**.md             <->  Labs.Playground's demos   cited by name
-//   7. every README and page    <->  the counts they state     "48 chapters"
+//   7. every README and page    <->  the counts they state     "51 chapters"
 //      (patterns for the sentences that state one, then a scan of the rest)
 //   8. site/assets/store.js     <->  the Academy API's copy    one formula, twice
 //
@@ -84,6 +84,7 @@ if (!Directory.Exists(Course()) || !Directory.Exists(Site()))
     ("labs/demos", CheckDemoCitations),
     ("docs/counts", CheckProseCounts),
     ("site/chapter-count", CheckChapterCount),
+    ("site/code-dissection", CheckCodeDissection),
 ];
 
 if (update)
@@ -229,6 +230,19 @@ IEnumerable<Issue> CheckSiteLinks()
         {
             string href = m.Groups[1].Value;
 
+            if (RepoLink(href) is string repoPath)
+            {
+                string full = Path.Combine(repo, repoPath.Replace('/', Path.DirectorySeparatorChar));
+                bool wantsDirectory = href.Contains("/tree/main/", StringComparison.Ordinal);
+
+                if (wantsDirectory ? !Directory.Exists(full) : !File.Exists(full))
+                {
+                    yield return Error($"{name} -> {href} points at nothing in this repository");
+                }
+
+                continue;
+            }
+
             if (Skip(href))
             {
                 continue;
@@ -257,6 +271,19 @@ IEnumerable<Issue> CheckSiteLinks()
         foreach (Match m in Regex.Matches(html, "(?:href|src)=\"([^\"]+)\""))
         {
             string href = m.Groups[1].Value;
+            if (RepoLink(href) is string repoPath)
+            {
+                string full = Path.Combine(repo, repoPath.Replace('/', Path.DirectorySeparatorChar));
+                bool wantsDirectory = href.Contains("/tree/main/", StringComparison.Ordinal);
+
+                if (wantsDirectory ? !Directory.Exists(full) : !File.Exists(full))
+                {
+                    yield return Error($"{name} -> {href} points at nothing in this repository");
+                }
+
+                continue;
+            }
+
             if (Skip(href))
             {
                 continue;
@@ -644,7 +671,7 @@ IEnumerable<Issue> CheckDemoCitations()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 11. Counts written into prose: "48 chapters", "440 questions", "362 Golden
+// 11. Counts written into prose: "51 chapters", "464 questions", "362 Golden
 //     rules". Every other check in this file compares two things that both
 //     move, so drift shows up as a mismatch. A number in a sentence has no
 //     other end to compare against — it is simply true on the day it is typed
@@ -888,7 +915,7 @@ IEnumerable<Issue> CheckProseCounts()
                     // Remember where this pattern matched. The scan below skips
                     // any number inside one of these spans: a specific pattern
                     // has already checked it, quite possibly against a different
-                    // quantity — "these twenty-five chapters are not in it" is a
+                    // quantity — "these twenty-eight chapters are not in it" is a
                     // claim about the advert-gap count, not about the site's 47.
                     owned.Add((path, m.Index, m.Index + m.Length));
 
@@ -1323,6 +1350,113 @@ IEnumerable<string> SourceFiles() =>
 // '.html" — and the attribute value is then a fragment of source, not a path.
 // Checking those would mean evaluating the page, so they are skipped by the one
 // signal that is unambiguous in an attribute: a quote or a concatenation.
+// ═════════════════════════════════════════════════════════════════════════════
+// 13. Every code block should be dissected line by line: what each line DOES in
+//     a comment inside it, and what each line IS in a .dissect box under it —
+//     which token is a keyword, which is a type, which is a method call, where
+//     a conversion is happening that nobody wrote.
+//
+//     WHY A RATCHET AND NOT A REQUIREMENT
+//     There are 279 code blocks. Demanding all of them today would mean one
+//     failing check for months, and a check that is red for months is a check
+//     people learn to scroll past — the same argument the header makes about
+//     warnings. So this fails only if coverage goes DOWN. The floor is raised
+//     by hand as chapters are finished, which makes the number a record of real
+//     progress rather than an aspiration.
+//
+//     It also enforces the shape, unconditionally: a .dissect must sit directly
+//     under the <pre> it explains. The CSS pulls it up by a negative margin to
+//     join the two into one object, so a stray one does not merely read oddly,
+//     it renders as a box glued to whatever paragraph happened to precede it.
+// ═════════════════════════════════════════════════════════════════════════════
+IEnumerable<Issue> CheckCodeDissection()
+{
+    // RAISE THIS as chapters are annotated. Never lower it.
+    const int floor = 37;
+
+    int blocks = 0, dissected = 0;
+    List<(string Chapter, int Done, int Total)> perChapter = [];
+
+    foreach (string file in Directory.EnumerateFiles(Site("chapters"), "*.html").Order(StringComparer.Ordinal))
+    {
+        string html = File.ReadAllText(file);
+        string name = Path.GetFileName(file);
+
+        int here = Regex.Matches(html, "<pre><code>").Count;
+        int covered = Regex.Matches(html, @"</code></pre>\s*<div class=""dissect"">").Count;
+
+        blocks += here;
+        dissected += covered;
+
+        if (here > 0)
+        {
+            perChapter.Add((Path.GetFileNameWithoutExtension(file), covered, here));
+        }
+
+        // A dissection that is not attached to a code block.
+        int boxes = Regex.Matches(html, @"<div class=""dissect"">").Count;
+
+        if (boxes > covered)
+        {
+            yield return Error(
+                $"{name}: {boxes - covered} .dissect box(es) do not directly follow a </code></pre> — " +
+                "the CSS joins them to the block above, so a detached one renders glued to a paragraph");
+        }
+    }
+
+    if (dissected < floor)
+    {
+        yield return Error(
+            $"code dissection went backwards: {dissected} of {blocks} blocks are annotated, " +
+            $"but the recorded floor is {floor}. Restore the missing ones, or lower the floor " +
+            "deliberately and say why");
+    }
+
+    // Not an error — the remaining work, kept visible so it cannot be forgotten.
+    if (dissected < blocks)
+    {
+        string worst = string.Join(", ", perChapter
+            .Where(c => c.Done < c.Total)
+            .OrderBy(c => (double)c.Done / c.Total)
+            .ThenByDescending(c => c.Total)
+            .Take(5)
+            .Select(c => $"{c.Chapter} ({c.Done}/{c.Total})"));
+
+        yield return Warn($"{dissected}/{blocks} code blocks dissected. Least covered: {worst}");
+    }
+}
+
+// A link into the repository's own source, as an absolute GitHub URL.
+//
+// These used to be relative — ../../src/LogiFlow.Domain/Catalog/Product.cs from
+// a chapter page. That resolves on disk, which is why this check was green for
+// as long as it existed, and 404s on every deployment: Cloudflare, Vercel,
+// Netlify and Pages all publish site/ alone, so nothing above it is served.
+// Eighty-three links were correct locally and broken in production, which is
+// the worst combination there is.
+//
+// Absolute URLs fix the deployment and would ordinarily end the checking, since
+// Skip() ignores anything beginning with http. So they are matched here first,
+// the repo-relative path is recovered, and it is verified against the working
+// tree exactly as before. Renaming a source file still fails the build; the
+// only thing that changed is who can follow the link.
+static string? RepoLink(string href)
+{
+    const string repoBase = "https://github.com/kristi2002/LogiFlow/";
+
+    foreach (string kind in (string[])["blob/main/", "tree/main/"])
+    {
+        string prefix = repoBase + kind;
+
+        if (href.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return href[prefix.Length..].Split('#')[0].Split('?')[0].TrimEnd('/');
+        }
+    }
+
+    return null;
+}
+
 static bool Skip(string href) =>
     href.Length == 0
     || href.StartsWith("http", StringComparison.OrdinalIgnoreCase)

@@ -200,7 +200,7 @@ logger.LogInformation(<span class="st">"Handled {Name} in {Ms}ms"</span>, name, 
 <p>
   Two things follow. First, this belongs in <em>one</em> place — a
   <a href="05-solid-and-patterns.html#decorator">pipeline behaviour</a>, not in every handler; see
-  <a href="../../src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>.
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>.
   Second, return the trace id to the caller in your error response, as
   <a href="14-web-api.html">chapter 14</a> does with Problem Details. Then a customer can say
   "the error said <code>0HN7…</code>" and you have their entire request in one query.
@@ -345,9 +345,9 @@ dotnet run --project src/LogiFlow.Api</code></pre>
 <div class="box note">
   <div class="box-title">Going deeper</div>
   <p>
-    <a href="../../course/module-11-observability/README.md">Module 11 — Observability</a> wires
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/course/module-11-observability/README.md">Module 11 — Observability</a> wires
     Serilog and OpenTelemetry into this application end to end. The working example is
-    <a href="../../src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>,
+    <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Behaviors/LoggingBehavior.cs"><code>LoggingBehavior.cs</code></a>,
     which is worth reading in full — the comments explain each decision.
   </p>
 </div>

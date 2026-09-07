@@ -157,7 +157,7 @@
   }
 
   /* A bank item, asked WITHOUT its options.
-     This is the trick that makes 440 multiple-choice questions usable here:
+     This is the trick that makes 464 multiple-choice questions usable here:
      the stem is already a real question, and hiding the four answers turns a
      recognition item into a recall one. The options come back afterwards, so
      the comparison is still concrete. */
