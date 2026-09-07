@@ -1356,13 +1356,18 @@ IEnumerable<string> SourceFiles() =>
 //     which token is a keyword, which is a type, which is a method call, where
 //     a conversion is happening that nobody wrote.
 //
-//     WHY A RATCHET AND NOT A REQUIREMENT
-//     There are 279 code blocks. Demanding all of them today would mean one
-//     failing check for months, and a check that is red for months is a check
-//     people learn to scroll past — the same argument the header makes about
-//     warnings. So this fails only if coverage goes DOWN. The floor is raised
-//     by hand as chapters are finished, which makes the number a record of real
-//     progress rather than an aspiration.
+//     IT WAS A RATCHET, AND IS NOW A REQUIREMENT
+//     While the work was in progress this failed only when coverage went DOWN,
+//     against a floor raised by hand as each batch landed. Demanding all 282
+//     blocks on day one would have meant a check that was red for weeks, and a
+//     check that is red for weeks is one people learn to scroll past — the same
+//     argument the header makes about warnings.
+//
+//     Coverage reached 100% on 2026-09-08, so the floor was removed and the
+//     rule is now the plain one: every code block carries a dissection. Note
+//     the ratchet would NOT have caught the case this replaces — adding an
+//     undissected block leaves `dissected` untouched, so it cleared the floor
+//     and only warned. Checked by adding one and watching this fail.
 //
 //     It also enforces the shape, unconditionally: a .dissect must sit directly
 //     under the <pre> it explains. The CSS pulls it up by a negative margin to
@@ -1376,9 +1381,6 @@ IEnumerable<Issue> CheckCodeDissection()
     // denominator while still crediting those blocks' dissections, so the
     // ratio flattered itself — the one direction a progress metric must not
     // be wrong in.
-    // RAISE THIS as chapters are annotated. Never lower it.
-    const int floor = 282;
-
     int blocks = 0, dissected = 0;
     List<(string Chapter, int Done, int Total)> perChapter = [];
 
@@ -1409,25 +1411,17 @@ IEnumerable<Issue> CheckCodeDissection()
         }
     }
 
-    if (dissected < floor)
-    {
-        yield return Error(
-            $"code dissection went backwards: {dissected} of {blocks} blocks are annotated, " +
-            $"but the recorded floor is {floor}. Restore the missing ones, or lower the floor " +
-            "deliberately and say why");
-    }
-
-    // Not an error — the remaining work, kept visible so it cannot be forgotten.
     if (dissected < blocks)
     {
-        string worst = string.Join(", ", perChapter
+        string missing = string.Join(", ", perChapter
             .Where(c => c.Done < c.Total)
-            .OrderBy(c => (double)c.Done / c.Total)
-            .ThenByDescending(c => c.Total)
-            .Take(5)
+            .OrderByDescending(c => c.Total - c.Done)
             .Select(c => $"{c.Chapter} ({c.Done}/{c.Total})"));
 
-        yield return Warn($"{dissected}/{blocks} code blocks dissected. Least covered: {worst}");
+        yield return Error(
+            $"{blocks - dissected} code block(s) have no dissection: {missing}. " +
+            "Every code example carries one — inline comments for what a line does, and a " +
+            ".dissect box under it for what each line IS");
     }
 }
 
