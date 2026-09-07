@@ -14,7 +14,7 @@
 // wrong from then on, and the reader who follows it concludes the repository is
 // sloppy rather than that one line is.
 //
-// Six such couplings hold this place together, and every one of them was
+// Eight such couplings hold this place together, and every one of them was
 // previously maintained by remembering:
 //
 //   1. site/assets/chapters.js  <->  site/chapters/*.html     the manifest
@@ -23,10 +23,14 @@
 //   4. course/GOLDEN-RULES.md   <->  site/assets/rules.js      generated
 //   5. course/**.md + src/**.cs <->  course headings and files cross-refs
 //   6. course/**.md             <->  Labs.Playground's demos   cited by name
+//   7. every README and page    <->  the counts they state     "48 chapters"
+//      (patterns for the sentences that state one, then a scan of the rest)
+//   8. site/assets/store.js     <->  the Academy API's copy    one formula, twice
 //
-// Three of those have already broken at least once. This file turns all six
-// into a build failure, which is the only form of documentation that maintains
-// itself.
+// Five of those have already broken at least once — the seventh was broken in
+// twenty-three places when it was first checked, and the eighth was wrong for
+// as long as it existed. This file turns all eight into a build failure, which
+// is the only form of documentation that maintains itself.
 //
 // WHY IT IS NOT A TEST PROJECT
 // It checks markdown, HTML and JavaScript — none of which the solution compiles
@@ -42,6 +46,7 @@
 // gate people learn to ignore is worse than no gate.
 // =============================================================================
 
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -77,6 +82,8 @@ if (!Directory.Exists(Course()) || !Directory.Exists(Site()))
     ("course/sections", CheckSectionReferences),
     ("code/covered-in", CheckCoveredIn),
     ("labs/demos", CheckDemoCitations),
+    ("docs/counts", CheckProseCounts),
+    ("site/chapter-count", CheckChapterCount),
 ];
 
 if (update)
@@ -554,7 +561,7 @@ IEnumerable<Issue> CheckSectionReferences()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  9. `Covered in: course/module-.../file.md` — 82 of them at the last count.
+//  9. `Covered in: course/module-.../file.md` — 80 of them at the last count.
 //     These are the reason reading a class and reading its chapter is one
 //     gesture, and a dead one costs exactly that.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -633,6 +640,488 @@ IEnumerable<Issue> CheckDemoCitations()
     foreach (string orphan in demos.Where(d => !cited.Contains(d)).Order(StringComparer.Ordinal))
     {
         yield return Warn($"demo '{orphan}' is never cited by a module, so nobody will be told to run it");
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 11. Counts written into prose: "48 chapters", "440 questions", "362 Golden
+//     rules". Every other check in this file compares two things that both
+//     move, so drift shows up as a mismatch. A number in a sentence has no
+//     other end to compare against — it is simply true on the day it is typed
+//     and quietly false afterwards, and no reader can tell the difference.
+//
+//     This was the worst-maintained thing in the repository. At the audit that
+//     produced this check, TWENTY-THREE stated counts were wrong across eleven
+//     files — the home page said thirty-nine chapters over a sidebar listing
+//     forty-seven, and the table in tools/README.md describing these very
+//     checks was out by eleven on its own row. One was in this file's header,
+//     and the last two were only found by this check, once it existed.
+//
+//     WHY THE PATTERNS ARE SO SPECIFIC
+//     Matching on the noun alone does not work: "30 questions" in exam.html is
+//     the length of a paper, "400 cards" in store.js is an argument about
+//     pacing, and "100 cards" is a daily cap. None of those are counts of
+//     anything, and a check that shouts about them is a check somebody turns
+//     off. So each pattern is anchored on the words around the number.
+//
+//     The cost of that is a pattern can stop matching — someone rewords the
+//     sentence and the guard silently lapses, which is precisely the failure
+//     this check exists to prevent, reintroduced one level up. So a pattern
+//     that matches nothing is itself an error. Rewording a sentence therefore
+//     means updating its pattern here, deliberately, which is the whole bargain.
+// ═════════════════════════════════════════════════════════════════════════════
+IEnumerable<Issue> CheckProseCounts()
+{
+    string n = Numbers.Pattern;
+    List<Chapter> manifest = ReadManifest();
+
+    string[] moduleDirs = Directory.EnumerateDirectories(Course(), "module-*").ToArray();
+
+    // Hoisted, because the scan at the bottom of this method needs the same
+    // figures. Computing them twice is how the two halves would come to disagree
+    // about how many chapters there are, in a check about exactly that.
+    int chapters = manifest.Count;
+    int questions = ReadQuizBank().Values.Sum(q => q.Count);
+    int rules = GoldenRuleClaims(File.ReadAllText(Course("GOLDEN-RULES.md"))).Count;
+    int modules = moduleDirs.Length;
+    int terms = CountOf(Site("assets", "glossary.js"), @"^\s*\{ en:");
+    int demos = CountOf(Path.Combine(repo, "labs", "Labs.Playground", "Program.cs"), @"new\(""[a-z0-9-]+"",");
+    int checkCount = CountOf(Path.Combine(repo, "tools", "doctor.cs"), @"^\s*\(""[a-z/-]+"", Check[A-Za-z]+\),");
+
+    (string What, int Actual, string[] Sentences)[] quantities =
+    [
+        ("chapters", chapters,
+        [
+            "tutorial: " + n + " ordered chapters",
+            // Anchored on their own sentences: docs/CONTENT-BACKLOG.md says
+            // "All eight chapters have…" about a batch of work, and a bare
+            // "all N chapters" would read that as a claim about the site.
+            "as an app — all " + n + " chapters",
+            "does not cover all " + n + " chapters",
+            n + " chapters, in dependency order",
+            n + " chapters, in order, covering",
+            n + " chapters, one file each",
+            "of the " + n + " chapters",
+            "\"" + n + " chapters covering every line",
+            @"from the manifest\. " + n + " files nobody",
+
+            // Added after all three of these had drifted to 39 and stayed there:
+            // the site grew from 39 chapters to 47 and nothing here was looking
+            // at the sentences that said so. See the note at the bottom of this
+            // method about what that costs.
+            @"worth `1/" + n + "` of the course",
+
+            // The two places doctor.cs and the docs about it quote a count as
+            // an EXAMPLE of a count. They are still claims, and still wrong the
+            // day the site grows — and they are the only claims in doctor.cs
+            // itself that the scan is not allowed to read. See the skip in it.
+            @"they state\s+""" + n + @" chapters",
+            @"""" + n + @" chapters"", ""\d",
+            "precaches all " + n + @"\s+chapters",
+            "keeps " + n + " hand-written chapter files",
+        ]),
+
+        ("chapters answering the advert", manifest.Count(c => c.HasReq),
+        [
+            "dependency order: " + n + " cover",
+
+            // The last paragraph of the last chapter. Also found by the scan.
+            "read " + n + " chapters covering every line",
+        ]),
+
+        ("chapters the advert never mentions", manifest.Count(c => c.HasExtra),
+        [
+            "— " + n + " of them the advert",
+            "and " + n + " are not in it",
+            "Three of those " + n,
+            "These " + n + " chapters are not in it",
+
+            // Chapter 00 enumerates them by number, so the count and the list
+            // have to move together. Found by the scan below: the list was
+            // seventeen long and eight chapters out of date.
+            n + " chapters &mdash; <a href",
+        ]),
+
+        ("deeper chapters under course/", moduleDirs
+            .SelectMany(d => Directory.EnumerateFiles(d, "*.md"))
+            .Count(f => !string.Equals(Path.GetFileName(f), "README.md", StringComparison.OrdinalIgnoreCase)),
+        [
+            "modules, and " + n + " deeper chapters",
+        ]),
+
+        ("course modules", modules,
+        [
+            n + @" modules, and \d+ deeper",
+            n + " modules that take you",
+            "All " + n + " cards are collected",
+            "the " + n + "-module course",
+            "hand-synced from " + n + " module cards",
+        ]),
+
+        ("questions in the bank", questions,
+        [
+            "grades you: " + n + " questions",
+            "THE QUESTION BANK — " + n + " questions",
+            n + " questions in `assets/quizzes",
+            "<strong>" + n + " bank questions</strong>",
+            "of " + n + " questions are in your schedule",
+
+            // Same story: these three said 312 long after the bank reached 432.
+            "turns " + n + " recognition items",
+            "makes " + n + " multiple-choice questions",
+            n + " scheduled cards",
+        ]),
+
+        ("Golden rules", rules,
+        [
+            "those same " + n + " rules",
+            "THE VIVA DECK — " + n + " Golden rules",
+            "the " + n + " Golden rules of the course",
+            "<strong>" + n + " Golden rules</strong>",
+            "Mixing " + n + " rules into",
+            n + " cards, one per Golden rule",
+
+            // And this one said 352 after the deck reached 362.
+            n + " unanswered rules",
+        ]),
+
+        ("glossary terms", terms,
+        [
+            n + " Italian/English terms",
+            n + @" terms\. Between them",
+        ]),
+
+        ("chapters with an Italian panel", CountOf(Site("assets", "italiano.js"), "^\\s{2}\"[0-9][0-9a-z-]*\":"),
+        [
+            "panel on " + n + " of the",
+        ]),
+
+        ("Playground demos", demos,
+        [
+            "list the " + n + " demos",
+            n + " demos, grouped by topic",
+            n + " runnable demos",
+        ]),
+
+        // The number of checks in this file, counted off the registration lines
+        // at the top of it. Not `checks.Length`: this method is *in* that array,
+        // so reading it here is a definite-assignment cycle the compiler
+        // rightly refuses. Adding a check and forgetting to say so is not a
+        // hypothetical — adding *this* check made both sentences below wrong.
+        ("checks in doctor.cs", checkCount,
+        [
+            n + " checks; the CI gate",
+            "doctor.cs            # " + n + " checks, exit 1",
+        ]),
+
+        // Only comments that actually point somewhere, and not the ones in
+        // tools/ — this file describes the convention in several places, and a
+        // tool that counts its own documentation as an instance of the thing it
+        // documents will always be wrong by however much it says about it.
+        // "none of the other N chapters answers them directly" — chapter 08,
+        // about itself. Everything except the page you are reading.
+        ("chapters other than the one you are reading", chapters - 1,
+        [
+            "none of the other " + n + " chapters",
+        ]),
+
+        // "N chapters of technical preparation are worth nothing until…" —
+        // the opening line of the CV chapter, counting everything before it
+        // that is about the work rather than about getting hired: the whole
+        // site except chapter 00 and the three that follow this one.
+        ("technical chapters before the CV chapter", chapters - 4,
+        [
+            n + " chapters of technical preparation",
+        ]),
+
+        // "Technique is the other N modules" — module 17's card, about itself.
+        ("modules other than the one you are reading", modules - 1,
+        [
+            "the other " + n + " modules",
+        ]),
+
+        ("`Covered in:` comments", SourceFiles()
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}tools{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Sum(f => CountOf(f, "Covered in: (?:<c>)?course/")),
+        [
+            @"\| " + n + " `Covered in:`",
+            n + " of them at the last count",
+        ]),
+    ];
+
+    // Read once. Thirty-odd patterns over a few hundred files is otherwise a
+    // few thousand pointless reads of the same text.
+    (string Path, string Body)[] files = ProseFiles()
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Order(StringComparer.Ordinal)
+        .Select(f => (f, File.ReadAllText(f)))
+        .ToArray();
+
+    // Filled in by the anchored pass, consumed by the scan after it.
+    List<(string Path, int Start, int End)> owned = [];
+
+    // Built fresh each run: `Used` is mutated as the scan goes, and a static
+    // instance would carry one run's marks into the next.
+    Excuse[] Excuses = ExcuseList.Build();
+
+    foreach ((string what, int actual, string[] sentences) in quantities)
+    {
+        foreach (string pattern in sentences)
+        {
+            Regex rx = new(pattern, RegexOptions.IgnoreCase);
+            int found = 0;
+
+            foreach ((string path, string body) in files)
+            {
+                foreach (Match m in rx.Matches(body))
+                {
+                    // A token the number-reader cannot read is not a count
+                    // claim at all — the pattern caught an ordinary sentence.
+                    // Do not score it either way.
+                    if (Numbers.Parse(m.Groups["n"].Value) is not int claimed)
+                    {
+                        continue;
+                    }
+
+                    found++;
+
+                    // Remember where this pattern matched. The scan below skips
+                    // any number inside one of these spans: a specific pattern
+                    // has already checked it, quite possibly against a different
+                    // quantity — "these twenty-five chapters are not in it" is a
+                    // claim about the advert-gap count, not about the site's 47.
+                    owned.Add((path, m.Index, m.Index + m.Length));
+
+                    if (claimed != actual)
+                    {
+                        yield return Error(
+                            $"{Rel(path)}:{LineAt(body, m.Index)} says {m.Groups["n"].Value} {what}; there are {actual}");
+                    }
+                }
+            }
+
+            if (found == 0)
+            {
+                // Print the pattern with the number group folded back to "N".
+                // Expanded, it is nine lines of alternation and the sentence it
+                // is looking for cannot be seen at all — which is the only part
+                // of the message anybody needs in order to act on it.
+                yield return Error(
+                    $"nothing matches /{pattern.Replace(n, "N", StringComparison.Ordinal)}/ any more, so the " +
+                    $"{what} count it guarded is no longer checked — fix the pattern in CheckProseCounts, " +
+                    "or drop it if the sentence is gone for good");
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  THE SCAN
+    //
+    //  Everything above is an allowlist of sentences: prose is unchecked until
+    //  somebody registers it, which is how six counts sat wrong for a month with
+    //  this check green. Below is the other way round — every number next to one
+    //  of these nouns is a claim, and anything that is not gets excused
+    //  explicitly, by name, with a reason.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    (string What, int Actual, string Noun)[] scanned =
+    [
+        ("chapters", chapters, "chapters"),
+        ("questions in the bank", questions, "questions"),
+        ("Golden rules", rules, "(?:Golden )?rules"),
+        ("course modules", modules, "modules"),
+        ("glossary terms", terms, "terms"),
+        ("Playground demos", demos, "demos"),
+        ("checks in doctor.cs", checkCount, "checks"),
+    ];
+
+    // WHY THERE IS A FLOOR
+    // English uses small cardinals as ordinary quantifiers, constantly: "two
+    // questions decide where a thing lives", "three rules, and everyone knows
+    // the first", "eleven other modules". None of those are counts of
+    // anything, there are dozens of them, and putting every one in the
+    // exclusions below would bury the handful of entries worth reading.
+    //
+    // A third of the true figure separates them cleanly, and not by luck: this
+    // check exists to catch a count that stopped being true because the corpus
+    // GREW. A corpus does not shrink to a third of its size, so a number below
+    // that is not a stale version of anything — it is a sentence about
+    // something else that happens to end in the same noun.
+    //
+    // The cost is real and worth stating: a genuine claim below the floor is
+    // invisible here. If the question bank ever loses two thirds of itself, the
+    // sentences that still say 432 will have to be found by the patterns above.
+    foreach ((string what, int actual, string noun) in scanned)
+    {
+        if (actual <= 0)
+        {
+            yield return Error($"cannot scan for '{what}': the count came out as {actual}");
+            continue;
+        }
+
+        int floor = actual / 3;
+        Regex rx = new(@"\b" + n + @"\s+(?:" + noun + @")\b", RegexOptions.IgnoreCase);
+
+        foreach ((string path, string body) in files)
+        {
+            // THE ONE FILE THE SCAN CANNOT READ IS THIS ONE.
+            // Its subject *is* these numbers. It quotes wrong ones deliberately
+            // — as examples of what the patterns look for, as the history of
+            // what drifted, and in the exclusion list below, which is a list of
+            // sentences containing numbers that are not counts. Scanning it
+            // reports every one of those as a mistake, which would leave a
+            // check whose steady state is nineteen false alarms, and a check
+            // like that gets ignored within a week.
+            //
+            // What this costs: a count claim in this file's own prose is
+            // guarded only if it has a pattern above. Two of them do.
+            if (string.Equals(Rel(path), "tools/doctor.cs", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (Match m in rx.Matches(body))
+            {
+                if (Numbers.Parse(m.Groups["n"].Value) is not int claimed ||
+                    claimed == actual ||
+                    claimed < floor)
+                {
+                    continue;
+                }
+
+                if (owned.Any(o => string.Equals(o.Path, path, StringComparison.Ordinal) &&
+                                   m.Index < o.End && o.Start < m.Index + m.Length))
+                {
+                    continue;
+                }
+
+                string context = Context(body, m);
+                string relative = Rel(path);
+
+                // Every excuse that applies is marked, not just the first.
+                // Two of them describe the same sentence from opposite ends
+                // ("grew from 39 chapters to 47 and from 312 questions to 432"),
+                // so first-match-wins would leave the second one looking unused
+                // and report it as stale on every run.
+                bool excused = false;
+                foreach (Excuse e in Excuses)
+                {
+                    if (relative.EndsWith(e.File, StringComparison.OrdinalIgnoreCase) &&
+                        context.Contains(e.Phrase, StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Used = true;
+                        excused = true;
+                    }
+                }
+
+                if (excused)
+                {
+                    continue;
+                }
+
+                yield return Error(
+                    $"{Rel(path)}:{LineAt(body, m.Index)} says \"{Collapse(m.Value)}\" but there are " +
+                    $"{actual} {what} — correct it, or add an Excuse for it in CheckProseCounts");
+            }
+        }
+    }
+
+    // An excuse that stops matching is the same rot one level up as a pattern
+    // that stops matching, and gets the same treatment: the sentence it was
+    // written for has been reworded or deleted, and nobody has looked at whether
+    // the exemption is still deserved.
+    foreach (Excuse e in Excuses.Where(e => !e.Used))
+    {
+        yield return Error(
+            $"nothing in {e.File} matches the excused phrase \"{e.Phrase}\" any more — " +
+            "delete the Excuse, or point it at the sentence that replaced it");
+    }
+
+    // WHAT IS STILL NOT CHECKED
+    //
+    // The scan only knows the seven nouns listed in `scanned`. A count of
+    // something else — badges, levels, XP thresholds, the number of tables in
+    // the Academy schema — is covered only if somebody registers a pattern for
+    // it above, and starts out silently unguarded exactly the way the six
+    // chapter and question counts did.
+    //
+    // That is a narrower hole than the one this replaced, and it is the reason
+    // the noun list is short and boring rather than clever: every noun added to
+    // it turns a whole class of sentence from unchecked into checked, and the
+    // cost of adding one is whatever exclusions fall out of the first run.
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  12. The mastery percentage is one formula written twice — once in the browser
+//      and once in the API, because the leaderboard needs it server-side. Both
+//      copies divide by the number of chapters, and they get that number from
+//      different places: the browser counts the manifest, the API reads a config
+//      key with a compiled-in fallback.
+//
+//      So there are three numbers that must agree and no reason they will. They
+//      did not: the site grew to 47 chapters while the API stayed on 39, and for
+//      that whole time the same profile scored one percentage on the learner's
+//      dashboard and a higher one on the leaderboard next to other people's
+//      names. Nothing failed, nobody was told, and the only symptom was a number
+//      being wrong in a place where nobody had a second number to compare it to.
+//
+//      That is the exact failure mode this file exists for, so it is now a check.
+// ═════════════════════════════════════════════════════════════════════════════
+IEnumerable<Issue> CheckChapterCount()
+{
+    int manifest = ReadManifest().Count;
+
+    // The API's compiled-in fallback, used when the key is absent entirely.
+    string endpoints = Path.Combine(
+        repo, "src", "LogiFlow.Academy.Api", "Endpoints", "ProfileEndpoints.cs");
+
+    if (!File.Exists(endpoints))
+    {
+        // The Academy service is optional: the site runs from disk without it.
+        // Its absence is not a failure, but silently checking nothing would be.
+        yield return Warn($"{Rel(endpoints)} is missing, so the API's mastery denominator is unchecked");
+        yield break;
+    }
+
+    Match fallback = Regex.Match(
+        File.ReadAllText(endpoints), @"DefaultChapterCount\s*=\s*(?<n>\d+)");
+
+    if (!fallback.Success)
+    {
+        yield return Error(
+            "ProfileEndpoints.cs no longer declares DefaultChapterCount, so the API's mastery " +
+            "denominator is no longer checked — point this regex at whatever replaced it");
+    }
+    else if (int.Parse(fallback.Groups["n"].Value, CultureInfo.InvariantCulture) is int n && n != manifest)
+    {
+        yield return Error(
+            $"ProfileEndpoints.DefaultChapterCount is {n} but the site ships {manifest} chapters; " +
+            "the leaderboard's mastery percentage will not match the dashboard's");
+    }
+
+    // And the configured value, which overrides the fallback wherever it is set.
+    string settings = Path.Combine(repo, "src", "LogiFlow.Academy.Api", "appsettings.json");
+
+    if (!File.Exists(settings))
+    {
+        yield break;
+    }
+
+    Match configured = Regex.Match(
+        File.ReadAllText(settings), @"""ChapterCount""\s*:\s*(?<n>\d+)");
+
+    if (!configured.Success)
+    {
+        // Absent is legitimate — the fallback above then applies, and it is checked.
+        yield break;
+    }
+
+    if (int.Parse(configured.Groups["n"].Value, CultureInfo.InvariantCulture) is int c && c != manifest)
+    {
+        yield return Error(
+            $"appsettings.json sets Academy:ChapterCount to {c} but the site ships {manifest} chapters; " +
+            "the leaderboard's mastery percentage will not match the dashboard's");
     }
 }
 
@@ -763,6 +1252,64 @@ void WriteQuizLock()
     File.WriteAllText(quizLock, sb.ToString());
 }
 
+// Everything a count could be written into: the READMEs, the course, the site's
+// own pages and scripts, and the C# — which includes this file, because the
+// header of check 9 carried a stale number for months.
+IEnumerable<string> ProseFiles() =>
+    Directory.EnumerateFiles(repo, "*.md", SearchOption.AllDirectories)
+        .Concat(Directory.Exists(Site())
+            ? Directory.EnumerateFiles(Site(), "*.*", SearchOption.AllDirectories)
+                .Where(f => f.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                         || f.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+                         || f.EndsWith(".webmanifest", StringComparison.OrdinalIgnoreCase))
+            : [])
+        .Concat(SourceFiles())
+        .Where(f => !Generated(f));
+
+// Build output and mutation-testing reports are full of copies of the real
+// files. Counting a claim twice is harmless; reporting it against a path
+// nobody edits is not.
+static bool Generated(string path)
+{
+    char s = Path.DirectorySeparatorChar;
+    return path.Contains($"{s}obj{s}", StringComparison.Ordinal)
+        || path.Contains($"{s}bin{s}", StringComparison.Ordinal)
+        || path.Contains($"{s}node_modules{s}", StringComparison.Ordinal)
+        || path.Contains($"{s}StrykerOutput{s}", StringComparison.Ordinal)
+        || path.Contains($"{s}.git{s}", StringComparison.Ordinal);
+}
+
+static int CountOf(string path, string pattern) =>
+    File.Exists(path)
+        ? Regex.Matches(File.ReadAllText(path), pattern, RegexOptions.Multiline).Count
+        : 0;
+
+// The text around a scan hit, whitespace collapsed. Collapsing matters: prose
+// wraps, so "from 39\nchapters" and "from 39 chapters" are the same sentence and
+// an excuse written for one must match the other.
+static string Context(string body, Match match)
+{
+    int start = Math.Max(0, match.Index - 75);
+    int end = Math.Min(body.Length, match.Index + match.Length + 50);
+    return Collapse(body[start..end]);
+}
+
+static string Collapse(string text) => Regex.Replace(text, @"\s+", " ").Trim();
+
+static int LineAt(string text, int index)
+{
+    int line = 1;
+    for (int i = 0; i < index && i < text.Length; i++)
+    {
+        if (text[i] == '\n')
+        {
+            line++;
+        }
+    }
+
+    return line;
+}
+
 IEnumerable<string> SourceFiles() =>
     new[] { "src", "tests", "labs", "tools" }
         .Select(d => Path.Combine(repo, d))
@@ -824,6 +1371,62 @@ static Issue Error(string message) => new(Severity.Error, message);
 
 static Issue Warn(string message) => new(Severity.Warning, message);
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  Numbers the scan in CheckProseCounts would otherwise report, and why each
+//  one is not a claim about how much of this repository there is.
+//
+//  Every entry has to earn its place. "It is annoying" is not a reason; the
+//  reason has to be that the sentence means something other than a count, and
+//  an entry that matches nothing is an error, so this list cannot quietly
+//  accumulate exemptions for sentences that no longer exist.
+// ═════════════════════════════════════════════════════════════════════════════
+internal sealed class Excuse(string file, string phrase, string why)
+{
+    /// <summary>Path suffix the sentence lives in.</summary>
+    public string File { get; } = file;
+
+    /// <summary>Text from around the number, matched against the collapsed context.</summary>
+    public string Phrase { get; } = phrase;
+
+    /// <summary>Why this is not a count. Read by people, not by code.</summary>
+    public string Why { get; } = why;
+
+    /// <summary>Set when it matches, so a stale entry can be reported.</summary>
+    public bool Used { get; set; }
+}
+
+internal static class ExcuseList
+{
+    internal static Excuse[] Build() =>
+    [
+        // ── Illustrations. A number invented to make a point about a design. ──
+        new("site/notes.html", "a dropdown of forty chapters",
+            "a hypothetical badly-designed filter, not this site's chapter count"),
+
+        // ── History. Sentences ABOUT the drift this check exists to prevent. ──
+        // These have to be allowed to state the old figures; that is the point
+        // of them. They are also the reason the phrases are this specific — a
+        // blanket exemption for these files would excuse a real future drift in
+        // the same paragraph.
+        new("tools/README.md", "advertised thirty-nine chapters above a sidebar",
+            "the audit that produced this check, describing what it found"),
+        new("tools/README.md", "the site grew from 39 chapters to 47",
+            "the same, in the section about what the scan added"),
+        new("tools/README.md", "from 312 questions to 432",
+            "the same sentence, counting the other way"),
+        new("tools/README.md", "the site reached 47 chapters while the API",
+            "the mastery-denominator drift, in the section explaining why that check exists"),
+        new("docs/BLUEPRINT.md", "The site grew to 47 chapters and the API stayed on 39",
+            "§11's post-mortem of a bug that was live until 2026-09-06 and is described in the past tense"),
+        new("docs/CONTENT-BACKLOG.md", "is green on all ten checks",
+            "a dated status entry from 2026-09-05, when there were ten"),
+
+        // ── A figure for a project that does not exist yet. ──
+        new("docs/BLUEPRINT.md", "47 chapters and ~430 questions",
+            "the size a PHP rebuild should aim for, deliberately approximate"),
+    ];
+}
+
 internal enum Severity
 {
     Warning,
@@ -835,3 +1438,61 @@ internal sealed record Issue(Severity Severity, string Message);
 internal sealed record Chapter(string N, string Id, bool HasReq, bool HasExtra);
 
 internal sealed record Question(string Chapter, int Index, string Stem, int OptionCount, List<int> Correct, bool HasWhy);
+
+// Counts are written both ways here — "47 files" in a code comment, "Forty-seven
+// chapters" in a sentence — and both have to be readable. The pattern and the
+// parser are built from one pair of lists precisely so they cannot drift apart,
+// which would be a slightly embarrassing bug in a check about drift.
+internal static class Numbers
+{
+    private static readonly string[] Ones =
+    [
+        "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+    ];
+
+    private static readonly string[] Tens =
+    [
+        "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+    ];
+
+    /// <summary>A group named "n" matching a count written as digits or as words.</summary>
+    public static string Pattern { get; } = Build();
+
+    public static int? Parse(string token)
+    {
+        if (int.TryParse(token, out int digits))
+        {
+            return digits;
+        }
+
+        string[] parts = token.ToLowerInvariant().Split('-');
+        int ten = Array.IndexOf(Tens, parts[0]);
+
+        if (ten >= 0)
+        {
+            int value = (ten + 2) * 10;
+            if (parts.Length == 1)
+            {
+                return value;
+            }
+
+            int unit = Array.IndexOf(Ones, parts[1]);
+            return unit is > 0 and < 10 ? value + unit : null;
+        }
+
+        int one = Array.IndexOf(Ones, parts[0]);
+        return parts.Length == 1 && one >= 0 ? one : null;
+    }
+
+    private static string Build()
+    {
+        // Longest first, both times: "twenty-four" has to win over "twenty", and
+        // "nineteen" over "nine", or the alternation stops at the short one and
+        // reads the wrong number.
+        string units = string.Join('|', Ones[1..10].Reverse());
+        IEnumerable<string> tens = Tens.Select(t => t + "(?:-(?:" + units + "))?");
+
+        return "(?<n>[0-9]{1,4}|" + string.Join('|', tens.Concat(Ones.Reverse())) + ")";
+    }
+}

@@ -80,3 +80,16 @@ The `HEALTHCHECK` question is worth spelling out, because the two platforms genu
 Compose runs its health check *inside* the container, so the image needs a client — which is
 why the Dockerfiles install `curl` and say so. Kubernetes probes over HTTP from *outside*, so
 on that path the `curl` layer is dead weight and you would delete it.
+
+## Coolify, on a Hetzner box
+
+The two files above are read and adapted. [`coolify/`](coolify/) is the one path
+in here that is meant to be *run*: two compose files at the repository root that
+Coolify deploys straight from GitHub, with a domain and a certificate.
+
+| | |
+| --- | --- |
+| The tutorial site and its accounts | `docker-compose.coolify.yml` |
+| LogiFlow itself, as a demo | `docker-compose.coolify-demo.yml` |
+
+DNS, secrets, backups and the failure modes: [`coolify/README.md`](coolify/README.md).

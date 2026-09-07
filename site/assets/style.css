@@ -77,11 +77,40 @@
 
 /* ---------- reset ---------- */
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+/* text-size-adjust: iOS Safari inflates the font of any block it decides is
+   the "main" column when the phone is turned to landscape, which on this site
+   means the prose grows but the code blocks, tables and diagrams beside it do
+   not — the page stops being one typographic system halfway through a
+   chapter. 100% keeps the sizes chosen here in both orientations. It does not
+   affect the reader's own text-size setting, which still scales everything. */
+html {
+  scroll-behavior: smooth; scroll-padding-top: 76px;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+}
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: var(--font); font-size: 16.5px; line-height: 1.68;
   -webkit-font-smoothing: antialiased;
+  /* The default is an opaque grey rectangle drawn over the whole element on
+     touch, which on the nav links and the cards flashes a box larger than the
+     thing being tapped. A brand tint at low alpha still confirms the tap. */
+  -webkit-tap-highlight-color: rgba(81, 43, 212, .14);
+}
+/* Reduced motion is a phone setting as much as a desktop one, and the two
+   things it has to catch here are the smooth scroll on every in-page heading
+   link and the drawer sliding in from the edge.
+
+   transition-delay is in the list on purpose. The drawer's visibility is
+   flipped by a delayed transition so that the panel stays on screen for the
+   length of its slide out (see the note by .sidebar below); with the duration
+   zeroed and the delay left alone, the panel would be gone instantly and then
+   spend .18s still in the tab order for no reason at all. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; transition-delay: 0s !important;
+  }
 }
 img, svg { max-width: 100%; }
 a { color: var(--brand); text-decoration: none; }
@@ -90,9 +119,18 @@ a:hover { text-decoration: underline; }
 /* ==========================================================================
    Top bar
    ========================================================================== */
+/* The horizontal padding is written against the safe area because this bar is
+   the one element pinned to the top edge, and a phone held in landscape puts
+   the notch and the rounded corner inside that edge. env() is 0px on every
+   device without an inset and on every browser that has never heard of it —
+   the max() is what keeps the ordinary 18px in that case, since env() would
+   otherwise resolve to 0 and pull the controls to the very edge. Needs
+   `viewport-fit=cover` in the page's viewport meta to be anything but 0. */
 .topbar {
   position: sticky; top: 0; z-index: 50; height: 58px;
-  display: flex; align-items: center; gap: 14px; padding: 0 18px;
+  display: flex; align-items: center; gap: 14px;
+  padding-left:  max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
   background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .topbar .brand {
@@ -107,6 +145,23 @@ a:hover { text-decoration: underline; }
   display: grid; place-items: center; letter-spacing: -.5px;
 }
 .brand-sub { color: var(--ink-faint); font-weight: 500; font-size: 13px; }
+
+/* Moved out of sight rather than display:none or visibility:hidden, either of
+   which would take it out of the tab order and leave it unreachable — the one
+   thing a skip link must never be. .topbar is position:sticky, so it is the
+   containing block this is offset from. */
+.skip {
+  position: absolute; left: 8px; top: 8px; z-index: 60;
+  padding: 8px 14px; border-radius: 8px; font-weight: 600; white-space: nowrap;
+  background: var(--brand); color: #fff;
+  transform: translateY(-250%); transition: transform .12s ease;
+}
+.skip:focus { transform: translateY(0); }
+.skip:focus, .skip:hover { color: #fff; text-decoration: none; }
+
+/* Focused only by the skip link, never by tabbing, so the ring would be a
+   box drawn round the entire column for no one's benefit. */
+.main:focus { outline: none; }
 
 /* Nothing in the bar may be shrunk below its content. The bar does not wrap
    — it cannot, the sidebar is positioned against a fixed 58px height — so a
@@ -150,10 +205,24 @@ a:hover { text-decoration: underline; }
 .layout { display: flex; align-items: flex-start; }
 
 /* ---------- left sidebar ---------- */
+/* 100dvh, not 100vh. On a phone, 100vh is the *large* viewport — the height
+   the page would have if the browser's address bar were collapsed — so a
+   drawer sized in vh runs off the bottom of the screen by the height of that
+   bar while it is still shown, and the last few chapters in the list cannot be
+   reached or even scrolled to. dvh tracks the viewport as the bar comes and
+   goes. The vh line stays first as the fallback for browsers without dvh.
+
+   overscroll-behavior stops the scroll chaining: without it, flicking past the
+   end of the chapter list scrolls the chapter *behind* the drawer instead,
+   which reads as the page having lost its place when the drawer closes. */
 .sidebar {
   position: sticky; top: 58px; flex: 0 0 var(--sidebar-w); width: var(--sidebar-w);
-  height: calc(100vh - 58px); overflow-y: auto;
-  background: var(--bg-alt); border-right: 1px solid var(--line); padding: 16px 0 60px;
+  height: calc(100vh - 58px);
+  height: calc(100dvh - 58px);
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg-alt); border-right: 1px solid var(--line);
+  padding: 16px 0 60px;
+  padding-bottom: calc(60px + env(safe-area-inset-bottom));
 }
 .sidebar .search-wrap { padding: 0 14px 12px; }
 .sidebar input[type="search"] {
@@ -400,16 +469,63 @@ body[data-mode="pro"] .kid { display: none; }
 }
 @media (max-width: 980px) {
   .hamburger { display: inline-block; }
+
+  /* visibility, not just the transform. A drawer moved off-screen with
+     translateX is still *visible* as far as the browser is concerned: its 47
+     chapter links stay in the tab order and in the accessibility tree, so a
+     keyboard user tabbing off the hamburger falls into a menu they cannot see,
+     and VoiceOver reads the whole course index before reaching the chapter.
+     visibility:hidden takes the subtree out of both, and — unlike display:none
+     — it still animates.
+
+     The transition delay is what keeps the slide-out visible: visibility is
+     not an interpolatable property, so it flips at whichever end of the
+     duration the timing puts it. Closing, it must wait out the .18s so the
+     panel is seen leaving; opening, it must flip immediately or the panel
+     slides in invisible and appears at the end. Hence the delay on the closed
+     rule and the 0s override on the open one. */
   .sidebar {
     position: fixed; left: 0; top: 58px; z-index: 40;
-    transform: translateX(-100%); transition: transform .18s ease;
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform .18s ease, visibility 0s linear .18s;
     box-shadow: var(--shadow);
+    padding-left: env(safe-area-inset-left);
   }
-  body[data-nav="open"] .sidebar { transform: translateX(0); }
+  body[data-nav="open"] .sidebar {
+    transform: translateX(0); visibility: visible;
+    transition: transform .18s ease, visibility 0s linear 0s;
+  }
+
+  /* The scrim does three jobs, and the third is the one that is easy to miss:
+     it dims the page so the drawer reads as being on top of it, it gives the
+     tap-anywhere-to-close gesture something to receive the tap on, and its
+     touch-action stops that same touch from scrolling the article underneath.
+     iOS honours overflow:hidden on <body> unreliably, so the overlay is what
+     actually holds the page still — which is why it covers the full viewport
+     rather than only the strip beside the drawer. */
+  .nav-scrim {
+    position: fixed; inset: 0; z-index: 39;
+    background: rgba(8, 10, 18, .45);
+    opacity: 0; visibility: hidden;
+    transition: opacity .18s ease, visibility 0s linear .18s;
+    touch-action: none;
+  }
+  body[data-nav="open"] .nav-scrim {
+    opacity: 1; visibility: visible;
+    transition: opacity .18s ease, visibility 0s linear 0s;
+  }
+  body[data-nav="open"] { overflow: hidden; }
+
   .main { padding: 22px 20px 80px; }
   h1 { font-size: 28px; }
   h2 { font-size: 22px; }
 }
+/* Above the breakpoint the sidebar is a column of the layout, not a drawer.
+   data-nav can still say "open" — it is left over from a phone-width visit in
+   the same tab — so the scrim is held down here rather than relying on the
+   attribute being tidied up. */
+.nav-scrim { display: none; }
+@media (max-width: 980px) { .nav-scrim { display: block; } }
 /* The brand drops its wordmark and keeps the tile, which is still the link
    home. Paired with .btn-note in learn.css, at the same width. */
 @media (max-width: 940px) {
@@ -420,7 +536,14 @@ body[data-mode="pro"] .kid { display: none; }
    The rest of the collapse is in learn.css, next to the controls that layer
    adds. */
 @media (max-width: 760px) {
-  .topbar { gap: 10px; padding: 0 12px; }
+  /* Long-hand, not the `padding` shorthand: that would reset the safe-area
+     padding set on .topbar above, and a notched phone in landscape is
+     exactly when this breakpoint is in force. */
+  .topbar {
+    gap: 10px;
+    padding-left:  max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
 }
 @media (max-width: 520px) {
   .segmented button { padding: 6px 8px; font-size: 12px; }
@@ -429,12 +552,112 @@ body[data-mode="pro"] .kid { display: none; }
 /* 360px and 320px phones. The mode switch is the widest thing left and the
    one worth keeping legible, so it tightens rather than disappears. */
 @media (max-width: 380px) {
-  .topbar { gap: 8px; padding: 0 10px; }
+  .topbar {
+    gap: 8px;
+    padding-left:  max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+  }
   .segmented button { padding: 5px 6px; font-size: 11.5px; }
 }
 
+/* ==========================================================================
+   Touch
+   --------------------------------------------------------------------------
+   Everything below is keyed on `pointer: coarse` — the primary pointer is a
+   finger — rather than on a width. The two are not the same question and this
+   is the one that matters here: a 1024px tablet is a touch device and needs
+   the bigger targets, while a 360px browser window on a laptop is still driven
+   by a mouse and looks wrong with them. Nothing in this section is reachable
+   from a desktop pointer, so the density of the design there is unchanged.
+
+   The floor is 44px, which is Apple's figure and close enough to Google's 48
+   that meeting it satisfies both. Height is set with min-height and padding
+   rather than height, so a control whose label wraps grows instead of
+   clipping.
+   ========================================================================== */
+@media (pointer: coarse) {
+  /* Bar controls. 36px and 29px measured; both are inside the range where a
+     tap that looks like a hit lands on the neighbour instead.
+
+     HEIGHT ONLY. Not the shorthand, and not one pixel of horizontal padding:
+     the top bar is a single non-wrapping row on a fixed 58px, and the comment
+     above the responsive section is a budget - the widths it names are what
+     the bar's contents actually measure, and the breakpoints below 520px earn
+     their room by *tightening* this padding, down to 6px on the mode switch at
+     380px. Growing it here overrides those, and three buttons at +3px a side
+     plus three segments at +7px came to 60px, which is precisely how much a
+     320px phone then scrolled sideways on every page of the site.
+
+     min-height with the padding left alone gives the same 44px, because the
+     flex centring below grows the box instead of the text. */
+  .btn {
+    min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .segmented button { min-height: 44px; }
+  .topbar .brand { min-height: 44px; }
+
+  /* Chapter list. The links are the most-tapped thing on the site on a phone
+     — the drawer is the only way between chapters — and at 33px they were the
+     smallest repeated target on the page. The extra height comes out of the
+     drawer's scroll length, not out of the page. */
+  .sidebar a.nav-link { min-height: 44px; padding-top: 10px; padding-bottom: 10px; align-items: center; }
+
+  /* 16px is not a taste decision. Mobile Safari zooms the viewport in on any
+     form field whose text is smaller than 16px when it takes focus, and it
+     does not zoom back out when the field is left — so one tap on the chapter
+     search leaves the reader on a page they now have to pinch to fit for the
+     rest of the session. Every field on the site is brought to 16px for that
+     reason; see learn.css for the rest of them. */
+  .sidebar input[type="search"] { font-size: 16px; padding: 11px 12px; }
+
+  /* The copy button measured 43x23. It sits in the code header beside the
+     filename, so it cannot simply grow without pushing that around: the
+     padding grows it to a comfortable width and the ::after pseudo-element
+     extends the *hit area* vertically over the header's own padding, which is
+     empty space that had no other job. */
+  .code-head { padding: 8px 12px; }
+  .copy { position: relative; padding: 6px 12px; font-size: 12.5px; }
+  .copy::after { content: ""; position: absolute; inset: -11px -6px; }
+
+  /* Cards and pager rows are big enough already; they only needed the flash
+     turned off, because the anchor being tapped is the whole block and the
+     grey rectangle covers it entirely. :active replaces it with the same
+     highlight the mouse gets. */
+  .card, .pager a { -webkit-tap-highlight-color: transparent; }
+  .card:active, .pager a:active { border-color: var(--brand); }
+}
+
+/* Hover is a lie on a touch screen. There is no hover state to enter or leave,
+   so the browser fakes one on tap and then leaves it applied to the last thing
+   touched until something else is tapped — the theme button stays purple, the
+   chapter you came from stays highlighted in the drawer, and both read as a
+   selection that was never made.
+
+   `hover: none` is the direct question — can the primary pointer hover at all
+   — and the resting values are restated here rather than reset with `initial`,
+   which would resolve these borders to currentColor and repaint them in the
+   text colour. Each pair below is the element's own resting declaration,
+   copied. */
+@media (hover: none) {
+  .btn:hover { border-color: var(--line-strong); color: var(--ink-soft); }
+  .btn:active { border-color: var(--brand); color: var(--brand); }
+
+  .card:hover { border-color: var(--line); box-shadow: none; }
+  .pager a:hover { border-color: var(--line); }
+
+  .sidebar a.nav-link:hover { background: transparent; color: var(--ink-soft); }
+  .sidebar a.nav-link:active { background: var(--bg-sunken); color: var(--ink); }
+  /* The current chapter is a state, not a hover, and must survive the reset. */
+  .sidebar a.nav-link.current,
+  .sidebar a.nav-link.current:hover { background: var(--brand-soft); color: var(--brand-ink); }
+
+  .copy:hover { color: var(--ink-faint); border-color: var(--line-strong); }
+  .copy:active { color: var(--brand); border-color: var(--brand); }
+}
+
 @media print {
-  .topbar, .sidebar, .pager, .copy { display: none !important; }
+  .topbar, .sidebar, .pager, .copy, .nav-scrim { display: none !important; }
   .main { max-width: none; padding: 0; }
   body[data-mode] .kid, body[data-mode] .pro { display: block !important; }
 }

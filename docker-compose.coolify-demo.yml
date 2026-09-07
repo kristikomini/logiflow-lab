@@ -1,0 +1,173 @@
+# =============================================================================
+# LOGIFLOW ITSELF, AS A PUBLIC DEMO.  Optional — deploy the Academy first.
+#
+#   Resource type   Docker Compose (from a GitHub repository)
+#   Base directory  /
+#   Compose file    /docker-compose.coolify-demo.yml
+#
+# Four containers: SQL Server, Redis, the API, and the Blazor UI. Only the UI
+# gets a domain. The API is reachable on the internal compose network and from
+# nowhere else, and that is a deliberate security control — read on.
+#
+# ── READ THIS BEFORE DEPLOYING IT ────────────────────────────────────────────
+#
+# THE API RUNS IN Development MODE, ON A SERVER. That is normally the wrong
+# thing to do and this file does it knowingly, because two things the demo needs
+# only exist in Development:
+#
+#   1. `/api/dev/token`, which is the ONLY way LogiFlow.Web obtains a JWT
+#      (see src/LogiFlow.Web/Services/AccessToken.cs). It mints an Admin token
+#      for any email that asks. There is no sign-in screen to replace it with.
+#   2. Migrations and seeding at startup — Program.cs runs them only in
+#      Development, and there is no migration job in this pipeline.
+#
+# The mitigation is the network boundary: `api` has no domain, no published
+# port and no proxy label, so nothing outside the compose network can reach
+# either the token endpoint or the Scalar page. The UI in front of it is
+# anonymous-by-design; put Coolify's Basic Auth on it if you would rather it
+# were not public at all.
+#
+# This is a demo of a codebase, not a production deployment of it. The honest
+# production shape — migrations as a separate job, real authentication, three
+# replicas — is deploy/k8s/api.yaml and course/module-13-deployment/.
+#
+# ── COST ─────────────────────────────────────────────────────────────────────
+#
+#   RAM       ~3.5 GB for this stack (SQL Server alone wants 2 GB and will
+#             refuse to start below it), plus ~1 GB for Coolify. A Hetzner
+#             CX32 / CPX31 (8 GB) is the realistic floor; 4 GB is not enough.
+#   ARCH      x86 ONLY. There is no arm64 SQL Server image, so this stack does
+#             not run on Hetzner's CAX (Ampere) machines. The Academy does.
+#   BUILD     Two .NET images built on the server. If the build OOMs, use the
+#             GHCR path in deploy/coolify/README.md instead.
+# =============================================================================
+
+name: logiflow-demo
+
+services:
+  # ── SQL Server ─────────────────────────────────────────────────────────────
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      # REQUIRED. Generate one and set it in Coolify; SQL Server enforces its
+      # own complexity rules and will exit at boot if this is weak, logging the
+      # reason and nothing else.
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      # Express, NOT Developer. Developer edition is licensed for development
+      # and testing only, and a demo anyone on the internet can open is neither.
+      # Express is free to deploy; the ceiling is a 10 GB database, ~1.4 GB of
+      # buffer pool and 4 cores, all of which are far above what this uses.
+      MSSQL_PID: Express
+    volumes:
+      - sqldata:/var/opt/mssql
+    # No `ports`. The database is an implementation detail of this stack; a
+    # published 1433 is an internet-facing SQL Server with a password on it,
+    # which is a bad trade for the convenience of a local SSMS connection.
+    # Use Coolify's terminal, or an SSH tunnel, when you need to look inside.
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # One API instance means the in-memory cache fallback would work — this is
+  # here so the deployed thing matches what the course claims about it, and so
+  # a second replica would not silently start serving stale reads.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── The API — INTERNAL ONLY ────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: src/LogiFlow.Api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      sql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      # See the banner. This is what supplies /api/dev/token and what migrates
+      # and seeds the database on first boot. Nothing here is exposed publicly.
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      # `sql`, not localhost, and the container's 1433 rather than a host
+      # mapping: inside a compose network the service name is the hostname.
+      - ConnectionStrings__SqlServer=Server=sql,1433;Database=LogiFlow;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True
+      - ConnectionStrings__Redis=redis:6379
+      # Overrides the development key committed in appsettings.Development.json,
+      # which is published to the world in a public repository and therefore
+      # forges tokens for anyone who reads it. Required.
+      - Jwt__SigningKey=${LOGIFLOW_JWT_SIGNING_KEY}
+      # Empty = no OTLP exporter registered at all. Instrumentation still runs
+      # in-process; nothing is shipped anywhere. Point this at a collector
+      # (Grafana, Jaeger, an Aspire Dashboard container) to change that.
+      - Otlp__Endpoint=
+      # The console, not .eml files and not a relay. A demo that can reach real
+      # inboxes is the incident RedirectAllTo exists to prevent.
+      - Mailing__Transport=Log
+    expose:
+      - "8080"
+    healthcheck:
+      # /health/ready, not /health/live: readiness includes the database, so the
+      # UI below waits for an API that can actually answer rather than one that
+      # has merely started.
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ── The Blazor UI — the only public face ───────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: src/LogiFlow.Web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    environment:
+      - SERVICE_FQDN_WEB_8080
+      # Production here is safe and correct: this project has no dev-only path.
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      # Over the compose network, by service name. This is the only route to the
+      # API that exists.
+      - LogiFlowApi__BaseUrl=http://api:8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  sqldata:
+  redisdata:

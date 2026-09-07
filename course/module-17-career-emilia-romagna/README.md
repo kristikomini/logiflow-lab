@@ -356,7 +356,7 @@ search run in parallel, because the job search is the slower of the two.
 
 ## 12. Golden rules
 
-> The card. Technique is the other eleven modules; this is the part candidates get wrong.
+> The card. Technique is the other twenty-seven modules; this is the part candidates get wrong.
 
 1. **Search the whole Modena–Bologna corridor**, not one city. It is one labour market and it is
    forty minutes wide.

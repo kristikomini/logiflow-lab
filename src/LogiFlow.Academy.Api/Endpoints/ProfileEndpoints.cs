@@ -13,12 +13,31 @@ public static class ProfileEndpoints
     /// Refuse a document larger than this.
     /// </summary>
     /// <remarks>
-    /// A real profile is a few tens of kilobytes: 312 scheduled cards, a few hundred notes and
+    /// A real profile is a few tens of kilobytes: 440 scheduled cards, a few hundred notes and
     /// a year of daily history. One megabyte is generous. Without a cap, an authenticated user
     /// can fill the disk one PUT at a time — the least glamorous denial of service there is,
     /// and one that costs a single length check to close.
     /// </remarks>
     private const int MaxDocumentBytes = 1_048_576;
+
+    /// <summary>
+    /// The mastery denominator used when <c>Academy:ChapterCount</c> is not configured.
+    /// </summary>
+    /// <remarks>
+    /// <b>This must equal the number of chapters the site actually ships</b> — the length of
+    /// <c>CHAPTERS</c> in <c>site/assets/chapters.js</c>, which is what <c>mastery()</c> in
+    /// <c>site/assets/store.js</c> divides by. When the two disagree, the same profile scores
+    /// one percentage on the learner's own dashboard and a different one on the leaderboard
+    /// beside other people's names, with nothing anywhere to say which is wrong.
+    ///
+    /// That is not hypothetical: this constant and the manifest were 39 and 47 for a while,
+    /// and the leaderboard was quietly the more generous of the two the whole time. It is now
+    /// the <c>site/chapter-count</c> check in <c>tools/doctor.cs</c>, which compares this
+    /// number, the value in <c>appsettings.json</c> and the manifest, and fails the build when
+    /// any of the three drifts — because "remember to update the API when you add a chapter"
+    /// is exactly the kind of instruction that works until the day it matters.
+    /// </remarks>
+    private const int DefaultChapterCount = 48;
 
     /// <summary>Registers the profile and leaderboard endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -90,7 +109,7 @@ public static class ProfileEndpoints
                 .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken);
 
             DateTimeOffset now = clock.GetUtcNow();
-            int chapterCount = configuration.GetValue("Academy:ChapterCount", 39);
+            int chapterCount = configuration.GetValue("Academy:ChapterCount", DefaultChapterCount);
             ProfileSummary.Summary summary = ProfileSummary.From(request.Data, chapterCount);
 
             if (profile is null)

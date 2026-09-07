@@ -1,0 +1,25 @@
+{
+  // C# / .NET academy — static site on Cloudflare Workers static assets.
+  //
+  // Assets-only: there is no "main", so no Worker script runs and every request
+  // is served straight from ./site. Deploy with `npx wrangler deploy` from this
+  // directory.
+  //
+  // NOTE: this deploys the STUDY SITE only. The account API (LogiFlow.Academy.Api,
+  // SQLite in App_Data) is not part of this and is not reachable from here, so
+  // sign-in / sync / leaderboard will fail until an API host exists. Everything
+  // else works — store.js keeps the whole profile in localStorage.
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "csharp-academy",
+  "compatibility_date": "2026-09-06",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./site",
+    // The site links to real .html files (dashboard.html, viva.html, ...), so
+    // this only affects extensionless URLs typed by hand.
+    "html_handling": "auto-trailing-slash",
+    // "none" rather than "404-page": there is no site/404.html yet. Add one and
+    // switch this to "404-page" if you want a branded miss.
+    "not_found_handling": "none"
+  }
+}

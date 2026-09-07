@@ -1,0 +1,115 @@
+# =============================================================================
+# publish-images.yml — build the container images HERE, so the server does not.
+#
+# THIS IS THE OPTIONAL PATH, and it exists for one reason: a .NET image is built
+# with the ~800 MB SDK image, and doing that on a 4 GB Hetzner box that is also
+# running Coolify, a proxy and the app it is replacing is how a deploy turns
+# into an OOM kill. A GitHub runner has 4 cores and 16 GB and does it for free.
+#
+# The default path — Coolify building from the repository — needs none of this.
+# Use this when the server is small, when builds are slow enough to be annoying,
+# or when you want the exact image that was tested to be the one that ships.
+#
+# Wiring it up (deploy/coolify/README.md, "Path B"):
+#   1. Run this once, then make the packages public at
+#      github.com/users/<you>/packages — otherwise Coolify needs a registry login.
+#   2. In the compose file, replace the `build:` block of a service with
+#      `image: ghcr.io/<you>/logiflow-academy:latest`.
+#   3. Point Coolify at the compose file as usual and redeploy.
+#
+# It does NOT run on every push: nothing here gates a merge, and rebuilding
+# three images because a chapter's HTML changed is waste. `paths` keeps it to
+# changes that can actually alter an image; the button below covers the rest.
+# =============================================================================
+
+name: Publish images
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "Target platform(s). linux/arm64 is for Hetzner CAX (Ampere) machines and builds under emulation, so it is SLOW."
+        required: false
+        default: linux/amd64
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
+          - linux/amd64,linux/arm64
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "site/**"
+      - "global.json"
+      - "Directory.Build.props"
+      - "Directory.Packages.props"
+      - "docker-compose.coolify*.yml"
+      - ".github/workflows/publish-images.yml"
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # The one permission that matters: without it the push to ghcr.io is a 403
+  # that reads like an authentication failure.
+  packages: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # One red image should not cancel the other two — you want to know whether
+      # it is this Dockerfile or all of them.
+      fail-fast: false
+      matrix:
+        include:
+          - name: academy
+            dockerfile: src/LogiFlow.Academy.Api/Dockerfile
+          - name: api
+            dockerfile: src/LogiFlow.Api/Dockerfile
+          - name: web
+            dockerfile: src/LogiFlow.Web/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR rejects a name with a capital in it, and this repository's owner
+      # segment comes straight from the URL. Lowercase it rather than hardcode.
+      - name: Image name
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/logiflow-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+        if: contains(inputs.platforms, 'arm64')
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Provided automatically; no personal access token to create or rotate.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # The repository root, for the same reason every `docker build -f` in
+          # this project uses it: central package management and the referenced
+          # projects live above src/.
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ inputs.platforms || 'linux/amd64' }}
+          push: true
+          tags: |
+            ${{ steps.image.outputs.ref }}:latest
+            ${{ steps.image.outputs.ref }}:${{ github.sha }}
+          # The restore layer is the expensive one and it changes monthly, not
+          # per commit — caching it is most of the win.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max

@@ -1,0 +1,772 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>00b · How a C# project is built, in order — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="00b-how-a-project-is-built">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Start here <span>&rsaquo;</span> Chapter 00b</p>
+<h1>How a C# project is built, in order</h1>
+<p class="lede">
+  Every other chapter teaches you one file. This one teaches you the <em>order</em> &mdash; which
+  file you write first, what each one is allowed to know about the others, and why a project built
+  in the wrong order fights you the whole way. It is the difference between forty files you
+  copied and nine files you understand.
+</p>
+
+<div class="box note">
+  <div class="box-title">Read this twice</div>
+  <p>
+    <strong>You are not expected to understand every word here yet.</strong> Words like
+    <em>DTO</em>, <em>DbContext</em> and <em>dependency injection</em> get a whole chapter each
+    later on. Right now you only need the <em>shape</em>: what the pieces are called, and which
+    one leans on which.
+  </p>
+  <p>
+    So read it now for the map, and again after
+    <a href="14-web-api.html">chapter 14</a> for the meaning. That is the same advice the deeper
+    course gives about <a href="../../course/module-16-the-layer-map/README.md">its own layer
+    map</a>, and for the same reason: the map is cheap to read early and expensive to skip.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="the-shape">What you are actually building</h2>
+
+<p>
+  A typical .NET back end does one thing, over and over: a request arrives from outside, it falls
+  through a short stack of your files, it touches the database, and an answer climbs back up. Every
+  feature you will ever write is another lane through that same stack.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think of a restaurant.
+  </p>
+  <ul>
+    <li>The <strong>waiter</strong> takes your order and brings your food. He never cooks. If you
+        ask for something not on the menu, he says no &mdash; politely, and quickly.</li>
+    <li>The <strong>kitchen</strong> decides what is allowed: no steak after 11pm, no more than
+        four desserts per table. That is where the actual rules live.</li>
+    <li>The <strong>storeroom</strong> holds the ingredients, on labelled shelves.</li>
+    <li>The <strong>menu</strong> is a small card. It does not list what the storeroom paid for
+        the beef, or which supplier it came from &mdash; it shows only what a customer is allowed
+        to see.</li>
+  </ul>
+  <p>
+    Waiter, kitchen, storeroom, menu. In C# those are called the <strong>controller</strong>, the
+    <strong>service</strong>, the <strong>database</strong> (reached through a
+    <strong>DbContext</strong>), and the <strong>DTO</strong>. That is genuinely most of it.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    The four responsibilities, stated the way you would defend them in an interview:
+  </p>
+  <ul>
+    <li><strong>The controller</strong> translates between HTTP and C#. It binds the request,
+        calls exactly one thing, and chooses a status code. It contains no business rule &mdash;
+        not one <code>if</code> about the domain.</li>
+    <li><strong>The service</strong> (or handler, or use case) is the operation. It is the only
+        place a rule is allowed to live, and it is the only file that knows both the storage shape
+        and the wire shape.</li>
+    <li><strong>The entity</strong> is the noun &mdash; <code>Product</code>, <code>Order</code>.
+        It is the shape the database stores, and in a well-built system it also protects its own
+        invariants.</li>
+    <li><strong>The DTO</strong> is what crosses the wire: a deliberately separate class, so that
+        adding a column to a table does not silently add a field to your public API.</li>
+  </ul>
+</div>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 500" role="img" aria-labelledby="chain-title">
+    <title id="chain-title">One request falling through four files, with the step number at which each file was written</title>
+    <defs>
+      <marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <rect x="230" y="16" width="300" height="42" rx="8" class="d-panel d-stroke"/>
+    <text x="380" y="42" class="d-mono" text-anchor="middle">GET /api/products/42</text>
+
+    <path d="M380 58 L380 82" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="392" y="76" class="d-small">ASP.NET matches the route</text>
+
+    <rect x="230" y="84" width="300" height="68" rx="8" class="d-panel d-stroke"/>
+    <text x="380" y="112" class="d-mono" text-anchor="middle">ProductsController.cs</text>
+    <text x="380" y="134" class="d-small" text-anchor="middle">the door &mdash; URL in, status code out</text>
+    <text x="212" y="122" class="d-small" text-anchor="end">written 7th</text>
+
+    <path d="M380 152 L380 176" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="392" y="170" class="d-small">constructor injection</text>
+
+    <rect x="230" y="178" width="300" height="68" rx="8" class="d-panel d-stroke"/>
+    <text x="380" y="204" class="d-mono" text-anchor="middle">ProductService.cs</text>
+    <text x="380" y="226" class="d-small" text-anchor="middle">the rules &mdash; and the only file that</text>
+    <text x="380" y="241" class="d-small" text-anchor="middle">knows both shapes below</text>
+    <text x="212" y="216" class="d-small" text-anchor="end">written 6th</text>
+
+    <path d="M380 246 L380 270" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="392" y="264" class="d-small">constructor injection</text>
+
+    <rect x="230" y="272" width="300" height="68" rx="8" class="d-panel d-stroke"/>
+    <text x="380" y="300" class="d-mono" text-anchor="middle">CatalogDbContext.cs</text>
+    <text x="380" y="322" class="d-small" text-anchor="middle">turns your LINQ into SQL</text>
+    <text x="212" y="310" class="d-small" text-anchor="end">written 3rd</text>
+
+    <path d="M380 340 L380 364" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="392" y="358" class="d-small">the connection string</text>
+
+    <rect x="230" y="366" width="300" height="52" rx="8" class="d-brand"/>
+    <text x="380" y="390" class="d-white" text-anchor="middle">SQL Server</text>
+    <text x="380" y="408" class="d-white" text-anchor="middle" style="font-size:11px">the table, made by the migration &mdash; written 4th</text>
+
+    <rect x="566" y="84" width="254" height="68" rx="8" class="d-panel d-stroke"/>
+    <text x="693" y="112" class="d-mono" text-anchor="middle">ProductDto.cs</text>
+    <text x="693" y="134" class="d-small" text-anchor="middle">what the caller sees &mdash; written 5th</text>
+    <path d="M534 118 L562 118" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+
+    <rect x="566" y="272" width="254" height="68" rx="8" class="d-panel d-stroke"/>
+    <text x="693" y="300" class="d-mono" text-anchor="middle">Product.cs</text>
+    <text x="693" y="322" class="d-small" text-anchor="middle">what a product IS &mdash; written 2nd</text>
+    <path d="M562 306 L534 306" class="d-arrow" stroke-width="1.6" marker-end="url(#c1)"/>
+    <text x="548" y="292" class="d-small" text-anchor="middle" style="font-size:10.5px">DbSet</text>
+
+    <text x="20" y="452" class="d-small">The request travels top to bottom. You wrote the files bottom to top &mdash; and that is not a coincidence.</text>
+    <text x="20" y="472" class="d-small">The answer climbs back up the same chain as a ProductDto, never as a Product.</text>
+  </svg>
+  <figcaption>
+    Four files, one request. The numbers on the left are the order you create them in &mdash; the
+    subject of the rest of this chapter.
+  </figcaption>
+</figure>
+
+<h2 id="the-order">The order you write the files</h2>
+
+<p>
+  Here is the whole sequence for one feature, start to finish. It is nine steps, and the first
+  time through it takes an afternoon. By the fifth feature it takes twenty minutes, because it is
+  always the same nine steps.
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 648" role="img" aria-labelledby="order-title">
+    <title id="order-title">The nine steps of building one feature, in order, from creating the projects to writing the test</title>
+
+    <path d="M52 44 L52 616" class="d-stroke" stroke-width="1.5"/>
+
+    <circle cx="52" cy="56" r="15" class="d-brand"/>
+    <text x="52" y="61" class="d-white" text-anchor="middle" style="font-size:12px">1</text>
+    <text x="86" y="52" class="d-text" style="font-weight:700">Create the solution and the projects</text>
+    <text x="86" y="70" class="d-small">dotnet new sln &middot; dotnet new webapi &middot; dotnet new classlib &mdash; there is nowhere to put a file until this exists</text>
+
+    <circle cx="52" cy="120" r="15" class="d-brand"/>
+    <text x="52" y="125" class="d-white" text-anchor="middle" style="font-size:12px">2</text>
+    <text x="86" y="116" class="d-text" style="font-weight:700">The entity &mdash; the noun</text>
+    <text x="86" y="134" class="d-small">Product.cs &mdash; it references nothing, so it is the only file you can write with nothing else finished</text>
+
+    <circle cx="52" cy="184" r="15" class="d-brand"/>
+    <text x="52" y="189" class="d-white" text-anchor="middle" style="font-size:12px">3</text>
+    <text x="86" y="180" class="d-text" style="font-weight:700">The DbContext &mdash; how the noun is stored</text>
+    <text x="86" y="198" class="d-small">CatalogDbContext.cs &mdash; one DbSet per entity, plus the configuration that names columns and keys</text>
+
+    <circle cx="52" cy="248" r="15" class="d-brand"/>
+    <text x="52" y="253" class="d-white" text-anchor="middle" style="font-size:12px">4</text>
+    <text x="86" y="244" class="d-text" style="font-weight:700">The migration &mdash; the actual table</text>
+    <text x="86" y="262" class="d-small">dotnet ef migrations add AddProduct &mdash; generated from steps 2 and 3, never hand-written from scratch</text>
+
+    <circle cx="52" cy="312" r="15" class="d-brand"/>
+    <text x="52" y="317" class="d-white" text-anchor="middle" style="font-size:12px">5</text>
+    <text x="86" y="308" class="d-text" style="font-weight:700">The DTO &mdash; what the outside is allowed to see</text>
+    <text x="86" y="326" class="d-small">ProductDto.cs &mdash; usually a record. Decide it before the service, because it is the service&rsquo;s return type</text>
+
+    <circle cx="52" cy="376" r="15" class="d-brand"/>
+    <text x="52" y="381" class="d-white" text-anchor="middle" style="font-size:12px">6</text>
+    <text x="86" y="372" class="d-text" style="font-weight:700">The service &mdash; the rules</text>
+    <text x="86" y="390" class="d-small">IProductService.cs + ProductService.cs &mdash; the interface first, because the controller will ask for the interface</text>
+
+    <circle cx="52" cy="440" r="15" class="d-brand"/>
+    <text x="52" y="445" class="d-white" text-anchor="middle" style="font-size:12px">7</text>
+    <text x="86" y="436" class="d-text" style="font-weight:700">The controller &mdash; the door</text>
+    <text x="86" y="454" class="d-small">ProductsController.cs &mdash; the shortest file in the feature. If it is long, a rule has leaked upwards</text>
+
+    <circle cx="52" cy="504" r="15" class="d-brand"/>
+    <text x="52" y="509" class="d-white" text-anchor="middle" style="font-size:12px">8</text>
+    <text x="86" y="500" class="d-text" style="font-weight:700">Program.cs &mdash; the wiring</text>
+    <text x="86" y="518" class="d-small">AddScoped, AddDbContext, MapControllers &mdash; a class nobody registered does not exist at runtime</text>
+
+    <circle cx="52" cy="568" r="15" class="d-brand"/>
+    <text x="52" y="573" class="d-white" text-anchor="middle" style="font-size:12px">9</text>
+    <text x="86" y="564" class="d-text" style="font-weight:700">The test</text>
+    <text x="86" y="582" class="d-small">ProductServiceTests.cs &mdash; on the service, where the rules are. Testing the controller mostly tests ASP.NET</text>
+
+    <text x="20" y="626" class="d-small">Steps 2 to 4 are the data. Steps 5 to 7 are the behaviour. Step 8 is the only file that knows about all of them.</text>
+  </svg>
+  <figcaption>One feature, nine steps. Every feature after the first is this list again.</figcaption>
+</figure>
+
+<h3>Step 2 &mdash; the entity</h3>
+
+<p>
+  Start with the noun, because everything else is described in terms of it. A first entity is
+  plain: properties, no behaviour.
+</p>
+
+<pre><code><span class="cm">// Domain/Product.cs</span>
+<span class="kw">public class</span> <span class="ty">Product</span>
+{
+    <span class="kw">public int</span> Id { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public string</span> Sku { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="st">""</span>;
+    <span class="kw">public string</span> Name { <span class="kw">get</span>; <span class="kw">set</span>; } = <span class="st">""</span>;
+    <span class="kw">public decimal</span> UnitPrice { <span class="kw">get</span>; <span class="kw">set</span>; }
+    <span class="kw">public bool</span> IsActive { <span class="kw">get</span>; <span class="kw">set</span>; }
+}</code></pre>
+
+<p>
+  Notice what is <em>not</em> here: no <code>using</code> of Entity Framework, no attributes about
+  tables, no reference to any other file in your project. That is the property that makes it
+  first. Later, <a href="05-solid-and-patterns.html">chapter 05</a> and the deeper course will
+  push behaviour back into this class so that an invalid <code>Product</code> cannot be
+  constructed at all &mdash; see the real
+  <a href="../../src/LogiFlow.Domain/Catalog/Product.cs">Product.cs</a> in this repository, which
+  has private setters and a static factory for exactly that reason.
+</p>
+
+<h3>Step 3 &mdash; the DbContext</h3>
+
+<pre><code><span class="cm">// Data/CatalogDbContext.cs</span>
+<span class="kw">public class</span> <span class="ty">CatalogDbContext</span>(<span class="ty">DbContextOptions</span>&lt;<span class="ty">CatalogDbContext</span>&gt; options)
+    : <span class="ty">DbContext</span>(options)
+{
+    <span class="kw">public</span> <span class="ty">DbSet</span>&lt;<span class="ty">Product</span>&gt; Products =&gt; Set&lt;<span class="ty">Product</span>&gt;();
+
+    <span class="kw">protected override void</span> OnModelCreating(<span class="ty">ModelBuilder</span> b)
+    {
+        b.Entity&lt;<span class="ty">Product</span>&gt;().Property(p =&gt; p.Sku).HasMaxLength(<span class="nu">32</span>).IsRequired();
+        b.Entity&lt;<span class="ty">Product</span>&gt;().HasIndex(p =&gt; p.Sku).IsUnique();
+        b.Entity&lt;<span class="ty">Product</span>&gt;().Property(p =&gt; p.UnitPrice).HasPrecision(<span class="nu">18</span>, <span class="nu">2</span>);
+    }
+}</code></pre>
+
+<p>
+  This is the first file that has to know about another one: <code>DbSet&lt;Product&gt;</code> is
+  the wire. Everything about how the noun becomes a table is decided here, which is why it comes
+  before the table itself. <a href="12-ef-core.html">Chapter 12</a> is the full treatment.
+</p>
+
+<h3>Step 4 &mdash; the migration</h3>
+
+<pre><code>dotnet ef migrations add AddProduct
+dotnet ef database update</code></pre>
+
+<p>
+  You do not write this file; EF Core generates it by comparing your model to the last migration.
+  You do <em>read</em> it before running it &mdash; a migration that drops a column looks exactly
+  like a migration that renames one, and only one of those loses data.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠️ The commit rule</div>
+  <p>
+    Add the migration in the <strong>same commit</strong> as the property that caused it. A model
+    that has drifted from its migrations builds perfectly on your machine and fails on
+    everybody else&rsquo;s, at startup, with an error about a column that does not exist.
+  </p>
+</div>
+
+<h3>Step 5 &mdash; the DTO</h3>
+
+<pre><code><span class="cm">// Contracts/ProductDto.cs</span>
+<span class="kw">public record</span> <span class="ty">ProductDto</span>(<span class="kw">int</span> Id, <span class="kw">string</span> Sku, <span class="kw">string</span> Name, <span class="kw">decimal</span> UnitPrice);</code></pre>
+
+<p>
+  One line, and it is one of the most important lines in the feature. <em>DTO</em> means
+  <strong>data transfer object</strong>: the shape that crosses the boundary between your program
+  and everyone else&rsquo;s.
+</p>
+
+<div class="box kid">
+  <div class="box-title">🧒 Why not just send the Product?</div>
+  <p>
+    Because your <code>Product</code> class is the storeroom&rsquo;s inventory sheet, and the DTO
+    is the menu. The inventory sheet has the supplier, the cost price and a note saying which
+    shelf it is on. You would hand a customer the menu.
+  </p>
+  <p>
+    And there is a second reason, which is about time. The inventory sheet changes whenever the
+    storeroom changes. If the customers are reading the inventory sheet, then rearranging your own
+    storeroom breaks <em>their</em> lunch.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Four failures a DTO prevents</div>
+  <ol>
+    <li><strong>Over-sharing.</strong> Add <code>CostPrice</code> to the entity for an internal
+        report and it appears in your public JSON that afternoon, for everyone.</li>
+    <li><strong>Over-posting.</strong> If the entity is also the <em>input</em> type, a caller can
+        send fields you never meant to expose &mdash; an <code>Id</code>, an
+        <code>IsActive</code> &mdash; and model binding will happily set them.</li>
+    <li><strong>Cycles.</strong> <code>Order</code> has <code>Customer</code>, which has
+        <code>Orders</code>. Serialising that either throws or emits a megabyte.</li>
+    <li><strong>Accidental API changes.</strong> Renaming a column becomes a breaking change for
+        every client, and you find out from them.</li>
+  </ol>
+  <p class="subtle">
+    Real features usually have more than one DTO per noun &mdash; a
+    <code>CreateProductRequest</code> going in and a <code>ProductDto</code> coming out &mdash;
+    because what a caller may <em>send</em> and what it may <em>see</em> are different questions.
+    In this repository that pair lives in
+    <a href="../../src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>.
+  </p>
+</div>
+
+<h3>Step 6 &mdash; the service</h3>
+
+<p>
+  The interface first, then the class. The interface is what the controller will depend on; the
+  class is the part you will later want to swap in a test.
+</p>
+
+<pre><code><span class="cm">// Services/IProductService.cs</span>
+<span class="kw">public interface</span> <span class="ty">IProductService</span>
+{
+    <span class="ty">Task</span>&lt;<span class="ty">ProductDto</span>?&gt; GetAsync(<span class="kw">int</span> id, <span class="ty">CancellationToken</span> ct);
+}
+
+<span class="cm">// Services/ProductService.cs</span>
+<span class="kw">public class</span> <span class="ty">ProductService</span>(<span class="ty">CatalogDbContext</span> db) : <span class="ty">IProductService</span>
+{
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">ProductDto</span>?&gt; GetAsync(<span class="kw">int</span> id, <span class="ty">CancellationToken</span> ct) =&gt;
+        <span class="kw">await</span> db.Products
+                 .Where(p =&gt; p.Id == id &amp;&amp; p.IsActive)
+                 .Select(p =&gt; <span class="kw">new</span> <span class="ty">ProductDto</span>(p.Id, p.Sku, p.Name, p.UnitPrice))
+                 .SingleOrDefaultAsync(ct);
+}</code></pre>
+
+<p>
+  Two things in that method are worth more than they look. The <code>CatalogDbContext</code>
+  arrives through the <strong>constructor</strong> &mdash; the service never creates one, which is
+  what lets the framework hand it a different one per request. And the <code>.Select</code> sits
+  <em>inside</em> the query, so EF Core asks SQL Server for four columns instead of fetching whole
+  rows and throwing most of them away. Move that <code>.Select</code> after a
+  <code>.ToList()</code> and it still works, still passes the test, and reads the entire table
+  &mdash; <a href="06-collections-and-linq.html">chapter 06</a> is about exactly that line.
+</p>
+
+<h3>Step 7 &mdash; the controller</h3>
+
+<pre><code><span class="cm">// Controllers/ProductsController.cs</span>
+[<span class="ty">ApiController</span>]
+[<span class="ty">Route</span>(<span class="st">"api/products"</span>)]
+<span class="kw">public class</span> <span class="ty">ProductsController</span>(<span class="ty">IProductService</span> products) : <span class="ty">ControllerBase</span>
+{
+    [<span class="ty">HttpGet</span>(<span class="st">"{id:int}"</span>)]
+    <span class="kw">public async</span> <span class="ty">Task</span>&lt;<span class="ty">ActionResult</span>&lt;<span class="ty">ProductDto</span>&gt;&gt; Get(<span class="kw">int</span> id, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="ty">ProductDto</span>? dto = <span class="kw">await</span> products.GetAsync(id, ct);
+        <span class="kw">return</span> dto <span class="kw">is null</span> ? NotFound() : Ok(dto);
+    }
+}</code></pre>
+
+<p>
+  Read what this file does <em>not</em> do. It does not touch <code>db</code>. It does not know
+  what <code>Product</code> is &mdash; only <code>ProductDto</code>. It contains one decision, and
+  that decision is about HTTP: found or not found. That is the whole job of a controller, and a
+  controller that has grown past about fifteen lines per action is nearly always one that took
+  work belonging to step 6.
+</p>
+
+<h3>Step 8 &mdash; Program.cs, the wiring</h3>
+
+<pre><code><span class="kw">var</span> builder = <span class="ty">WebApplication</span>.CreateBuilder(args);
+
+builder.Services.AddDbContext&lt;<span class="ty">CatalogDbContext</span>&gt;(o =&gt;
+    o.UseSqlServer(builder.Configuration.GetConnectionString(<span class="st">"Default"</span>)));
+builder.Services.AddScoped&lt;<span class="ty">IProductService</span>, <span class="ty">ProductService</span>&gt;();   <span class="cm">// the interface, meet the class</span>
+builder.Services.AddControllers();
+
+<span class="kw">var</span> app = builder.Build();
+app.MapControllers();
+app.Run();</code></pre>
+
+<p>
+  This is the only file in the whole application that knows both <code>IProductService</code> and
+  <code>ProductService</code>. Everywhere else asks for the interface and is handed an
+  implementation it never named. That single line is <strong>dependency injection</strong>, and
+  <a href="14-web-api.html">chapter 14</a> is where it gets its proper explanation.
+</p>
+
+<div class="box trap">
+  <div class="box-title">⚠️ The error every beginner meets once</div>
+  <p>
+    <code>InvalidOperationException: Unable to resolve service for type 'IProductService' while
+    attempting to activate 'ProductsController'.</code>
+  </p>
+  <p>
+    It always means the same thing: you wrote the class, but you skipped step 8. The compiler
+    cannot catch it, because registration happens at run time &mdash; which is precisely why
+    step 8 is a step and not an afterthought.
+  </p>
+</div>
+
+<h3>Step 9 &mdash; the test</h3>
+
+<p>
+  Test the service, not the controller. The service is where your rules are; the controller is
+  mostly ASP.NET, and ASP.NET is already tested.
+  <a href="24-testing.html">Chapter 24</a> covers what to test and what not to.
+</p>
+
+<h2 id="why-that-order">Why that order, and not the other one</h2>
+
+<p>
+  The order is not a style preference. It falls out of one fact: <strong>a file cannot compile
+  until everything it mentions exists.</strong>
+</p>
+
+<figure class="diagram">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="dir-title">
+    <title id="dir-title">Calls and knowledge both point from the controller towards the entity, so the build order is the reverse</title>
+    <defs>
+      <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M0 0 L10 5 L0 10 z" class="d-head"/>
+      </marker>
+    </defs>
+
+    <text x="415" y="26" class="d-small" text-anchor="middle">who calls whom &mdash; and who needs whom to exist</text>
+    <path d="M40 44 L790 44" class="d-arrow" stroke-width="1.6" marker-end="url(#d1)"/>
+
+    <rect x="30"  y="76" width="180" height="86" rx="8" class="d-panel d-stroke"/>
+    <text x="120" y="106" class="d-mono" text-anchor="middle">Controller</text>
+    <text x="120" y="128" class="d-small" text-anchor="middle">needs the service</text>
+    <text x="120" y="145" class="d-small" text-anchor="middle">and the DTO</text>
+
+    <rect x="230" y="76" width="180" height="86" rx="8" class="d-panel d-stroke"/>
+    <text x="320" y="106" class="d-mono" text-anchor="middle">Service</text>
+    <text x="320" y="128" class="d-small" text-anchor="middle">needs the DbContext</text>
+    <text x="320" y="145" class="d-small" text-anchor="middle">and both shapes</text>
+
+    <rect x="430" y="76" width="180" height="86" rx="8" class="d-panel d-stroke"/>
+    <text x="520" y="106" class="d-mono" text-anchor="middle">DbContext</text>
+    <text x="520" y="128" class="d-small" text-anchor="middle">needs the entity</text>
+
+    <rect x="630" y="76" width="180" height="86" rx="8" class="d-brand"/>
+    <text x="720" y="106" class="d-white" text-anchor="middle">Product</text>
+    <text x="720" y="130" class="d-white" text-anchor="middle" style="font-size:11px">needs nothing</text>
+    <text x="720" y="147" class="d-white" text-anchor="middle" style="font-size:11px">START HERE</text>
+
+    <path d="M790 196 L40 196" class="d-arrow" stroke-width="1.6" marker-end="url(#d1)"/>
+    <text x="415" y="222" class="d-small" text-anchor="middle">so this is the order you write them in</text>
+
+    <text x="20" y="262" class="d-small">Product.cs compiles on its own, today, with an empty project around it.</text>
+    <text x="20" y="282" class="d-small">ProductsController.cs cannot compile until every box to its right already exists. That is the entire argument.</text>
+  </svg>
+  <figcaption>
+    Build from the end that needs nothing. Everything else is downstream of that one sentence.
+  </figcaption>
+</figure>
+
+<div class="box trap">
+  <div class="box-title">⚠️ What happens when you start at the controller</div>
+  <p>
+    It is the tempting place to start, because it is the part you can see in the browser. What
+    follows is always the same: you invent a method name on a service that does not exist, invent
+    a DTO shape to make the signature look right, and then discover at step 2 that the data cannot
+    actually answer the question you promised. Now the fix is four files wide instead of one, and
+    the shapes you invented tend to survive anyway, because changing them means touching all four.
+  </p>
+</div>
+
+<h2 id="other-orders">The two other orders that are also right</h2>
+
+<p>
+  &ldquo;Entity first&rdquo; is the default, not the law. Two other orders are used by good teams,
+  and knowing why is worth a sentence in an interview.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Order</th><th>You start from</th><th>Use it when</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Inside-out</strong><br><span class="subtle">the nine steps above</span></td>
+      <td>The entity</td>
+      <td>The default. You understand the data, and the API shape is yours to choose.</td>
+    </tr>
+    <tr>
+      <td><strong>Outside-in</strong></td>
+      <td>The DTO and the URL</td>
+      <td>The API contract is fixed &mdash; a mobile team is waiting for it, or the endpoint is
+          specified in a ticket. Write the DTO and the controller first against a stub service,
+          then fill in downwards.</td>
+    </tr>
+    <tr>
+      <td><strong>Test-first</strong></td>
+      <td>A failing test on the service</td>
+      <td>The rule is fiddly and the edge cases matter more than the plumbing &mdash; pricing,
+          discounts, stock allocation. The test names the behaviour before you start arguing with
+          the syntax.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box note">
+  <div class="box-title">All three end in the same place</div>
+  <p>
+    Every one of them produces the same nine files with the same dependencies. They differ only in
+    which end you push from. If you are new, push from the entity: it is the end where you can
+    always tell whether you are finished.
+  </p>
+</div>
+
+<h2 id="how-they-connect">How the files find each other</h2>
+
+<p>
+  &ldquo;How is this file connected to that one?&rdquo; has exactly four answers in a C# project.
+  Once you can name which of the four you are looking at, unfamiliar codebases stop being opaque.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Wire</th><th>Looks like</th><th>Checked by</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Project reference</strong></td>
+      <td><code>&lt;ProjectReference Include="..\Domain\Domain.csproj" /&gt;</code> in the
+          <code>.csproj</code></td>
+      <td>The compiler. This is the wire that decides which project is even <em>allowed</em> to
+          mention which.</td>
+    </tr>
+    <tr>
+      <td><strong>Namespace and <code>using</code></strong></td>
+      <td><code>using Catalog.Domain;</code> at the top of a file</td>
+      <td>The compiler. Cheap, and reversible.</td>
+    </tr>
+    <tr>
+      <td><strong>Constructor injection</strong></td>
+      <td><code>public class ProductService(CatalogDbContext db)</code></td>
+      <td>The compiler for the <em>type</em>; the container for the <em>instance</em>.</td>
+    </tr>
+    <tr>
+      <td><strong>DI registration</strong></td>
+      <td><code>builder.Services.AddScoped&lt;IProductService, ProductService&gt;();</code></td>
+      <td><strong>Nobody, until it runs.</strong> This is the one that fails at start-up rather
+          than at build.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  Three of the four are the compiler&rsquo;s problem, so you find out about them in seconds. The
+  fourth is why a .NET application can compile perfectly and then refuse to start, and why an
+  experienced developer&rsquo;s eye goes straight to <code>Program.cs</code> when it does.
+</p>
+
+<h2 id="folders">Where the files go</h2>
+
+<p>
+  Two layouts are common. Both are defensible; one of them stops scaling at around a dozen
+  features.
+</p>
+
+<pre><code><span class="cm">// By kind — the layout every tutorial shows you</span>
+Controllers/    ProductsController.cs  OrdersController.cs  CustomersController.cs
+Services/       ProductService.cs      OrderService.cs      CustomerService.cs
+Models/         Product.cs             Order.cs             Customer.cs
+Dtos/           ProductDto.cs          OrderDto.cs          CustomerDto.cs
+
+<span class="cm">// By feature — the layout teams end up at</span>
+Features/
+  Products/     Product.cs  ProductDto.cs  ProductService.cs  ProductsController.cs
+  Orders/       Order.cs    OrderDto.cs    OrderService.cs    OrdersController.cs</code></pre>
+
+<p>
+  The difference shows up when you change something. A change is almost always one
+  <em>feature</em> and almost never one <em>kind</em>, so the second layout puts everything a
+  change touches in a single folder while the first spreads it across four. Start with by-kind if
+  it helps you see the pattern &mdash; it genuinely is clearer for the first two features &mdash;
+  and move to by-feature the moment a folder has more than about eight files in it.
+</p>
+
+<div class="box pro">
+  <div class="box-title">🎓 And then the folders become projects</div>
+  <p>
+    At the next size up, the layers stop being folders and become separate
+    <code>.csproj</code> projects, so that the &ldquo;may reference&rdquo; rules are enforced by
+    the compiler rather than by discipline. That is what this repository does &mdash; Domain,
+    Application, Infrastructure, Api &mdash; and it is the subject of
+    <a href="23-architecture-and-cqrs.html">chapter 23</a>. The nine steps do not change; they
+    just land in four projects instead of four folders.
+  </p>
+</div>
+
+<h2 id="in-logiflow">The same nine steps, in this repository</h2>
+
+<p>
+  The code under <code>src/</code> is the grown-up version of everything above: same order, more
+  ceremony, every piece of it justified in a comment where it sits. Follow one noun through it.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Step</th><th>The tutorial version</th><th>Here</th></tr></thead>
+  <tbody>
+    <tr><td>2 &mdash; entity</td><td><code>Models/Product.cs</code></td>
+        <td><a href="../../src/LogiFlow.Domain/Catalog/Product.cs">Domain/Catalog/Product.cs</a>
+            &mdash; private setters, a <code>Create</code> factory, invariants it enforces
+            itself</td></tr>
+    <tr><td>3 &mdash; DbContext</td><td><code>Data/CatalogDbContext.cs</code></td>
+        <td><a href="../../src/LogiFlow.Infrastructure/Persistence/LogiFlowDbContext.cs">Infrastructure/Persistence/LogiFlowDbContext.cs</a>,
+            with the column configuration split into
+            <a href="../../src/LogiFlow.Infrastructure/Persistence/Configurations/">its own files</a></td></tr>
+    <tr><td>5 &mdash; DTO</td><td><code>Dtos/ProductDto.cs</code></td>
+        <td><a href="../../src/LogiFlow.Application/Features/Products/ProductFeatures.cs">ProductFeatures.cs</a>
+            &mdash; <code>ProductDto</code> out, <code>CreateProductCommand</code> in</td></tr>
+    <tr><td>6 &mdash; service</td><td><code>Services/ProductService.cs</code></td>
+        <td>the handlers in that same file &mdash; one class per operation instead of one class
+            per noun, which is the CQRS shape of
+            <a href="23-architecture-and-cqrs.html">chapter 23</a></td></tr>
+    <tr><td>7 &mdash; controller</td><td><code>Controllers/ProductsController.cs</code></td>
+        <td><a href="../../src/LogiFlow.Api/Endpoints/CatalogAndReportingEndpoints.cs">Api/Endpoints/CatalogAndReportingEndpoints.cs</a>
+            &mdash; minimal APIs rather than controllers, doing the identical job</td></tr>
+    <tr><td>8 &mdash; wiring</td><td><code>Program.cs</code></td>
+        <td><a href="../../src/LogiFlow.Api/Program.cs">Api/Program.cs</a>, delegating to a
+            <code>DependencyInjection.cs</code> per project</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tryit">
+  <div class="box-title">Try it yourself</div>
+  <p>
+    Build one feature end to end, today, before you read another chapter. Nine files, one noun,
+    something you care about &mdash; <code>Book</code>, <code>Cliente</code>,
+    <code>Bicicletta</code>. One <code>GET</code> that returns one row. Do not add a second
+    endpoint until the first one returns real JSON from a real table.
+  </p>
+  <p>
+    Then do it a second time, from an empty folder, without looking. The second time is the one
+    that teaches you the order; the first only teaches you that an order exists.
+  </p>
+</div>
+
+<div class="rules">
+  <h3>Golden rules</h3>
+  <ol>
+    <li><strong>Write the file that needs nothing first.</strong> The build order is the
+        dependency order, backwards &mdash; the entity compiles alone, the controller compiles
+        last.</li>
+    <li>One noun has several shapes: what it <em>is</em> (the entity), how it is
+        <em>stored</em> (the table), and what the outside may <em>see</em> (the DTO). Confusing
+        them is the most common beginner bug in .NET.</li>
+    <li><strong>Never return an entity from a controller.</strong> It over-shares, it cycles when
+        serialised, and it makes every database column part of your public API.</li>
+    <li>A controller may do three things: bind the request, call one service, choose a status
+        code. Any <code>if</code> about the business belongs one file down.</li>
+    <li>The service is the only file that knows both the entity and the DTO. That is what makes it
+        the border, and what makes it the right place to test.</li>
+    <li><code>Program.cs</code> is the only file that knows an interface <em>and</em> its
+        implementation. Everything else asks for the interface.</li>
+    <li>A class nobody registered does not exist at run time. &ldquo;Unable to resolve service for
+        type&hellip;&rdquo; always means step 8 was skipped.</li>
+    <li>Commit the migration with the property that caused it. A model that has drifted from its
+        migrations is a deployment that fails on somebody else&rsquo;s machine.</li>
+    <li>Folders by feature scale; folders by kind do not. A change is one feature, never one
+        kind.</li>
+    <li><strong>One thin slice, all the way through, before the second one.</strong> Nine files
+        that return one product beat forty files that return nothing.</li>
+  </ol>
+</div>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Walk me through what happens when a request hits your API."</p>
+  <p class="a">
+    Follow the chain out loud and name the file at each step: routing matches the URL to a
+    controller action, the action binds the request and calls a service through an interface, the
+    service applies the rules and queries through the <code>DbContext</code>, EF Core translates
+    the LINQ into SQL, and the result comes back projected into a DTO which is serialised as JSON.
+    Naming the DTO is what separates this answer from a memorised one &mdash; it shows you know
+    where the boundary is.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"What do you write first when you start a new feature?"</p>
+  <p class="a">
+    The entity, because it is the only file that depends on nothing, and then outwards:
+    <code>DbContext</code>, migration, DTO, service, controller, registration, test. Then give the
+    reason rather than the list &mdash; you build from the end that needs nothing &mdash; and add
+    that you would work outside-in instead if the API contract were already fixed by somebody
+    else.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why not just return the entity from the controller?"</p>
+  <p class="a">
+    Four reasons, and give at least two: over-sharing fields that were never meant to be public,
+    over-posting on the way in, serialisation cycles through navigation properties, and coupling
+    your public API to your table schema so that a rename becomes a breaking change. The DTO is
+    the seam that lets the database and the API change independently.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Where do you put business logic?"</p>
+  <p class="a">
+    In the service &mdash; or in the entity itself when the rule is about that one object&rsquo;s
+    consistency, since "a price may not be negative" belongs to <code>Product</code>. Not in the
+    controller, which should only speak HTTP, and not in the <code>DbContext</code>, which should
+    only speak storage. The test that follows is a good closing line: if you cannot exercise the
+    rule without starting a web server, it is in the wrong file.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Your application compiles but throws on start-up. Where do you look?"</p>
+  <p class="a">
+    <code>Program.cs</code>. Three of the four ways files connect in C# are checked by the
+    compiler; DI registration is the one that is not, so a start-up failure with a message about
+    resolving a service is almost always a missing <code>AddScoped</code> &mdash; or a lifetime
+    mismatch, where a singleton has been handed something scoped.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

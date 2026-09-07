@@ -32,7 +32,14 @@
     var bar = document.createElement("header");
     bar.className = "topbar";
     bar.innerHTML =
-      '<button class="btn hamburger" id="navToggle" aria-label="Menu">&#9776;</button>' +
+      /* First focusable thing on the page, and it has to be: the sidebar puts
+         a search box and forty-seven chapter links ahead of the content, so
+         without this a keyboard user tabs through the whole table of contents
+         on every page before reaching a word of the chapter. Hidden until it
+         takes focus — see .skip in style.css. */
+      '<a class="skip" href="#main">Skip to the content</a>' +
+      '<button class="btn hamburger" id="navToggle" aria-label="Chapters" ' +
+        'aria-controls="sidebar" aria-expanded="false">&#9776;</button>' +
       '<a class="brand" href="' + toHome + '">' +
         '<span class="brand-mark">C#</span>' +
         '<span class="brand-text">LogiFlow Academy</span>' +
@@ -46,6 +53,18 @@
       "</div>" +
       '<button class="btn" id="themeToggle" aria-label="Toggle dark mode">&#9789;</button>';
     body.insertBefore(bar, body.firstChild);
+
+    /* The skip link needs somewhere to land, and every page already has the
+       element — it just has no id, and <main> is not focusable on its own.
+       Without tabindex the browser scrolls but leaves focus where it was, so
+       the next Tab goes back into the sidebar and the link achieves nothing.
+       Done here rather than in sixty-one files, which is the same reason the
+       rest of this chrome is generated. */
+    var main = document.querySelector("main.main");
+    if (main) {
+      if (!main.id) main.id = "main";
+      main.setAttribute("tabindex", "-1");
+    }
   }
 
   function buildSidebar() {
@@ -132,7 +151,9 @@
     document.addEventListener("keydown", function (e) {
       if (e.key === "/" && document.activeElement !== input) {
         e.preventDefault();
-        body.setAttribute("data-nav", "open");
+        // Someone who pressed "/" came here to type, so this is the one path
+        // that does focus the field - see the note in wireNavToggle.
+        setNav(true);
         input.focus();
         input.select();
       }
@@ -145,6 +166,25 @@
   }
 
   /* ------------------------------------------------- theme + explanation mode */
+  /* The strip of browser furniture above the page - the status bar on a
+     phone, the whole title bar once the site is installed to a home screen -
+     is painted from <meta name="theme-color">. Each page ships two of them,
+     one per colour scheme, which is right until the reader uses the toggle in
+     the top bar: that sets data-theme on <html> and the media attribute on
+     those metas knows nothing about it, so a page switched to light kept a
+     dark bar sitting on top of it, and the seam was the first thing you saw.
+
+     Both metas are given the resolved colour rather than trying to pick the
+     matching one, since whichever the browser reads then says the same thing.
+     The values are --panel from style.css: the top bar is what meets the
+     browser's edge, and matching it is what makes the seam disappear. */
+  function paintThemeColor(isDark) {
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    for (var i = 0; i < metas.length; i++) {
+      metas[i].setAttribute("content", isDark ? "#161925" : "#ffffff");
+    }
+  }
+
   function wireTheme() {
     var btn = document.getElementById("themeToggle");
     var saved = pref("logiflow-theme", "");
@@ -161,12 +201,18 @@
       document.documentElement.setAttribute("data-theme", next);
       savePref("logiflow-theme", next);
       btn.innerHTML = next === "dark" ? "&#9788;" : "&#9789;";
+      paintThemeColor(next === "dark");
     });
 
     var cur = document.documentElement.getAttribute("data-theme");
     var isDark = cur === "dark" ||
       (!cur && window.matchMedia("(prefers-color-scheme: dark)").matches);
     btn.innerHTML = isDark ? "&#9788;" : "&#9789;";
+    // Only when there is a saved choice to honour. With none, the pair of
+    // media-scoped metas in the page is already correct and following the
+    // system on its own, and overwriting both would freeze it at whatever the
+    // system said at load.
+    if (cur) paintThemeColor(cur === "dark");
   }
 
   function wireMode() {
@@ -191,17 +237,133 @@
     }
   }
 
-  function wireNavToggle() {
+  /* ------------------------------------------------------------ nav drawer
+     Below NAV_BREAKPOINT the sidebar stops being a column of the layout and
+     becomes an off-canvas drawer over the page. That is a different component
+     with different obligations - a way out that is not the button you came in
+     by, a state the screen reader can read, and a page underneath that does
+     not scroll away while you are looking at the menu - so the state is set in
+     one place here rather than by whoever happens to want it moved.
+
+     The number is duplicated from the media query in style.css. It has to be:
+     CSS decides what the drawer looks like and this decides how it behaves,
+     and there is no way to ask the stylesheet. Changing one means changing the
+     other. */
+  var NAV_BREAKPOINT = 980;
+
+  function navIsDrawer() {
+    return window.matchMedia("(max-width: " + NAV_BREAKPOINT + "px)").matches;
+  }
+
+  function setNav(open) {
     var btn = document.getElementById("navToggle");
+    body.setAttribute("data-nav", open ? "open" : "closed");
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function closeNav(returnFocus) {
+    if (body.getAttribute("data-nav") !== "open") return;
+    setNav(false);
+    /* Only when the drawer was dismissed by a key. A tap that lands on the
+       page has already said where the reader's attention went, and pulling
+       focus back to the hamburger after it would scroll the bar into view and
+       fight them for it. */
+    if (returnFocus) {
+      var btn = document.getElementById("navToggle");
+      if (btn) btn.focus();
+    }
+  }
+
+  function wireNavToggle() {
+    var btn   = document.getElementById("navToggle");
+    var aside = document.getElementById("sidebar");
+    if (!btn) return;
+
+    /* The scrim is built here rather than written into every page: it exists
+       only because this script turns the sidebar into a drawer, so it belongs
+       to the same piece of code. aria-hidden because it is decoration - the
+       way out it offers is also on Escape and on the button. */
+    var scrim = document.createElement("div");
+    scrim.className = "nav-scrim";
+    scrim.setAttribute("aria-hidden", "true");
+    body.appendChild(scrim);
+
+    if (aside) {
+      // Somewhere for focus to land that is not a form field. See below.
+      aside.setAttribute("tabindex", "-1");
+      aside.setAttribute("aria-label", "Chapters");
+    }
+
     btn.addEventListener("click", function () {
-      body.setAttribute("data-nav", body.getAttribute("data-nav") === "open" ? "closed" : "open");
+      var opening = body.getAttribute("data-nav") !== "open";
+      setNav(opening);
+      /* Focus moves to the panel, deliberately not to the search box inside
+         it. Focusing the search field is the obvious thing to do and it is
+         wrong on a phone: it raises the on-screen keyboard, which covers the
+         bottom half of the list of chapters the reader just asked to see. The
+         panel takes focus instead - enough for a screen reader to be reading
+         from inside the drawer, and for the next Tab to reach the search box
+         for anyone who does want it. The "/" shortcut in wireSearch is the
+         path for people who came to search, and that one still focuses it. */
+      if (opening && aside) aside.focus();
     });
-    // Tapping a link on mobile should close the drawer.
+
+    // Tapping the page behind the drawer is the way out most people reach for
+    // first, and before this there wasn't one - the drawer could only be shut
+    // by finding the same small button again.
+    scrim.addEventListener("click", function () { closeNav(false); });
+
+    // Following a link closes it, because the drawer is now over the page that
+    // link just went to.
     document.addEventListener("click", function (e) {
-      if (e.target.closest && e.target.closest(".sidebar a") && window.innerWidth <= 980) {
-        body.setAttribute("data-nav", "closed");
+      if (e.target.closest && e.target.closest(".sidebar a") && navIsDrawer()) {
+        closeNav(false);
       }
     });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape" || !navIsDrawer()) return;
+      /* Escape inside a search box with something in it means "clear the box"
+         - wireSearch handles that - and should not also close the drawer out
+         from under the reader. Once the box is empty, Escape means the same
+         thing here as it does everywhere else. */
+      var input = document.getElementById("navSearch");
+      if (input && document.activeElement === input && input.value) return;
+      closeNav(true);
+    });
+
+    /* Swiping the drawer away. The guard is the whole trick: the drawer is a
+       tall scrolling list, so a touch that moves is usually someone scrolling
+       it, and a swipe-to-close that fires on those makes the list unusable.
+       The first move decides - more vertical than horizontal and the gesture
+       is not ours - and only then does a leftward run of 45px close it. */
+    if (aside) {
+      var sx = 0, sy = 0, tracking = false;
+      aside.addEventListener("touchstart", function (e) {
+        tracking = navIsDrawer() && e.touches.length === 1;
+        if (!tracking) return;
+        sx = e.touches[0].clientX;
+        sy = e.touches[0].clientY;
+      }, { passive: true });
+      aside.addEventListener("touchmove", function (e) {
+        if (!tracking) return;
+        var dx = e.touches[0].clientX - sx;
+        var dy = e.touches[0].clientY - sy;
+        if (Math.abs(dy) > Math.abs(dx)) { tracking = false; return; }
+        if (dx < -45) { tracking = false; closeNav(false); }
+      }, { passive: true });
+      aside.addEventListener("touchend", function () { tracking = false; }, { passive: true });
+    }
+
+    /* Turning the phone sideways can cross the breakpoint, at which point the
+       sidebar is a column again and "open" is not a state it has. Left set,
+       the button would go on announcing itself as expanded and the scrim would
+       be waiting to reappear on the next rotation back. */
+    window.addEventListener("resize", function () {
+      if (!navIsDrawer()) setNav(false);
+    });
+
+    setNav(false);
   }
 
   /* ----------------------------------------------------------- copy buttons */

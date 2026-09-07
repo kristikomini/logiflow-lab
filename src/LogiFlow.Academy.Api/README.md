@@ -149,7 +149,7 @@ Everything has a working default. These are the keys that exist.
 | `Academy:Jwt:SigningKey` | generated in Development | **Required** anywhere else; startup fails without it |
 | `Academy:Jwt:AccessMinutes` | `15` | Access tokens are short because a JWT cannot be revoked |
 | `Academy:Jwt:RefreshDays` | `30` | Refresh tokens are stateful and revocable |
-| `Academy:ChapterCount` | `39` | Denominator for the mastery percentage |
+| `Academy:ChapterCount` | `47` | Denominator for the mastery percentage. Must equal the site's chapter count — `doctor.cs` checks it |
 | `Academy:AuthRequestsPerMinute` | `10` | Per IP, on `/api/auth/*` |
 | `Academy:AllowedOrigins` | localhost + `null` | `null` is the origin a `file://` page sends |
 

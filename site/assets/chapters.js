@@ -37,6 +37,13 @@ const CHAPTERS = [
     req: "the whole advert",
   },
   {
+    n: "00b", id: "00b-how-a-project-is-built", part: PARTS[0],
+    title: "How a C# project is built, in order",
+    blurb: "The nine steps of one feature — entity, DbContext, migration, DTO, service, controller — and why that order.",
+    tags: "order steps structure project layout scaffold model entity dto controller service dbcontext migration program.cs dependency injection folders feature slice beginner map how to start new project",
+    extra: "No advert asks for it, and every interviewer does: “walk me through a request”, “what do you write first”. It is also the gap that makes every other chapter harder than it needs to be — you cannot place a file you have no map for.",
+  },
+  {
     n: "01", id: "01-dotnet-platform", part: PARTS[1],
     title: ".NET and .NET Core",
     blurb: "Runtime, SDK, CLR, JIT, assemblies — and why the Framework/Core split still matters.",

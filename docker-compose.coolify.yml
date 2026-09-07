@@ -1,0 +1,123 @@
+# =============================================================================
+# THE ACADEMY, ON A SERVER.  Coolify → Docker Compose → this file.
+#
+#   Resource type   Docker Compose (from a GitHub repository)
+#   Base directory  /
+#   Compose file    /docker-compose.coolify.yml
+#
+# One container: the tutorial site in `site/` AND the accounts API that stores
+# progress, served from the same origin. That "same origin" is the whole reason
+# this is one service and not two — site/assets/account.js falls back to
+# `location.origin` when it is served over http(s), so there is no API address
+# to configure, no CORS to get wrong, and nothing to re-point when the domain
+# changes.
+#
+# Requirements: ~512 MB RAM at rest, no database server, any architecture
+# (the .NET images are multi-arch, so a Hetzner ARM box is fine).
+#
+# Full walkthrough — DNS, secrets, backups, the lot: deploy/coolify/README.md
+# =============================================================================
+
+name: logiflow-academy
+
+services:
+  academy:
+    build:
+      # The repository root, not src/LogiFlow.Academy.Api. Central package
+      # management, the shared build props and site/ all live above src/, and a
+      # build context that cannot see them cannot restore. Same reason the
+      # `docker build -f` in deploy/README.md is written the way it is.
+      context: .
+      dockerfile: src/LogiFlow.Academy.Api/Dockerfile
+
+    restart: unless-stopped
+
+    environment:
+      # ── The domain ─────────────────────────────────────────────────────────
+      # Coolify magic: declaring the variable (no value) tells it to generate or
+      # attach an FQDN for this service and point the proxy at container port
+      # 8080. Set the real domain in Coolify's UI afterwards; this only has to
+      # exist for the routing to be wired up at all.
+      - SERVICE_FQDN_ACADEMY_8080
+
+      # ── The environment name, which is load-bearing here ──────────────────
+      # Production, not Development, and it changes three things: Scalar and the
+      # OpenAPI document stop being served, JWT error details stop being echoed
+      # to callers, and — the important one — the signing key below stops being
+      # auto-generated. Program.cs generates a key into App_Data ONLY in
+      # Development. Outside it, ValidateOnStart refuses to boot without one,
+      # which is why ACADEMY_JWT_SIGNING_KEY is not optional.
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=8080
+
+      # ── Behind Coolify's proxy ─────────────────────────────────────────────
+      # Traefik terminates TLS and forwards plain HTTP to this container, so
+      # without this the app sees every request as coming from the proxy's IP
+      # over http. Two things break quietly:
+      #
+      #   * the "auth" rate limiter partitions on RemoteIpAddress, so ALL
+      #     visitors would share one 20-per-minute bucket and a handful of
+      #     sign-ins would lock out everybody else;
+      #   * any absolute URL the framework generates would say http://.
+      #
+      # This is a built-in ASP.NET Core switch (read by the host, not by our
+      # code): it enables ForwardedHeadersMiddleware for X-Forwarded-For and
+      # X-Forwarded-Proto at the very top of the pipeline, and clears the
+      # loopback-only KnownProxies restriction that would otherwise ignore them.
+      # No code change — verified present in Microsoft.AspNetCore.dll on .NET 10.
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+
+      # ── Secrets and tuning ─────────────────────────────────────────────────
+      # REQUIRED. At least 32 bytes; the service will not start without it, on
+      # purpose. Generate with `openssl rand -base64 48` and paste it into
+      # Coolify's environment-variables tab — never into this file.
+      #
+      # Changing it later signs everybody out (their tokens were minted by the
+      # old key) but loses no data.
+      - Academy__Jwt__SigningKey=${ACADEMY_JWT_SIGNING_KEY}
+
+      # Sign-in / register / reset attempts per minute per client IP. The
+      # in-code default is 10, which is sensible for one person and tight for a
+      # household or an office behind one NAT address.
+      - Academy__AuthRequestsPerMinute=${ACADEMY_AUTH_REQUESTS_PER_MINUTE:-20}
+
+      # SQLite in the volume below. Switch to SqlServer here plus a
+      # ConnectionStrings__Academy value if this ever outgrows one file — the
+      # provider switch is real, nothing else in the service names either one.
+      - Academy__Provider=Sqlite
+
+    # `expose`, not `ports`. Publishing a host port would put the container on
+    # the public interface next to the proxy rather than behind it — no TLS, no
+    # certificate, and a second way in that nothing is guarding.
+    expose:
+      - "8080"
+
+    volumes:
+      # EVERY ACCOUNT LIVES HERE. academy.db (plus its -wal and -shm) and the
+      # data-protection keys. Drop this line and every sign-up disappears the
+      # next time Coolify rebuilds the image — with no error, which is the part
+      # that makes it dangerous. Back it up: deploy/coolify/README.md.
+      - academy-data:/app/App_Data
+
+    healthcheck:
+      # /api/health is deliberately liveness-only (it does not touch the
+      # database), which is exactly the question Docker should be asking. The
+      # image ships curl for this; see the note in the Dockerfile about why.
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # .NET cold start plus EnsureCreated on first boot. Too short here and the
+      # very first deploy is marked unhealthy while it is still starting.
+      start_period: 40s
+
+    logging:
+      # An unbounded json-file driver is the classic way to fill a VPS disk
+      # months after a deploy that looked fine.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  academy-data:

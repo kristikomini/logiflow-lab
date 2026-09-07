@@ -17,7 +17,16 @@
 # ── Stage 1: build ───────────────────────────────────────────────────────────
 # The SDK image is ~800 MB. Nothing from it reaches the final image except the
 # compiled output, which is the entire point of a multi-stage build.
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# PINNED TO THE PATCH, and it has to stay in step with global.json.
+#
+# global.json asks for 10.0.300 with "rollForward": "disable", so the SDK in
+# this image must be EXACTLY that. The floating `sdk:10.0` tag is whatever
+# Microsoft published most recently (currently 10.0.400), and the mismatch
+# fails the restore below with "A compatible .NET SDK was not found" — a
+# message that names global.json but not the tag, which is the confusing half.
+#
+# Bump global.json and this line together, or not at all.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.300 AS build
 WORKDIR /src
 
 # RESTORE BEFORE COPYING SOURCE.

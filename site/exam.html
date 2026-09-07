@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mock exam — LogiFlow Academy</title>
 <meta name="description" content="A timed, mixed paper drawn from every chapter — the closest thing on this site to the pressure of a real technical round.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="assets/style.css">
 <link rel="stylesheet" href="assets/learn.css">
 </head>
@@ -91,22 +92,22 @@
 
   function paintSetup() {
     var html = '<div class="quiz-intro">' +
-      '<label style="display:block;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);margin-bottom:.3em">Scope</label>' +
-      '<select id="scope" style="font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:100%;max-width:440px">';
+      '<label class="setup-label" for="scope">Scope</label>' +
+      '<select id="scope" class="setup-select">';
     SCOPES.forEach(function (s) {
       html += '<option value="' + s.id + '">' + esc(s.label) + "</option>";
     });
     html += "</select>" +
       '<p class="subtle" id="scope-hint" style="margin:.4em 0 0"></p>' +
 
-      '<label style="display:block;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--brand-ink);margin:1em 0 .3em">Length</label>' +
-      '<select id="length" style="font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);width:100%;max-width:440px">';
+      '<label class="setup-label setup-label-2" for="length">Length</label>' +
+      '<select id="length" class="setup-select">';
     LENGTHS.forEach(function (l, i) {
       html += '<option value="' + i + '"' + (i === 1 ? " selected" : "") + ">" + esc(l.label) + "</option>";
     });
     html += "</select>" +
       '<p style="margin:1em 0 0">' +
-        '<label style="font-size:14.5px"><input type="checkbox" id="untimed"> Untimed (practice, not measurement)</label>' +
+        '<label class="setup-check"><input type="checkbox" id="untimed"> Untimed (practice, not measurement)</label>' +
       "</p>" +
       '<p style="margin:1.1em 0 0"><button type="button" class="btn primary big" id="go">Begin</button></p>' +
       '<p class="subtle" id="pool" style="margin:.6em 0 0"></p>' +

@@ -130,7 +130,7 @@
    *
    * The top-up matters more than it looks. On day one nothing is scheduled, so
    * a pure due-list would open on "nothing to do" in front of a learner holding
-   * 352 unanswered rules. Introducing a few new ones every session is also how
+   * 362 unanswered rules. Introducing a few new ones every session is also how
    * the deck ever gets populated: unlike the quiz deck, which fills itself when
    * you take a chapter test, nothing else on this site schedules a rule.
    */

@@ -144,6 +144,24 @@ a.study-link.current {
 .quiz-intro > :first-child { margin-top: 0; }
 .quiz-best { font-size: 14.5px; color: var(--brand-ink); }
 
+/* The mock exam's two setup controls. These lived in style attributes on the
+   elements themselves until the phone pass, which could not reach them: an
+   inline declaration beats any stylesheet rule that is not !important, so the
+   font size that makes iOS zoom the page on focus was unliftable from CSS.
+   The values below are the ones that were inline, unchanged. */
+.setup-label {
+  display: block; font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--brand-ink); margin-bottom: .3em;
+}
+.setup-label-2 { margin: 1em 0 .3em; }
+.setup-select {
+  font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink);
+  width: 100%; max-width: 440px;
+}
+.setup-select:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+.setup-check { font-size: 14.5px; }
+
 .quiz-score {
   font-size: 52px; font-weight: 800; line-height: 1; letter-spacing: -2px;
   margin-bottom: .15em;
@@ -162,8 +180,11 @@ a.study-link.current {
 /* ==========================================================================
    Toasts
    ========================================================================== */
+/* The bottom edge of a modern phone is not empty: the home indicator sits in
+   it, and a toast placed at a flat 18px is under the reader's thumb rail. */
 .toasts {
-  position: fixed; right: 18px; bottom: 18px; z-index: 200;
+  position: fixed; right: 18px; z-index: 200;
+  bottom: calc(18px + env(safe-area-inset-bottom));
   display: flex; flex-direction: column-reverse; gap: 9px; pointer-events: none;
 }
 .toast {
@@ -698,7 +719,7 @@ a.next-card .subtle { font-size: 13px; }
   .viva-claim { font-size: 17px; }
   .viva-modes .btn { width: 100%; }
   .viva-tile-n { font-size: 21px; }
-  .toasts { left: 12px; right: 12px; bottom: 12px; }
+  .toasts { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); }
   .toast { max-width: none; }
   .part-row .part-name { flex-basis: 50%; }
 }
@@ -714,7 +735,7 @@ a.next-card .subtle { font-size: 13px; }
 .offline-badge {
   position: fixed;
   left: 50%;
-  bottom: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
   padding: .4rem .9rem;
@@ -870,3 +891,135 @@ a.next-card .subtle { font-size: 13px; }
 
 .it-group { margin-bottom: 1.6rem; }
 .it-phrase { margin-bottom: 1rem; }
+
+/* ==========================================================================
+   Touch — the learning layer's own controls
+   --------------------------------------------------------------------------
+   The counterpart of the `pointer: coarse` section at the end of style.css,
+   for the controls this file adds: the quiz, the viva, the CV builder, the
+   note filters and every form field on the account pages.
+
+   The 16px on the fields is the load-bearing rule of the two. Mobile Safari
+   zooms the viewport in whenever a field smaller than 16px takes focus, and it
+   never zooms back out — so signing in on an iPhone left the reader on a page
+   scaled to the width of the password box, with the top bar off-screen, for
+   the rest of the visit. Every field on the site was between 13.5px and
+   15.5px, which is to say every field triggered it.
+
+   `font-size` only, in a media query, rather than changing the resting sizes:
+   a mouse-driven browser keeps the 15.5px the layout was designed around.
+   ========================================================================== */
+@media (pointer: coarse) {
+  .field input,
+  .account-panel input,
+  .viva-input,
+  .note-filter select,
+  .cv-field input, .cv-field textarea, .cv-field select,
+  .gloss-search,
+  .setup-select,
+  .sim-setup select {
+    font-size: 16px;
+  }
+
+  /* Comfortable heights for the same fields. The two selects get theirs from
+     min-height because a <select>'s height comes from the UA stylesheet and
+     padding alone does not reliably move it. */
+  .field input, .account-panel input { padding: 12px 13px; }
+  .note-filter select, .cv-field select { min-height: 44px; }
+  .cv-field input, .cv-field textarea, .cv-field select { padding: .6rem .7rem; }
+
+  /* The reveal button lives inside the password field, so it cannot grow
+     downwards without leaving the box. It grows into the padding that
+     .field-pw input already reserves on the right, and takes its hit area up
+     to the full height of the field it sits in. */
+  .field-pw input { padding-right: 84px; }
+  .field-pw .reveal { bottom: 5px; top: 5px; padding: 5px 12px; }
+
+  /* Answer buttons. Already 44px+ tall with a one-line answer, but a
+     two-word option ("Yes", "No") collapses to the padding, and those are
+     exactly the questions answered fastest and least carefully. */
+  .quiz-option { min-height: 48px; align-items: center; padding: 12px 14px; }
+  .quiz-option .quiz-key { flex: 0 0 26px; height: 26px; margin-top: 0; font-size: 13px; }
+
+  /* The checkboxes on the three pages that have them come out of the box at
+     13x13 - the smallest targets on the site, on the settings that decide what
+     the exercise about to start actually is. accent-color is what keeps them
+     looking like the rest of the site once they are big enough to see.
+
+     align-items on the viva's labels is deliberate: they are set to `baseline`
+     for the 13px box, where the text and a tiny square do line up, and at 22px
+     that leaves the box floating above the first line of a two-line label. */
+  .sim-setup label, .viva-prefs label, .setup-check { min-height: 44px; }
+  .viva-prefs label { align-items: center; }
+  .setup-check { display: flex; gap: 8px; align-items: center; }
+  .sim-setup input[type="checkbox"],
+  .viva-prefs input[type="checkbox"],
+  .setup-check input[type="checkbox"] {
+    width: 22px; height: 22px; flex: 0 0 22px; margin: 0; accent-color: var(--brand);
+  }
+
+  /* The simulator's length select is the one control here that had no styling
+     of its own, so it had no width of its own either: a bare <select> is as
+     wide as its longest option, which here is "Screening - 10 minutes".
+
+     Two nested layouts both have to be told it may be narrower than that, and
+     missing either one puts the whole document into sideways scroll rather
+     than just this control. `min-width: auto` is the initial value for a flex
+     *and* a grid item, and it means "never shrink me below my content": the
+     label is a flex row containing the select, and .sim-setup is a grid whose
+     item is the label. So the select refuses to shrink, then the label refuses
+     to shrink around it, and the grid column ends up 310px wide inside a 242px
+     box. min-width: 0 on both is what releases it; flex-basis then puts the
+     select on its own line under the word "Length", which is where it wants to
+     be on a phone anyway.
+
+     :first-child, because only the first of the three labels holds the select
+     - the other two are checkbox rows, and wrapping those puts the box on a
+     line of its own above its text as soon as the text is long enough to not
+     fit beside it, which "Weight towards my weakest chapters" is and "Spoken"
+     is not. Two rows of the same control that disagree about where the box
+     goes reads as a bug, because it is one. */
+  .sim-setup label { min-width: 0; }
+  .sim-setup label:first-child { flex-wrap: wrap; }
+  .sim-setup select {
+    min-height: 44px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: var(--panel); color: var(--ink);
+    min-width: 0; max-width: 100%; flex: 1 1 100%;
+  }
+  .setup-select { min-height: 44px; padding: 11px 12px; }
+
+  /* Everything else that is a tap target and was under the floor. */
+  .note-sw, .viva-chip, .study-link, .part-row { min-height: 44px; }
+  .note-sw { min-width: 44px; }
+  .study-link { display: flex; align-items: center; }
+
+  /* Three links that are each the only thing on their line - the chapter a
+     glossary term came from, the chapter a phrase belongs to, the "sit one"
+     out of a dashboard stat - and were 16 to 26px tall because a line of text
+     is all they are. They are not inline links inside a sentence, which is the
+     case that is genuinely exempt from a target size; they are single-link
+     rows that happen to be typeset as prose. Padding rather than min-height,
+     so the hit area grows around the text instead of leaving it at the top of
+     a taller box. The negative margin keeps the lines where they were. */
+  .gloss-where a, .stat-note a, .it-group h3 a {
+    display: inline-block; padding: 12px 0; margin: -12px 0;
+  }
+
+  /* Same reasoning as the hover reset in style.css: a tapped quiz option would
+     otherwise keep the hover highlight after the answer was submitted, sitting
+     next to the real right/wrong colouring and competing with it. */
+  .quiz-option:hover:not([disabled]) { border-color: var(--line-strong); background: var(--bg); }
+  .quiz-option.chosen, .quiz-option.chosen:hover { border-color: var(--brand); background: var(--brand-soft); }
+  .quiz-option.right,  .quiz-option.right:hover  { border-color: var(--pro);  background: var(--pro-bg); }
+  .quiz-option.wrong,  .quiz-option.wrong:hover  { border-color: var(--warn); background: var(--warn-bg); }
+}
+
+/* Code blocks scroll sideways on purpose — wrapping C# at 375px makes it
+   unreadable — but a block that overflows looks identical to one that fits,
+   so nothing invites the swipe. Momentum scrolling and a scroll edge the
+   finger can feel are the affordance. */
+@media (pointer: coarse) {
+  pre { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .table-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+}

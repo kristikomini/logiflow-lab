@@ -572,7 +572,7 @@ them up.
 
 ## [Module 17 — Landing a .NET job in Modena and Bologna](module-17-career-emilia-romagna/)
 
-> The card. Technique is the other eleven modules; this is the part candidates get wrong.
+> The card. Technique is the other twenty-seven modules; this is the part candidates get wrong.
 
 1. **Search the whole Modena–Bologna corridor**, not one city. It is one labour market and it is
    forty minutes wide.

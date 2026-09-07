@@ -45,7 +45,7 @@
       "<p class=\"it-lede\">The sentences you would actually say about this chapter in a " +
       "colloquio. Read them out loud once &mdash; that is the whole exercise.</p>" +
       entry.say.map(function (s) {
-        return '<p class="it-say">' + esc(s) + "</p>";
+        return '<p class="it-say" lang="it">' + esc(s) + "</p>";
       }).join("") +
       (entry.keep && entry.keep.length
         ? '<p class="it-keep"><strong>Stays in English:</strong> ' +
@@ -70,7 +70,7 @@
         esc(group.group) + "</h2>" +
         group.items.map(function (p) {
           return '<div class="it-phrase">' +
-            '<p class="it-say">' + esc(p.it) + "</p>" +
+            '<p class="it-say" lang="it">' + esc(p.it) + "</p>" +
             '<p class="it-en">' + esc(p.en) + "</p>" +
             (p.note ? '<p class="it-note">' + esc(p.note) + "</p>" : "") +
             "</div>";
@@ -93,7 +93,7 @@
         var e = window.IT_CHAPTERS[c.id];
         return '<section class="it-group"><h3><a href="chapters/' + esc(c.id) + '.html">' +
           esc(c.n) + " &middot; " + esc(c.title) + "</a></h3>" +
-          e.say.map(function (s) { return '<p class="it-say">' + esc(s) + "</p>"; }).join("") +
+          e.say.map(function (s) { return '<p class="it-say" lang="it">' + esc(s) + "</p>"; }).join("") +
           (e.keep ? '<p class="it-keep">' + e.keep.map(function (k) {
             return "<code>" + esc(k) + "</code>";
           }).join(" ") + "</p>" : "") +

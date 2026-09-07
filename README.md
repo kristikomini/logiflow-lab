@@ -143,14 +143,14 @@ tests/
 
 tools/
   doctor.cs         Every cross-reference in the repository, checked in one command.
-                    Ten checks; the CI gate. `dotnet run tools/doctor.cs`
+                    Twelve checks; the CI gate. `dotnet run tools/doctor.cs`
   viva-deck.cs      Regenerates the site's viva deck from course/GOLDEN-RULES.md.
                     A .NET 10 file-based app: no .csproj, not in the solution,
                     `dotnet run tools/viva-deck.cs`.
 
 labs/
   Labs.Exercises    Graded exercises. 113 tests, currently RED. Make them green.
-  Labs.Playground   29 runnable demos — watch deferred execution, a lost update, a
+  Labs.Playground   30 runnable demos — watch deferred execution, a lost update, a
                     memory leak and the async deadlock actually happen.
   Labs.Benchmarks   BenchmarkDotNet. Every performance claim in the course is checkable.
   Labs.LoadTests    NBomber. The other half: what the SYSTEM does under concurrent load,
@@ -166,14 +166,14 @@ course/             The guided path through all of it. Start at course/README.md
                     course/LAWS-OF-CSHARP.md the same knowledge by concept, in twelve books.
                     course/SOLUTIONS.md      worked answers to the labs, with the reasoning.
 
-site/               A browsable W3Schools-style tutorial: 47 ordered chapters with a
-                    sidebar, built around one real .NET job advert — twenty-four of them the advert
+site/               A browsable W3Schools-style tutorial: 48 ordered chapters with a
+                    sidebar, built around one real .NET job advert — twenty-five of them the advert
                     never mentions but the Modena/Bologna/Milano market keeps asking for,
                     including WinForms/WPF, industrial/MES, Business Central and the screening
                     test. Every idea explained twice — once simply, once the way you would
                     answer it in an interview. Open site/index.html. No build step.
 
-                    It also grades you: 432 questions, a test at the end of every chapter, a
+                    It also grades you: 440 questions, a test at the end of every chapter, a
                     spaced-repetition deck built from whatever you got wrong, a timed mock
                     exam, sticky notes, an Italian/English glossary, and one course-mastery
                     percentage that is three-quarters test score — so it cannot be moved by
@@ -198,7 +198,7 @@ site/               A browsable W3Schools-style tutorial: 47 ordered chapters wi
                     chapter 36: the GDPR line, CEFR levels, bullets that describe a result
                     rather than presence, at least one number, one page.
 
-                    The whole site works offline and installs as an app — all 47 chapters
+                    The whole site works offline and installs as an app — all 48 chapters
                     are precached on first visit. It never caches the accounts API, because
                     a cached "here is your profile" would be a lie with your progress on it.
 
