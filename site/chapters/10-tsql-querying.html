@@ -141,6 +141,28 @@
 <span class="kw">GROUP BY</span> CustomerId
 <span class="kw">HAVING</span>   <span class="kw">SUM</span>(Total) &gt; 1000
 <span class="kw">ORDER BY</span> Rev <span class="kw">DESC</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>--</code> &mdash; a SQL comment to end of line. The block comment is
+        <code>/* ... */</code>.</li>
+    <li><code>WHERE Rev &gt; 1000</code> fails &mdash; <strong>the alias does not exist yet</strong>.
+        SQL is evaluated in a logical order that is not the order you write it:
+        <code>FROM</code> &rarr; <code>WHERE</code> &rarr; <code>GROUP BY</code> &rarr;
+        <code>HAVING</code> &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>.</li>
+    <li><code>AS Rev</code> &mdash; an <strong>alias</strong>, created in <code>SELECT</code>. Since
+        <code>WHERE</code> runs before <code>SELECT</code>, the name is not yet defined.</li>
+    <li><code>WHERE SUM(Total) &gt; 1000</code> fails for a related reason: <code>WHERE</code> filters
+        <strong>rows</strong>, and it runs before <code>GROUP BY</code>, so no groups exist to
+        aggregate.</li>
+    <li><code>HAVING SUM(Total) &gt; 1000</code> &mdash; the correct clause. <strong><code>WHERE</code>
+        filters rows, <code>HAVING</code> filters groups</strong>, and that one sentence answers most
+        questions in this chapter.</li>
+    <li><code>ORDER BY Rev DESC</code> &mdash; legal, because <code>ORDER BY</code> is the
+        <strong>last</strong> step and the alias exists by then. That inconsistency is not a quirk to
+        memorise; it falls straight out of the evaluation order.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Say it in one sentence at interview: <strong>WHERE filters rows before grouping, HAVING filters
@@ -182,6 +204,28 @@
 <span class="kw">FROM</span>   dbo.Customers c
 <span class="kw">LEFT JOIN</span> dbo.Orders o <span class="kw">ON</span> o.CustomerId = c.Id
 <span class="kw">WHERE</span>  o.Id <span class="kw">IS NULL</span>;                <span class="cm">-- ← the "no match" marker</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>FROM dbo.Customers c</code> &mdash; <code>c</code> is a <strong>table alias</strong>.
+        Qualifying every column with one is what keeps a multi-table query readable and
+        unambiguous.</li>
+    <li><code>INNER JOIN ... ON o.CustomerId = c.Id</code> &mdash; keeps rows that match on
+        <strong>both</strong> sides. A customer with no orders disappears entirely.</li>
+    <li><code>LEFT JOIN</code> &mdash; keeps <strong>every row from the left table</strong> and fills
+        the right-hand columns with <code>NULL</code> where there is no match. That is why
+        <code>o.Total</code> can be null here but not above.</li>
+    <li><code>WHERE o.Id IS NULL</code> &mdash; the <strong>anti-join</strong>, and it is a genuinely
+        clever idiom: after a <code>LEFT JOIN</code>, a null in a
+        <em>non-nullable</em> right-hand column can only mean "no match was found".</li>
+    <li><strong>Test on the primary key</strong>, as here with <code>o.Id</code>. Testing a column that
+        is genuinely nullable would also match rows that <em>did</em> join but happened to hold
+        null.</li>
+    <li><strong>The trap:</strong> putting a condition on the right-hand table in <code>WHERE</code>
+        rather than in <code>ON</code> turns a <code>LEFT JOIN</code> back into an inner one, because
+        <code>WHERE</code> runs after the join and discards the null rows.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The LEFT JOIN that silently becomes an INNER JOIN</div>
@@ -192,6 +236,26 @@
 
 <span class="cm">-- ✓ put the condition in the ON clause instead</span>
 <span class="kw">FROM</span> Customers c <span class="kw">LEFT JOIN</span> Orders o <span class="kw">ON</span> o.CustomerId = c.Id <span class="kw">AND</span> o.Status = 3;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WHERE o.Status = 3</code> &mdash; the bug, and it is a clause in the wrong place.
+        <code>WHERE</code> runs <strong>after</strong> the join, so it sees the null-filled rows the
+        <code>LEFT JOIN</code> produced for customers with no matching order.</li>
+    <li><code>NULL = 3</code> is <strong>unknown</strong>, not true, so <code>WHERE</code> discards
+        those rows &mdash; and every customer without a matching order vanishes. The
+        <code>LEFT JOIN</code> has silently become an <code>INNER JOIN</code>.</li>
+    <li><code>ON o.CustomerId = c.Id AND o.Status = 3</code> &mdash; the fix. Conditions in
+        <code>ON</code> decide <strong>which rows join</strong>; conditions in <code>WHERE</code>
+        decide <strong>which rows survive</strong>. For the outer side of an outer join those are
+        completely different questions.</li>
+    <li><strong>The rule to carry:</strong> filter the outer table in <code>WHERE</code>, filter the
+        inner table in <code>ON</code>. Reversing it is the most common outer-join mistake there
+        is.</li>
+    <li>The one deliberate exception is <code>WHERE o.Id IS NULL</code> from the previous block, which
+        <em>wants</em> to act after the join &mdash; it is testing for the absence of a match.</li>
+  </ul>
+</div>
   <p>
     <strong>ON filters the join; WHERE filters the result.</strong> For an outer join they are
     completely different questions, and this is a favourite interview trap.
@@ -213,6 +277,27 @@
 <span class="kw">GROUP BY</span>   c.Id, c.Name        <span class="cm">-- every non-aggregated column must be here</span>
 <span class="kw">HAVING</span>     <span class="kw">COUNT</span>(o.Id) &gt; 0
 <span class="kw">ORDER BY</span>   Revenue <span class="kw">DESC</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>COUNT(o.Id)</code> &mdash; counts <strong>non-null</strong> values, so a customer with
+        no orders scores 0. <code>COUNT(*)</code> would count the row produced by the
+        <code>LEFT JOIN</code> and give 1 &mdash; a classic off-by-one in reports.</li>
+    <li><code>ISNULL(SUM(o.Total), 0)</code> &mdash; <code>SUM</code> over no rows returns
+        <code>NULL</code>, not zero. Without this the revenue column is null for new customers, which
+        then poisons any arithmetic downstream.</li>
+    <li><code>AND o.CreatedAtUtc &gt;= @from</code> <strong>inside the <code>ON</code></strong>
+        &mdash; deliberate. In <code>ON</code> it restricts which rows join, preserving every customer.
+        Moved to <code>WHERE</code> it would eliminate customers with no recent orders, silently
+        converting this to an inner join.</li>
+    <li><code>GROUP BY c.Id, c.Name</code> &mdash; <strong>every non-aggregated column in
+        <code>SELECT</code> must appear here</strong>. Unlike MySQL, SQL Server enforces it, which is
+        a kindness: it refuses to invent a row.</li>
+    <li><code>HAVING COUNT(o.Id) &gt; 0</code> &mdash; filters the groups after aggregation.</li>
+    <li><code>ORDER BY Revenue DESC</code> &mdash; using the alias, legal because
+        <code>ORDER BY</code> is last.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ <code>COUNT(*)</code> vs <code>COUNT(column)</code></div>
@@ -253,6 +338,22 @@
 <span class="kw">FROM</span>   Revenue r
 <span class="kw">JOIN</span>   dbo.Customers c <span class="kw">ON</span> c.Id = r.CustomerId
 <span class="kw">WHERE</span>  r.Rev &gt; 1000;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>SELECT * FROM ( ... ) x</code> &mdash; a <strong>derived table</strong>. The
+        <code>x</code> is a required alias, and the whole thing has to be read inside-out.</li>
+    <li><code>WITH Revenue AS ( ... )</code> &mdash; a <strong>common table expression</strong>. Same
+        result, read top to bottom: define the intermediate set, then use it by name.</li>
+    <li><strong>A CTE is not a temp table.</strong> Nothing is materialised; it is a named subquery the
+        optimiser inlines, so referencing it twice generally executes it twice.</li>
+    <li><code>JOIN dbo.Customers c ON c.Id = r.CustomerId</code> &mdash; a CTE joins exactly like a
+        table. <code>JOIN</code> with no qualifier means <code>INNER JOIN</code>.</li>
+    <li><strong>Why this matters beyond neatness:</strong> a query built from three named steps can be
+        read, reviewed and modified by someone else. Three levels of nested subquery, in practice,
+        cannot.</li>
+  </ul>
+</div>
 
 <div class="code-head">a recursive CTE — an organisation chart</div>
 <pre><code><span class="kw">WITH</span> Chain <span class="kw">AS</span>
@@ -270,6 +371,27 @@
 )
 <span class="kw">SELECT</span> * <span class="kw">FROM</span> Chain <span class="kw">ORDER BY</span> Depth
 <span class="kw">OPTION</span> (MAXRECURSION 100);   <span class="cm">-- a cycle in the data would loop for ever</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A recursive CTE has exactly two parts</strong> joined by
+        <code>UNION ALL</code>: an anchor that runs once, and a recursive member that refers back to
+        the CTE by name.</li>
+    <li><code>WHERE ManagerId IS NULL</code> &mdash; the <strong>anchor</strong>: the top of the tree,
+        the people with no manager.</li>
+    <li><code>0 AS Depth</code> &mdash; a literal seeding the level counter.</li>
+    <li><code>UNION ALL</code> &mdash; required, and <code>UNION</code> is not permitted here.
+        <code>ALL</code> means "do not de-duplicate", which is both faster and necessary for the
+        recursion to terminate correctly.</li>
+    <li><code>JOIN Chain ch ON e.ManagerId = ch.Id</code> &mdash; <strong>the CTE joining to
+        itself</strong>. Each pass finds the direct reports of everyone found in the previous pass.</li>
+    <li><code>ch.Depth + 1</code> &mdash; each level counts one deeper, which is what makes the result
+        orderable by hierarchy.</li>
+    <li><code>OPTION (MAXRECURSION 100)</code> &mdash; a safety limit. The default is 100 already;
+        <code>0</code> means unlimited, which is how a cycle in the data becomes a query that never
+        returns. Employee hierarchies acquire cycles more often than anyone expects.</li>
+  </ul>
+</div>
 
 <h2 id="window-functions">Window functions</h2>
 
@@ -308,6 +430,32 @@
     <span class="cm">-- the customer's overall total, repeated on every one of their rows</span>
     <span class="kw">SUM</span>(o.Total) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> o.CustomerId)                <span class="kw">AS</span> CustomerTotal
 <span class="kw">FROM</span> dbo.Orders o;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>OVER (...)</code> &mdash; the marker of a <strong>window function</strong>. Unlike
+        <code>GROUP BY</code>, it aggregates <em>without collapsing rows</em>: every original row
+        survives and gains a column.</li>
+    <li><code>PARTITION BY o.CustomerId</code> &mdash; restart the calculation per customer. It is
+        <code>GROUP BY</code>'s idea applied inside a window instead of to the result set.</li>
+    <li><code>ROW_NUMBER() OVER (... ORDER BY o.Total DESC)</code> &mdash; numbers rows 1, 2, 3 within
+        each partition. The <code>ORDER BY</code> inside <code>OVER</code> is unrelated to the query's
+        own <code>ORDER BY</code>.</li>
+    <li><strong><code>ROW_NUMBER</code> versus <code>RANK</code> versus <code>DENSE_RANK</code></strong>
+        &mdash; on a tie: <code>ROW_NUMBER</code> picks arbitrarily (1,2,3),
+        <code>RANK</code> ties then skips (1,1,3), <code>DENSE_RANK</code> ties without skipping
+        (1,1,2). Choosing the wrong one is a subtle reporting bug.</li>
+    <li><code>SUM(...) OVER (PARTITION BY ... ORDER BY ... ROWS UNBOUNDED PRECEDING)</code> &mdash; a
+        <strong>running total</strong>. Adding <code>ORDER BY</code> inside <code>OVER</code> turns the
+        aggregate into a cumulative one.</li>
+    <li><code>ROWS UNBOUNDED PRECEDING</code> &mdash; the <strong>frame</strong>: from the first row of
+        the partition to the current one. Worth writing explicitly, because the default is
+        <code>RANGE</code>, which treats tied values as one group and gives a different answer.</li>
+    <li><code>SUM(o.Total) OVER (PARTITION BY o.CustomerId)</code> &mdash; no <code>ORDER BY</code>, so
+        the frame is the whole partition: the customer's grand total, repeated on every one of their
+        rows. Getting that beside the detail is what would otherwise need a self-join.</li>
+  </ul>
+</div>
 
 <div class="code-head">the classic question: the latest row per group</div>
 <pre><code><span class="cm">-- "the most recent order for each customer" — asked constantly</span>
@@ -319,6 +467,26 @@
     <span class="kw">FROM</span> dbo.Orders o
 )
 <span class="kw">SELECT</span> * <span class="kw">FROM</span> Ranked <span class="kw">WHERE</span> rn = 1;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>"The most recent per customer" is asked constantly</strong>, in interviews and in
+        real reporting work. This is the standard answer.</li>
+    <li><code>SELECT o.*</code> inside the CTE &mdash; keep every column, then add the ranking one.
+        Acceptable inside a CTE; still worth naming columns in production code.</li>
+    <li><code>ROW_NUMBER() OVER (PARTITION BY o.CustomerId ORDER BY o.CreatedAtUtc DESC)</code> &mdash;
+        <code>DESC</code> puts the newest first, so it becomes number 1.</li>
+    <li><code>WHERE rn = 1</code> &mdash; <strong>and it must be outside the CTE</strong>. A window
+        function cannot appear in <code>WHERE</code>, because <code>WHERE</code> runs before
+        <code>SELECT</code> computes it. The CTE exists precisely to give the column a name that a
+        later <code>WHERE</code> can see.</li>
+    <li><strong>Ties are silently resolved</strong> by <code>ROW_NUMBER</code>. Two orders with the
+        same timestamp means one is chosen arbitrarily; add a tie-breaker such as
+        <code>, o.Id DESC</code> if that matters.</li>
+    <li>The obvious alternative &mdash; a correlated subquery with <code>MAX(CreatedAtUtc)</code>
+        &mdash; is usually slower and breaks entirely when two orders share a timestamp.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -340,6 +508,26 @@
 <span class="kw">ORDER BY</span> o.CreatedAtUtc <span class="kw">DESC</span>, o.Id <span class="kw">DESC</span>   <span class="cm">-- Id breaks ties: without it,</span>
 <span class="kw">OFFSET</span>   @skip <span class="kw">ROWS</span>                       <span class="cm">-- rows can repeat or vanish across pages</span>
 <span class="kw">FETCH NEXT</span> @take <span class="kw">ROWS ONLY</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY</code> &mdash; the ANSI paging syntax,
+        and it <strong>requires <code>ORDER BY</code></strong>. SQL Server rejects it otherwise, which
+        is unusually helpful.</li>
+    <li><code>ORDER BY o.CreatedAtUtc DESC, o.Id DESC</code> &mdash; <strong>the second column is the
+        entire point</strong>. Without a tie-breaker the order among equal timestamps is undefined and
+        may differ between executions, so a row can appear on page 2 and again on page 3 while another
+        is never shown at all.</li>
+    <li><strong>The ordering must be deterministic, not merely present.</strong> This is the bug that
+        reaches production because it never reproduces on a small test dataset.</li>
+    <li><code>@skip</code> and <code>@take</code> &mdash; parameters, so the plan is reused rather than
+        recompiled per page.</li>
+    <li><strong>It gets slower as the offset grows</strong>, because the server still produces and
+        discards the skipped rows. Page 5000 is genuinely expensive; keyset paging &mdash;
+        <code>WHERE (CreatedAtUtc, Id) &lt; (@lastDate, @lastId)</code> &mdash; is the fix when it
+        matters.</li>
+  </ul>
+</div>
 
 <div class="code-head">insert, update, delete — and OUTPUT</div>
 <pre><code><span class="kw">INSERT INTO</span> dbo.Orders (OrderNumber, CustomerId, Total)
@@ -351,6 +539,28 @@
 <span class="kw">WHERE</span>  Id = @id <span class="kw">AND</span> Status = 2;         <span class="cm">-- guard: only from the expected state</span>
 
 <span class="kw">DELETE FROM</span> dbo.Orders <span class="kw">WHERE</span> Id = @id;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>INSERT INTO ... (columns) VALUES (...)</code> &mdash; always name the columns. An
+        <code>INSERT</code> without a column list breaks the day someone adds one.</li>
+    <li><code>OUTPUT inserted.Id</code> &mdash; returns the generated key <strong>as part of the same
+        statement</strong>. No second round trip, and unlike <code>SCOPE_IDENTITY()</code> it works
+        for multi-row inserts.</li>
+    <li><code>inserted</code> &mdash; a pseudo-table available in <code>OUTPUT</code>, alongside
+        <code>deleted</code>. An <code>UPDATE</code> has both, which makes writing an audit trail a
+        one-liner.</li>
+    <li><code>WHERE Id = @id AND Status = 2</code> &mdash; the <strong>guard</strong>, and the whole
+        lesson of this block. It updates only from the expected state, so two concurrent submissions
+        cannot both succeed. Check <code>@@ROWCOUNT</code> afterwards: zero means someone else got
+        there first.</li>
+    <li><strong>Compare-and-set in one statement</strong> beats <code>SELECT</code> then
+        <code>UPDATE</code>, which has a gap between the two where another session can act.</li>
+    <li><code>DELETE FROM ... WHERE Id = @id</code> &mdash; and note what is absent: run any
+        <code>DELETE</code> or <code>UPDATE</code> as a <code>SELECT</code> first. A missing
+        <code>WHERE</code> is instant and total.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Write the WHERE clause first</div>
@@ -377,6 +587,23 @@
 <span class="kw">USING</span> (<span class="kw">SELECT</span> @sku <span class="kw">AS</span> Sku) <span class="kw">AS</span> s <span class="kw">ON</span> t.Sku = s.Sku
 <span class="kw">WHEN MATCHED THEN UPDATE SET</span> t.Qty = t.Qty + @qty
 <span class="kw">WHEN NOT MATCHED THEN INSERT</span> (Sku, Qty) <span class="kw">VALUES</span> (@sku, @qty);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>MERGE</code> &mdash; upsert in one statement: update when the row exists, insert when
+        it does not. It reads beautifully and it is a trap.</li>
+    <li><code>USING (SELECT @sku AS Sku) AS s ON t.Sku = s.Sku</code> &mdash; a one-row source joined
+        to the target on the key.</li>
+    <li><strong>It does not take a range lock by default.</strong> Two sessions can both evaluate
+        <code>NOT MATCHED</code>, both proceed to insert, and one receives a primary key
+        violation.</li>
+    <li><strong>Under low concurrency it passes every test.</strong> This is the shape of bug that
+        survives review and code coverage and appears the first busy afternoon.</li>
+    <li><code>MERGE</code> has a long list of correctness bugs beyond this one, which is why a good
+        deal of production advice is simply not to use it. The next block is the boring, correct
+        alternative.</li>
+  </ul>
+</div>
   <p>
     Making it safe means <code>WITH (HOLDLOCK)</code> on the target &mdash; which people forget,
     because nothing in the syntax suggests it is needed. The plainer form below is longer, has no
@@ -392,6 +619,25 @@
     <span class="kw">INSERT INTO</span> dbo.Stock (Sku, Qty) <span class="kw">VALUES</span> (@sku, @qty);
 
 <span class="kw">COMMIT</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>BEGIN TRANSACTION</code> ... <code>COMMIT</code> &mdash; both statements succeed or
+        neither does. Necessary, because the update and the insert must be one indivisible
+        decision.</li>
+    <li><code>WITH (UPDLOCK, HOLDLOCK)</code> &mdash; a <strong>table hint</strong>, and the reason
+        this version is correct. <code>UPDLOCK</code> takes an update lock immediately rather than a
+        shared one; <code>HOLDLOCK</code> keeps it, and the key range, until the transaction ends. A
+        second session must wait rather than concluding the row is absent.</li>
+    <li><strong>Update first, insert second</strong> &mdash; and it matters. The update establishes
+        the lock on the key range before anyone decides whether to insert.</li>
+    <li><code>IF @@ROWCOUNT = 0</code> &mdash; <code>@@ROWCOUNT</code> holds the rows affected by the
+        <strong>immediately preceding</strong> statement. Read it at once: any statement in between,
+        even an <code>IF</code>, resets it.</li>
+    <li><strong>It is longer and less elegant than <code>MERGE</code>, and it is correct.</strong> That
+        trade is the whole point of the pair.</li>
+  </ul>
+</div>
   <p class="subtle">
     Worth being able to say in an interview: <em>"I know <code>MERGE</code>, and I avoid it for
     upserts because it needs <code>HOLDLOCK</code> to be concurrency-safe and that is easy to
@@ -405,6 +651,23 @@
 <div class="code-head">✗ string concatenation — SQL injection</div>
 <pre><code><span class="cm">// Never. If name is:  '; DROP TABLE Orders; --</span>
 <span class="kw">var</span> sql = $<span class="st">"SELECT * FROM Customers WHERE Name = '{name}'"</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>$"...{name}..."</code> &mdash; C# string interpolation building SQL by
+        <strong>concatenation</strong>. The value becomes part of the statement text.</li>
+    <li><code>'; DROP TABLE Orders; --</code> &mdash; read what it does to the finished string. The
+        <code>'</code> closes the literal, the <code>;</code> ends the statement, a new one begins, and
+        <code>--</code> comments out whatever was left.</li>
+    <li><strong>The database is not at fault.</strong> It receives a syntactically valid batch of two
+        statements and executes exactly what it was sent. There is no flaw to patch.</li>
+    <li><strong>Escaping quotes is not the fix.</strong> Numeric contexts need no quotes at all, and
+        Unicode has several characters that normalise to an apostrophe. Every hand-rolled escaper has
+        eventually been defeated.</li>
+    <li>Note this is not only about attackers: the Italian surname <code>D'Angelo</code> breaks this
+        query by accident, today.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ parameters — data can never become code</div>
 <pre><code><span class="cm">// ADO.NET</span>
@@ -416,6 +679,30 @@ cmd.Parameters.Add(<span class="st">"@customerId"</span>, <span class="ty">SqlDb
 <span class="kw">var</span> rows = <span class="kw">await</span> db.Orders
     .FromSqlInterpolated($<span class="st">"SELECT * FROM dbo.Orders WHERE CustomerId = {customerId}"</span>)
     .ToListAsync(ct);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>"... WHERE CustomerId = @customerId"</code> &mdash; the SQL contains a
+        <strong>placeholder</strong>, not a value. The statement text is fixed before any user input
+        exists.</li>
+    <li><code>cmd.Parameters.Add("@customerId", SqlDbType.Int).Value = customerId;</code> &mdash; the
+        value travels <strong>separately, in the protocol</strong>, and is never parsed as SQL. That is
+        the actual mechanism: not escaping, but separation.</li>
+    <li><code>SqlDbType.Int</code> &mdash; stating the type explicitly. Letting ADO.NET infer it can
+        produce a type mismatch that forces an implicit conversion and quietly prevents an index
+        seek.</li>
+    <li><code>using var cmd = ...</code> &mdash; the command holds unmanaged resources; dispose it, per
+        <a href="08-disposal-and-thread-safety.html">chapter 08</a>.</li>
+    <li><code>FromSqlInterpolated($"... {customerId}")</code> &mdash; looks exactly like the vulnerable
+        version and is <strong>safe</strong>. EF Core takes the interpolated string as an
+        <code>FormattableString</code>, pulls the holes out and converts them to parameters.</li>
+    <li><strong>The dangerous sibling is <code>FromSqlRaw</code></strong> with a string you built
+        yourself. The names are chosen deliberately: <em>Raw</em> means you are responsible.</li>
+    <li><strong>A second reason, beyond security:</strong> parameterised statements are reused from the
+        plan cache. Concatenated SQL produces a new plan per distinct value and can flood the cache on
+        its own.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Parameters are not only about security. A parameterised query is cached by the engine as a single
@@ -437,6 +724,30 @@ cmd.Parameters.Add(<span class="st">"@customerId"</span>, <span class="ty">SqlDb
       <span class="kw">AND</span>    (@From <span class="kw">IS NULL OR</span> o.CreatedAtUtc &gt;= @From)
     <span class="kw">ORDER BY</span> o.CreatedAtUtc <span class="kw">DESC</span>;
 <span class="kw">END</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>CREATE OR ALTER PROCEDURE</code> &mdash; creates it or replaces the body, preserving
+        permissions. Better than <code>DROP</code> plus <code>CREATE</code>, which loses them, and it
+        makes the script re-runnable.</li>
+    <li><code>@CustomerId INT</code> &mdash; a required parameter.
+        <code>@From DATETIME2(3) = NULL</code> has a <strong>default</strong>, so it is optional.</li>
+    <li><code>AS BEGIN ... END</code> &mdash; the body. <code>BEGIN</code>/<code>END</code> is optional
+        for a procedure and universally written anyway.</li>
+    <li><code>SET NOCOUNT ON</code> &mdash; suppresses the "n rows affected" messages. Not cosmetic:
+        those extra network packets measurably slow a chatty procedure, and some client libraries
+        mistake them for result sets.</li>
+    <li><code>(@From IS NULL OR o.CreatedAtUtc &gt;= @From)</code> &mdash; the
+        <strong>optional-parameter idiom</strong>: when the parameter is not supplied the condition is
+        always true.</li>
+    <li><strong>The cost of that idiom is parameter sniffing.</strong> SQL Server caches a plan built
+        for the first set of values it sees, and one plan may suit <code>@From</code> null and be
+        terrible when it is supplied. <code>OPTION (RECOMPILE)</code> is the usual remedy, and
+        <a href="11-tsql-performance.html">chapter 11</a> covers why.</li>
+    <li><code>ORDER BY o.CreatedAtUtc DESC</code> &mdash; ordering inside the procedure, so callers do
+        not each re-sort.</li>
+  </ul>
+</div>
 
 <div class="tryit">
   <div class="box-title">Try it yourself</div>

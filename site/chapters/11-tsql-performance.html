@@ -162,6 +162,30 @@
 <span class="kw">CREATE INDEX</span> IX_Orders_Open
     <span class="kw">ON</span> dbo.Orders (CreatedAtUtc)
     <span class="kw">WHERE</span> Status <span class="kw">IN</span> (2, 3);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>CREATE INDEX IX_Orders_Customer_Created ON dbo.Orders (CustomerId, CreatedAtUtc)</code>
+        &mdash; a <strong>composite index</strong>, and the column order is the whole design.</li>
+    <li><strong>Think of a phone book</strong> ordered by surname then first name. It answers "everyone
+        called Rossi" instantly and "everyone called Marco" not at all. An index is usable
+        <em>left-to-right</em>: this one serves a query on <code>CustomerId</code>, or on both, but not
+        one on <code>CreatedAtUtc</code> alone.</li>
+    <li><strong>Equality columns first, then range and sort columns.</strong> That single rule decides
+        most composite indexes correctly.</li>
+    <li><code>INCLUDE (CustomerId, Total, CreatedAtUtc)</code> &mdash; a <strong>covering
+        index</strong>. Included columns sit in the leaf pages only: they cannot be searched, but they
+        can be <em>returned</em>, so the query never goes back to the table.</li>
+    <li>That return trip is the <strong>key lookup</strong>, and it is per row. Eliminating it is
+        frequently a bigger win than the seek itself.</li>
+    <li><code>WHERE Status IN (2, 3)</code> on a <code>CREATE INDEX</code> &mdash; a
+        <strong>filtered index</strong>: index only the rows anyone queries. It stays small and cheap
+        to maintain even when the table holds ten years of delivered orders.</li>
+    <li><strong>Every index makes writes slower.</strong> An index is a second sorted copy of its
+        columns that every <code>INSERT</code>, <code>UPDATE</code> and <code>DELETE</code> must
+        maintain, inside the same transaction. Unused indexes are pure cost.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 The leftmost-prefix rule</div>
@@ -196,6 +220,35 @@
 <span class="kw">WHERE</span> o.CreatedAtUtc &gt;= <span class="st">'2026-01-01'</span> <span class="kw">AND</span> o.CreatedAtUtc &lt; <span class="st">'2027-01-01'</span>
 <span class="kw">WHERE</span> c.Name = <span class="st">'Rossi'</span>            <span class="cm">-- default collation is case-insensitive anyway</span>
 <span class="kw">WHERE</span> o.OrderNumber <span class="kw">LIKE</span> <span class="st">'2026%'</span>  <span class="cm">-- trailing wildcard can still seek</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Sargable</strong> &mdash; "Search ARGument able", meaning the engine can seek an
+        index rather than scan the table. Every line above the divider destroys that property.</li>
+    <li><code>YEAR(o.CreatedAtUtc) = 2026</code> &mdash; a <strong>function on the column</strong>. The
+        index stores <code>CreatedAtUtc</code>, not <code>YEAR(CreatedAtUtc)</code>, so the engine must
+        compute the function for <em>every row</em> before it can compare.</li>
+    <li><code>UPPER(c.Name) = 'ROSSI'</code> &mdash; the same mistake, and usually pointless as well:
+        SQL Server's default collation is case-insensitive, so the <code>UPPER</code> was never
+        needed.</li>
+    <li><code>LIKE '%2026%'</code> &mdash; a <strong>leading wildcard</strong>. An index is ordered by
+        the start of the value, and "ends with" is a question that ordering cannot answer. Always a
+        scan.</li>
+    <li><code>CAST(o.CustomerId AS NVARCHAR) = @id</code> &mdash; and this one happens
+        <strong>without you writing it</strong>. If a parameter's type does not match the column's, SQL
+        Server inserts an implicit conversion, and if it lands on the column side the index is dead.
+        An <code>NVARCHAR</code> parameter against a <code>VARCHAR</code> column is the classic
+        case.</li>
+    <li><code>&gt;= '2026-01-01' AND &lt; '2027-01-01'</code> &mdash; the fix: a
+        <strong>half-open range</strong>. It leaves the column untouched, so the index can seek. Note
+        <code>&lt;</code> on the upper bound rather than <code>&lt;= '2026-12-31'</code>, which would
+        silently exclude everything after midnight on the last day.</li>
+    <li><code>LIKE '2026%'</code> &mdash; a trailing wildcard <strong>can</strong> seek, because it is
+        a prefix, and a prefix is exactly what an ordered structure is good at.</li>
+    <li><strong>The rule in one sentence:</strong> never wrap a column in a function. Transform the
+        parameter instead &mdash; there is one of it, and there are a million rows.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The one that catches everyone</div>
@@ -237,6 +290,27 @@
 <span class="cm">-- "logical reads" is the number to watch: it is the count of 8 KB pages touched,</span>
 <span class="cm">-- and unlike elapsed time it does not change with cache state or machine load.</span>
 <span class="cm">-- Before an index: logical reads 14,882.  After: 6.  That is the whole story.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>SET STATISTICS IO, TIME ON</code> &mdash; a session setting. Every subsequent query
+        reports its own I/O and CPU alongside the results.</li>
+    <li><strong><code>logical reads</code> is the number to watch.</strong> It counts 8 KB pages the
+        engine touched, in cache or not.</li>
+    <li><strong>Why not elapsed time.</strong> Time varies with cache state, other load and what else
+        the machine is doing, so the same query gives a different answer each run. Logical reads are
+        deterministic: the same query over the same data touches the same pages every time.</li>
+    <li><code>14,882</code> &rarr; <code>6</code> &mdash; the shape of a genuine index win. Not
+        "roughly twice as fast", but three orders of magnitude, because the engine stopped reading the
+        table.</li>
+    <li><strong>Measure before and after, always.</strong> An index added on intuition is as likely to
+        slow the system down &mdash; through write cost &mdash; as to speed it up, and without the
+        numbers nobody can tell which happened.</li>
+    <li>The companion tool is the <strong>actual execution plan</strong>, where the words to look for
+        are <em>seek</em> versus <em>scan</em>, and a thick arrow meaning far more rows than the
+        optimiser estimated.</li>
+  </ul>
+</div>
 
 <h2 id="temp">Temp tables and table variables</h2>
 
@@ -320,6 +394,29 @@
     <span class="kw">IF</span> @@TRANCOUNT &gt; 0 <span class="kw">ROLLBACK</span>;
     <span class="kw">THROW</span>;                   <span class="cm">-- rethrow; do not swallow</span>
 <span class="kw">END CATCH</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>BEGIN TRANSACTION</code> ... <code>COMMIT</code> &mdash; both updates land or neither
+        does. This is the classic transfer: without atomicity, money can leave one account and never
+        arrive at the other.</li>
+    <li><code>BEGIN TRY</code> / <code>BEGIN CATCH</code> &mdash; T-SQL's error handling. Note the
+        <code>COMMIT</code> is the <em>last</em> statement inside <code>TRY</code>, so it is only
+        reached when everything before it succeeded.</li>
+    <li><code>IF @@TRANCOUNT &gt; 0 ROLLBACK</code> &mdash; the guard. <code>@@TRANCOUNT</code> is the
+        current nesting depth; some errors roll the transaction back before <code>CATCH</code> runs, and
+        an unguarded <code>ROLLBACK</code> would then fail with a second, more confusing error.</li>
+    <li><code>THROW;</code> &mdash; bare, with no arguments, which <strong>rethrows the original
+        error</strong> preserving its number and message. The older
+        <code>RAISERROR</code> cannot reproduce the original severity, which is why
+        <code>THROW</code> replaced it.</li>
+    <li><strong>Never swallow.</strong> A <code>CATCH</code> that rolls back and returns quietly turns
+        a failed transfer into a successful-looking one.</li>
+    <li><strong>Keep transactions short.</strong> Locks are held until <code>COMMIT</code>, so a
+        transaction that waits on a web service holds them for the duration of that call &mdash; and
+        everyone else waits.</li>
+  </ul>
+</div>
 
 <h3>Isolation levels</h3>
 <p>
@@ -425,6 +522,21 @@
 <div class="code-head">rowversion — the standard solution</div>
 <pre><code><span class="cm">-- SQL Server increments this automatically on every UPDATE</span>
 <span class="kw">ALTER TABLE</span> dbo.Orders <span class="kw">ADD</span> RowVersion <span class="ty">ROWVERSION</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ROWVERSION</code> &mdash; an 8-byte value SQL Server <strong>increments automatically
+        on every UPDATE</strong>. You never write to it, and it is unique across the whole database
+        rather than per row.</li>
+    <li><strong>It is not a timestamp</strong>, despite the deprecated synonym
+        <code>TIMESTAMP</code>. It encodes no date and cannot be compared to one; it is a monotonically
+        increasing counter used purely to detect change.</li>
+    <li><code>ALTER TABLE ... ADD</code> &mdash; adding it to an existing table is safe and cheap; the
+        engine populates it as rows are updated.</li>
+    <li><strong>This one column is the whole mechanism</strong> behind the optimistic concurrency in the
+        next block. Everything else is bookkeeping.</li>
+  </ul>
+</div>
 <pre><code><span class="cm">// EF Core: mark it, and concurrent updates now throw instead of silently losing data</span>
 builder.Property(o =&gt; o.RowVersion).IsRowVersion();
 
@@ -437,6 +549,29 @@ builder.Property(o =&gt; o.RowVersion).IsRowVersion();
     <span class="cm">// somebody else changed this row since we loaded it →</span>
     <span class="cm">// reload, show the conflict, or merge. Never just overwrite.</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>builder.Property(o =&gt; o.RowVersion).IsRowVersion()</code> &mdash; tells EF Core this
+        is the <strong>concurrency token</strong>. From now on every <code>UPDATE</code> EF generates
+        carries <code>AND RowVersion = @original</code> in its <code>WHERE</code>.</li>
+    <li><strong>That is the entire trick.</strong> If somebody else changed the row since you loaded
+        it, the version no longer matches, <em>zero rows are affected</em>, and EF knows the update was
+        lost.</li>
+    <li><code>DbUpdateConcurrencyException</code> &mdash; thrown when the affected-row count is not what
+        EF expected. <strong>The exception is the feature working</strong>, not a failure to
+        prevent.</li>
+    <li><strong>Optimistic, not pessimistic.</strong> Nothing is locked while you think. That is the
+        right trade for a web application, where "while you think" means a user staring at a form for
+        ten minutes.</li>
+    <li><code>// reload, show the conflict, or merge</code> &mdash; the three legitimate responses. What
+        you must not do is catch this and retry blindly: that reintroduces the lost update the token
+        exists to prevent.</li>
+    <li><strong>The interview answer is three words plus a caveat:</strong> rowversion, 409, retry
+        &mdash; and then a <code>CHECK</code> constraint, because the database is the only guard every
+        writer passes.</li>
+  </ul>
+</div>
 
 <div class="tryit">
   <div class="box-title">Try it yourself</div>
@@ -455,6 +590,28 @@ builder.Property(o =&gt; o.RowVersion).IsRowVersion();
 <span class="cm">-- Window 1:</span>
 <span class="kw">ROLLBACK</span>;
 <span class="cm">-- Window 2 read 999. That number never existed. That is a dirty read.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Two windows, deliberately.</strong> Concurrency cannot be understood from one
+        session, and this is ten seconds of work that replaces a page of theory.</li>
+    <li><code>BEGIN TRANSACTION</code> with no <code>COMMIT</code> &mdash; the update has happened but
+        is <strong>uncommitted</strong>, and it holds an exclusive lock on the row.</li>
+    <li><code>SELECT ... WHERE Id = 1</code> in window 2 &mdash; <strong>hangs</strong>. Under the
+        default READ COMMITTED level, a reader waits for the writer's lock. That is not a bug; it is
+        the isolation level protecting you.</li>
+    <li><code>WITH (NOLOCK)</code> &mdash; reads anyway, and returns <code>999</code>. It is a
+        per-table hint equivalent to READ UNCOMMITTED.</li>
+    <li><code>ROLLBACK</code> &mdash; and now the point lands. <strong>Window 2 read a number that
+        never existed</strong> and never will. That is a <em>dirty read</em>.</li>
+    <li><strong><code>NOLOCK</code> is not a performance switch</strong>, though it is used as one
+        everywhere. Beyond dirty reads it can return a row twice or skip one entirely, if a page split
+        moves rows during your scan &mdash; on data that was never modified at all.</li>
+    <li><strong>The right fix is usually READ COMMITTED SNAPSHOT</strong>, a database-level setting
+        where readers get the last committed version instead of blocking. Readers do not block writers,
+        writers do not block readers, and nothing is dirty.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then create a table with a million rows, query it unindexed with
     <code>SET STATISTICS IO ON</code>, add the index, and compare the logical reads. Watching

@@ -96,6 +96,27 @@
 
 <span class="cm">-- and now it behaves like a table</span>
 <span class="kw">SELECT</span> * <span class="kw">FROM</span> dbo.vw_OrderSummary <span class="kw">WHERE</span> Total &gt; 1000;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>CREATE OR ALTER VIEW</code> &mdash; a <strong>view is a saved SELECT</strong>, nothing
+        more. It stores no data and costs no disk; the query runs when you select from it.</li>
+    <li><code>AS</code> then the query &mdash; the whole definition. A view has no parameters, which is
+        the single biggest limitation and the reason inline table-valued functions exist.</li>
+    <li><code>SUM(l.Quantity * l.UnitPrice) AS Total</code> &mdash; the computation lives in one place
+        now, so four reports cannot each get it subtly wrong.</li>
+    <li><code>GROUP BY o.Id, o.OrderNumber, o.CreatedAtUtc, c.Id, c.Name</code> &mdash; every
+        non-aggregated column, as always.</li>
+    <li><code>GO</code> &mdash; <strong>not T-SQL</strong>. It is a batch separator understood by the
+        client tool, and it is required here because <code>CREATE VIEW</code> must be the first
+        statement in its batch.</li>
+    <li><code>SELECT * FROM dbo.vw_OrderSummary WHERE Total &gt; 1000</code> &mdash; it behaves like a
+        table. The optimiser <strong>inlines the definition</strong> and produces one plan, so this is
+        not two queries.</li>
+    <li><strong>The trap is nesting.</strong> A view over a view over a view still inlines, and the
+        resulting plan can be enormous while the SQL looks like three lines.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ A view does not make anything faster</div>
@@ -146,6 +167,24 @@
 <span class="cm">-- Without CHECK OPTION: this works, and the row silently vanishes from the
 -- view you just updated it through. With it: the UPDATE is rejected.</span>
 <span class="kw">UPDATE</span> dbo.vw_ActiveCustomers <span class="kw">SET</span> IsActive = 0 <span class="kw">WHERE</span> Id = 42;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A simple view is updatable.</strong> If it touches one table with no aggregate,
+        <code>UPDATE</code> and <code>INSERT</code> pass straight through to that table &mdash; which
+        surprises people who expect a view to be read-only.</li>
+    <li><code>WHERE IsActive = 1</code> &mdash; the view's own filter, and the source of the
+        problem.</li>
+    <li><code>UPDATE dbo.vw_ActiveCustomers SET IsActive = 0</code> &mdash; without
+        <code>CHECK OPTION</code> this succeeds, and the row <strong>disappears from the very view you
+        updated it through</strong>. It is now invisible to anyone using that view, including whoever
+        tries to undo it.</li>
+    <li><code>WITH CHECK OPTION</code> &mdash; rejects any modification that would push a row outside
+        the view's <code>WHERE</code>. The <code>UPDATE</code> fails loudly instead.</li>
+    <li><strong>The general principle:</strong> a filtered view is a promise about what is inside it,
+        and without <code>CHECK OPTION</code> that promise is not enforced for writers.</li>
+  </ul>
+</div>
 
 <h3 id="indexed-views">Indexed views &mdash; the one that <em>does</em> store data</h3>
 
@@ -168,6 +207,28 @@
 
 <span class="kw">CREATE UNIQUE CLUSTERED INDEX</span> IX_vw_CustomerTotals
     <span class="kw">ON</span> dbo.vw_CustomerTotals(CustomerId);   <span class="cm">-- this is what materialises it</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WITH SCHEMABINDING</code> &mdash; <strong>required</strong> before a view can be
+        indexed. It locks the underlying tables: nobody can drop or alter a referenced column while the
+        view exists, which is exactly the guarantee a materialised copy needs.</li>
+    <li><strong>Two-part names are mandatory under schemabinding</strong> &mdash; <code>dbo.Orders</code>
+        and never bare <code>Orders</code>. That is why the qualification here is not just style.</li>
+    <li><code>COUNT_BIG(*)</code> and not <code>COUNT(*)</code> &mdash; required, and the error message
+        is unhelpful when you forget. <code>COUNT_BIG</code> returns <code>BIGINT</code>; the engine
+        insists on it for an indexed view with an aggregate.</li>
+    <li><code>CREATE UNIQUE CLUSTERED INDEX ... ON dbo.vw_CustomerTotals(CustomerId)</code> &mdash;
+        <strong>this line is what materialises the view</strong>. Until it exists the view is just a
+        saved query; afterwards the results are stored and maintained on disk.</li>
+    <li>The first index on an indexed view <strong>must be unique and clustered</strong>, which is why
+        the grouping key is the natural choice.</li>
+    <li><strong>What it costs.</strong> Every <code>INSERT</code> or <code>UPDATE</code> to
+        <code>Orders</code> now also updates this structure, synchronously, inside the same
+        transaction. You have traded write speed for read speed &mdash; excellent for a dashboard over
+        a table written once a minute, disastrous for one written a thousand times a second.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ What it costs</div>
@@ -229,6 +290,24 @@
                  -- RAISERROR here would lose both.</span>
     <span class="kw">END CATCH</span>
 <span class="kw">END</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>@OrderId INT OUTPUT</code> &mdash; an <strong>output parameter</strong>: a second way
+        to return data, alongside result sets. The caller must also mark it as output, or the value
+        silently never comes back.</li>
+    <li><code>SET NOCOUNT ON</code> &mdash; suppresses the "(1 row affected)" messages. Not cosmetic:
+        each is a network round trip, and some client libraries mistake them for empty result
+        sets.</li>
+    <li><code>SET XACT_ABORT ON</code> &mdash; <strong>the important one</strong>. Without it, some
+        errors abort only the current statement and leave the transaction <em>open</em>, holding locks
+        until the connection is reset. With it, any error rolls the whole thing back.</li>
+    <li><strong>Both SETs belong at the top of every procedure that writes.</strong> They are two lines
+        that prevent two entire categories of production incident.</li>
+    <li><code>BEGIN</code> / <code>END</code> &mdash; the procedure body. Optional to the parser and
+        always written.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Professional</div>
@@ -302,6 +381,26 @@
 <span class="cm">-- One million orders. This calls the function ONE MILLION TIMES,
 -- once per row, each one its own little query.</span>
 <span class="kw">SELECT</span> Id, dbo.fn_OrderTotal(Id) <span class="kw">FROM</span> dbo.Orders;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>RETURNS DECIMAL(18,2)</code> &mdash; a <strong>scalar</strong> function: one value
+        back. It reads like a C# method, and that intuition is what makes it dangerous.</li>
+    <li><code>BEGIN ... END</code> around the body &mdash; this is the marker of a
+        <strong>multi-statement</strong> function, and it is what defeats the optimiser.</li>
+    <li><code>SELECT Id, dbo.fn_OrderTotal(Id) FROM dbo.Orders</code> &mdash; the function is called
+        <strong>once per row</strong>. A million orders means a million separate little queries, each
+        with its own overhead.</li>
+    <li><strong>It is worse than slow, it is invisible.</strong> Before SQL Server 2019 the execution
+        plan showed almost no cost for the function, so the plan looked fine while the query took
+        minutes.</li>
+    <li><strong>It also forces the whole query serial.</strong> A scalar UDF historically prevented
+        parallelism for the entire statement, not just its own part.</li>
+    <li>SQL Server 2019's <em>scalar UDF inlining</em> fixes many cases automatically &mdash; but only
+        some, only on a recent compatibility level, and silently not at all if the function does
+        anything it cannot inline. Do not rely on it.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Why it is worse than it looks</div>
@@ -351,6 +450,30 @@
 <span class="kw">SELECT</span> c.Name, o.OrderNumber
 <span class="kw">FROM</span>   dbo.Customers c
 <span class="kw">CROSS APPLY</span> dbo.fn_OrdersForCustomer(c.Id) o;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>RETURNS TABLE</code> with <strong>no <code>BEGIN</code>/<code>END</code></strong>
+        &mdash; that absence is the whole thing. It makes this an <em>inline</em> table-valued
+        function: a parameterised view, not a procedure.</li>
+    <li><code>RETURN ( SELECT ... )</code> &mdash; a single query in parentheses. If you need more than
+        one statement it is no longer inline, and the performance argument evaporates.</li>
+    <li><strong>The optimiser sees straight through it.</strong> The definition is expanded into the
+        calling query and optimised as one statement, so there is no per-row cost at all &mdash; the
+        exact opposite of the scalar UDF above.</li>
+    <li><code>SELECT * FROM dbo.fn_OrdersForCustomer(42) WHERE Total &gt; 100</code> &mdash;
+        <strong>composable</strong>. The outer <code>WHERE</code> is pushed inside during optimisation,
+        so it does not fetch everything and then filter.</li>
+    <li><code>CROSS APPLY</code> &mdash; the join operator for a function that needs a value
+        <em>from</em> the left row: run it for each customer with that customer's id. It is still one
+        set-based plan, not a loop you wrote.</li>
+    <li><code>CROSS APPLY</code> drops rows where the function returns nothing;
+        <code>OUTER APPLY</code> keeps them with nulls, which makes it the
+        <code>LEFT JOIN</code> of the pair.</li>
+    <li><strong>This is the one to reach for.</strong> A view with parameters, no per-row penalty, and
+        it composes &mdash; everything the scalar function promised and did not deliver.</li>
+  </ul>
+</div>
 
 <h3 id="mstvf">Multi-statement table-valued functions: the middle child</h3>
 
@@ -416,6 +539,31 @@
     <span class="kw">FROM</span> inserted i <span class="kw">JOIN</span> deleted d <span class="kw">ON</span> d.Id = i.Id
     <span class="kw">WHERE</span> i.Status &lt;&gt; d.Status;
 <span class="kw">END</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AFTER UPDATE</code> &mdash; fires once the statement has completed, inside its
+        transaction. A trigger that throws rolls the original statement back.</li>
+    <li><code>inserted</code> and <code>deleted</code> &mdash; pseudo-tables holding the new and old
+        rows. An <code>UPDATE</code> populates both; an <code>INSERT</code> only
+        <code>inserted</code>.</li>
+    <li><strong>They are TABLES, and a trigger fires once per STATEMENT.</strong> One
+        <code>UPDATE</code> touching 500 rows fires the trigger once with 500 rows in
+        <code>inserted</code>.</li>
+    <li><strong>That is the classic trigger bug.</strong> Code written as though it were per-row
+        &mdash; <code>SELECT @id = Id FROM inserted</code> &mdash; compiles, runs, and silently handles
+        only one arbitrary row of the 500. It passes every single-row test.</li>
+    <li><code>INSERT INTO ... SELECT ... FROM inserted i JOIN deleted d ON d.Id = i.Id</code> &mdash;
+        the correct, set-based shape: join the two pseudo-tables on the key and write all changed rows
+        at once.</li>
+    <li><code>WHERE i.Status &lt;&gt; d.Status</code> &mdash; only audit genuine changes. Note this
+        misses rows where the status became <code>NULL</code> or came from
+        <code>NULL</code>, since <code>&lt;&gt;</code> against null is unknown.</li>
+    <li><strong>The real objection to triggers</strong> is not performance but surprise: they run
+        invisibly, do not appear in the calling code, and make a simple <code>UPDATE</code> a
+        multi-table write that nobody reading the application can see.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Why this codebase has none</div>
@@ -478,6 +626,28 @@ idParam.Direction = <span class="ty">ParameterDirection</span>.Output;
 <span class="kw">await</span> cmd.ExecuteNonQueryAsync(ct);
 
 <span class="kw">var</span> newId = (<span class="kw">int</span>)idParam.Value;   <span class="cm">// only populated AFTER execution</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>await using</code> &mdash; asynchronous disposal for both the connection and the
+        command, per <a href="08-disposal-and-thread-safety.html">chapter 08</a>.</li>
+    <li><code>CommandType = CommandType.StoredProcedure</code> &mdash; <strong>forget this and the
+        procedure name is executed as a SQL statement</strong>, producing a baffling syntax error. It
+        is the most common mistake in this block.</li>
+    <li><code>{ ... }</code> after the constructor &mdash; an <strong>object initialiser</strong>,
+        setting the property as part of construction.</li>
+    <li><code>SqlDbType.NVarChar, 32</code> &mdash; type <em>and length</em>. Omitting the length lets
+        ADO.NET infer one from the value, so different callers produce different plans for the same
+        procedure &mdash; a cache-bloating problem that is genuinely hard to diagnose.</li>
+    <li><code>idParam.Direction = ParameterDirection.Output</code> &mdash; marks the parameter as
+        returning a value. Both sides must agree, and the C# side is the one usually forgotten.</li>
+    <li><strong>An output parameter is only populated after the command completes</strong> &mdash; and
+        for a procedure that also returns rows, only after the reader is closed. Reading it too early
+        gives null.</li>
+    <li><code>ExecuteNonQueryAsync</code> &mdash; for a command that returns no result set. Its return
+        value is the rows-affected count, not your data.</li>
+  </ul>
+</div>
 
 <div class="code-head">EF Core — the three shapes</div>
 <pre><code><span class="cm">// 1. Procedure returning rows that match an entity.
@@ -495,6 +665,24 @@ idParam.Direction = <span class="ty">ParameterDirection</span>.Output;
 <span class="cm">// 3. Procedure that just does something.</span>
 <span class="kw">await</span> db.Database.ExecuteSqlInterpolatedAsync(
     $<span class="st">"EXEC dbo.usp_ArchiveOrders {cutoffUtc}"</span>, ct);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>FromSqlInterpolated($"EXEC dbo.usp_GetCustomerOrders {customerId}")</code> &mdash;
+        despite the <code>$</code>, the hole becomes a <strong>parameter</strong>. Deliberate, and the
+        reason this method exists rather than plain string building.</li>
+    <li><strong>The result columns must match the entity</strong> &mdash; every mapped property, by
+        name. A missing column is a run-time error, not a compile-time one.</li>
+    <li><code>db.OrderSummaries</code> &mdash; a <code>DbSet</code> for a shape that is
+        <strong>not an entity</strong>. It needs a keyless type, configured in the model as shown
+        below.</li>
+    <li><code>db.Database.ExecuteSqlInterpolatedAsync(...)</code> &mdash; for a procedure that returns
+        nothing. It sits on <code>Database</code>, not on a <code>DbSet</code>, because there is no
+        entity involved.</li>
+    <li>It returns the <strong>rows-affected count</strong>, and it bypasses the change tracker
+        entirely &mdash; so entities already loaded in memory are now stale.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ You cannot compose LINQ on top of a procedure</div>
@@ -507,6 +695,25 @@ db.Orders.FromSqlInterpolated($<span class="st">"EXEC dbo.usp_GetOrders {id}"</s
 <span class="cm">// ✓ either filter inside the procedure, or materialise first and accept
 //   that the filtering now happens in your process (chapter 06's rule).</span>
         .AsEnumerable().Where(o =&gt; o.Total &gt; 100);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>.Where(...)</code> after <code>FromSqlInterpolated</code> on an <code>EXEC</code>
+        &mdash; <strong>throws</strong>. EF composes by wrapping your SQL in a subquery, and SQL Server
+        cannot put <code>EXEC</code> inside one.</li>
+    <li><strong>It works for a plain <code>SELECT</code></strong>, which is what makes the failure
+        confusing: the same method call succeeds or fails depending on the SQL inside it.</li>
+    <li><code>.AsEnumerable()</code> &mdash; the escape hatch, and it is
+        <a href="06-collections-and-linq.html">chapter 06</a>'s rule arriving in a new costume. From
+        that call onwards LINQ runs <strong>in your process</strong>, on rows already fetched.</li>
+    <li><strong>So the filtering is real but the saving is not.</strong> Every row the procedure
+        returns crosses the network first. Acceptable for a procedure returning twenty rows,
+        not for one returning a million.</li>
+    <li><strong>The better fix is a parameter on the procedure.</strong> Filtering belongs where the
+        data is, and adding <code>@MinTotal</code> is usually less work than arguing with the
+        ORM.</li>
+  </ul>
+</div>
   <p>
     A <em>view</em> or an <em>inline TVF</em> composes perfectly &mdash; which is a concrete reason
     to prefer them when the thing is a query rather than an action.
@@ -535,6 +742,29 @@ db.Orders.FromSqlInterpolated($<span class="st">"EXEC dbo.usp_GetOrders {id}"</s
 <span class="kw">var</span> big = <span class="kw">await</span> db.OrdersForCustomer(42)
                  .Where(o =&gt; o.Total &gt; 100)
                  .ToListAsync(ct);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>b.Entity&lt;OrderSummary&gt;().HasNoKey()</code> &mdash; a <strong>keyless entity
+        type</strong>. Without a key EF cannot track changes, so it is read-only by construction
+        &mdash; which is correct for a view.</li>
+    <li><code>.ToView("vw_OrderSummary")</code> &mdash; maps the type to the view and, importantly,
+        tells EF <strong>not to generate a migration</strong> creating a table for it.</li>
+    <li><strong>You create the view yourself</strong> with <code>migrationBuilder.Sql(...)</code> in a
+        migration. EF manages tables; views, procedures and functions are yours to script.</li>
+    <li><code>b.HasDbFunction(() =&gt; OrdersForCustomer(default))</code> &mdash; registers a CLR method
+        as a stand-in for a database function. The lambda is never executed; it exists only so the
+        compiler can hand EF the <code>MethodInfo</code>, which is why <code>default</code> as the
+        argument is fine.</li>
+    <li><code>FromExpression(() =&gt; OrdersForCustomer(customerId))</code> &mdash; the body of the C#
+        method. It never runs as C# either: it produces an <code>IQueryable</code> that EF translates
+        into a call to the TVF.</li>
+    <li><strong>This is the payoff of the whole chapter.</strong> An inline TVF registered this way is
+        callable <em>inside</em> a LINQ query and composes with <code>Where</code> and
+        <code>OrderBy</code>, so database logic stays in the database without giving up the C# query
+        surface.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">When Dapper is the better tool</div>

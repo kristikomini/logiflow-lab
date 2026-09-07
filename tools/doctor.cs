@@ -1371,8 +1371,13 @@ IEnumerable<string> SourceFiles() =>
 // ═════════════════════════════════════════════════════════════════════════════
 IEnumerable<Issue> CheckCodeDissection()
 {
+    // The open tag is matched loosely because a handful of blocks carry an
+    // inline style. Counting only the bare `<pre><code>` undercounted the
+    // denominator while still crediting those blocks' dissections, so the
+    // ratio flattered itself — the one direction a progress metric must not
+    // be wrong in.
     // RAISE THIS as chapters are annotated. Never lower it.
-    const int floor = 101;
+    const int floor = 134;
 
     int blocks = 0, dissected = 0;
     List<(string Chapter, int Done, int Total)> perChapter = [];
@@ -1382,7 +1387,7 @@ IEnumerable<Issue> CheckCodeDissection()
         string html = File.ReadAllText(file);
         string name = Path.GetFileName(file);
 
-        int here = Regex.Matches(html, "<pre><code>").Count;
+        int here = Regex.Matches(html, "<pre[^>]*><code[^>]*>").Count;
         int covered = Regex.Matches(html, @"</code></pre>\s*<div class=""dissect"">").Count;
 
         blocks += here;
