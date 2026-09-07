@@ -32,7 +32,9 @@ WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/Directory.Build.props src/
 COPY src/LogiFlow.Web/LogiFlow.Web.csproj src/LogiFlow.Web/
-COPY src/LogiFlow.Web/packages.lock.json src/LogiFlow.Web/
+# No packages.lock.json to copy: this project declares no packages, so it does not
+# write one. See the PropertyGroup in the .csproj for why. The other two images
+# still copy theirs, because those projects have real dependencies to pin.
 
 ENV ContinuousIntegrationBuild=true
 RUN dotnet restore src/LogiFlow.Web/LogiFlow.Web.csproj
