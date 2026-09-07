@@ -215,6 +215,29 @@
         Response.Redirect(<span class="st">"~/Error"</span>);
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Global.asax.cs</code> &mdash; the file this lives in, and the ancestor of
+        <code>Program.cs</code>. Everything modern start-up does used to be here.</li>
+    <li><code>: System.Web.HttpApplication</code> &mdash; you inherit from the framework rather than
+        building a host. That inversion is the whole architectural difference.</li>
+    <li><code>Application_Start()</code> &mdash; found <strong>by name, not by an interface or an
+        override</strong>. Misspell it and nothing runs and nothing complains, which is the era's
+        house style.</li>
+    <li><strong>It runs when the application pool starts the app</strong> &mdash; not when the server
+        boots. IIS starts the app on the first request and recycles it on a schedule, so start-up
+        happens repeatedly and unpredictably.</li>
+    <li><code>GlobalConfiguration.Configure(WebApiConfig.Register)</code> versus
+        <code>RouteConfig.RegisterRoutes(RouteTable.Routes)</code> &mdash; <strong>two separate routing
+        systems</strong> in one application. Web API 2 and MVC 5 were different stacks that happened to
+        share a process, with different pipelines, different filters and different dependency
+        resolvers. Unifying them is most of what ASP.NET Core <em>is</em>.</li>
+    <li><code>FilterConfig.RegisterGlobalFilters(...)</code> &mdash; static, global mutable
+        configuration. There is no container here and no scope: everything is reachable from
+        everywhere, which is why testing one piece meant starting all of it.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The trap</div>
@@ -270,6 +293,29 @@
     <span class="kw">&lt;/assemblyBinding&gt;</span>
   <span class="kw">&lt;/runtime&gt;</span>
 <span class="kw">&lt;/configuration&gt;</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>XML, and it is not merely settings.</strong> <code>web.config</code> configures the
+        application <em>and</em> IIS, which is why a bad element can stop the site starting with a
+        yellow error page.</li>
+    <li><code>&lt;connectionStrings&gt;</code> &mdash; a dedicated section, separate from
+        <code>appSettings</code>, because tooling encrypts it separately with
+        <code>aspnet_regiis</code>.</li>
+    <li><code>&lt;appSettings&gt;</code> &mdash; <strong>string keys to string values, and nothing
+        else</strong>. No nesting, no types, no validation. The colon in <code>Smtp:Host</code> is
+        convention, not structure.</li>
+    <li><code>&lt;httpRuntime targetFramework="4.8" /&gt;</code> &mdash; <strong>this changes runtime
+        behaviour, not just the compiler</strong>. Quirks mode: several behaviours switch on the value
+        of this attribute, so changing it can alter how an already-compiled application runs.</li>
+    <li><code>&lt;compilation debug="false" /&gt;</code> &mdash; and leaving it
+        <code>true</code> in production disables timeouts, prevents batch compilation and leaks source
+        into errors. It is the classic .NET Framework deployment mistake.</li>
+    <li><code>&lt;system.web&gt;</code> versus <code>&lt;system.webServer&gt;</code> &mdash; the former
+        is the old pipeline, the latter is IIS's integrated pipeline. Modules often had to be
+        registered in <strong>both</strong>, and knowing which applied was genuinely hard.</li>
+  </ul>
+</div>
 
 <div class="code-head">reading it — and the Core equivalent, for comparison</div>
 <pre><code><span class="cm">// Framework: a static, string-keyed, untyped lookup. Returns null when the key
@@ -279,6 +325,26 @@
 
 <span class="cm">// Core: injected, typed, validated at start-up. Chapter 14 covered this.</span>
 <span class="kw">public</span> <span class="ty">MailSender</span>(<span class="ty">IOptions</span>&lt;<span class="ty">SmtpOptions</span>&gt; options) =&gt; _o = options.Value;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ConfigurationManager.AppSettings["Smtp:Host"]</code> &mdash; <strong>static,
+        string-keyed, untyped</strong>. Three properties, and each one is a problem.</li>
+    <li><strong>A missing key returns null</strong> &mdash; no exception, no warning. The failure
+        surfaces far away as a <code>NullReferenceException</code>, or worse, as an email quietly sent
+        nowhere.</li>
+    <li><code>ConfigurationManager.ConnectionStrings["LogiFlow"].ConnectionString</code> &mdash; note
+        the second dereference. If the name is wrong the indexer returns null and
+        <code>.ConnectionString</code> throws, at the call site rather than at start-up.</li>
+    <li><strong>Static means untestable.</strong> There is no way to hand a class different
+        configuration in a test, because it reaches out to a global rather than declaring a
+        dependency.</li>
+    <li><code>IOptions&lt;SmtpOptions&gt;</code> &mdash; <strong>injected, typed, and validated at
+        start-up</strong> with <code>ValidateOnStart</code> from
+        <a href="14-web-api.html">chapter 14</a>. The class states what it needs, a test can supply it,
+        and a typo fails at deployment rather than at three in the morning.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Professional</div>
@@ -288,6 +354,25 @@
   </p>
   <pre><code><span class="kw">&lt;add</span> name=<span class="st">"LogiFlow"</span> connectionString=<span class="st">"…prod…"</span>
      xdt:Transform=<span class="st">"SetAttributes"</span> xdt:Locator=<span class="st">"Match(name)"</span> <span class="kw">/&gt;</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>xdt:</code> &mdash; the XML Document Transform namespace. This is a
+        <code>Web.Release.config</code> applied to the base file at
+        <strong>publish time</strong>.</li>
+    <li><code>xdt:Locator="Match(name)"</code> &mdash; <strong>find</strong> the element whose
+        <code>name</code> attribute matches. Locators are how a transform addresses an element it did
+        not write.</li>
+    <li><code>xdt:Transform="SetAttributes"</code> &mdash; <strong>what to do</strong> once found. Other
+        verbs are <code>Replace</code>, <code>Insert</code> and <code>Remove</code>.</li>
+    <li><strong>It is build-time, not run-time.</strong> Changing environment means republishing, so
+        the same artefact cannot be promoted from staging to production &mdash; which is precisely
+        what environment variables in ASP.NET Core fixed.</li>
+    <li><strong>The other trap:</strong> transforms only run on publish, never on
+        <code>F5</code>, so a transform can be broken for months and nobody notices until a
+        deployment.</li>
+  </ul>
+</div>
   <p>
     Two things follow. First, the transform is applied by the build, so what runs on the server is a
     file nobody has in source control &mdash; when production disagrees with your machine, read the
@@ -333,6 +418,28 @@
 
 <span class="kw">&lt;asp:Button</span> ID=<span class="st">"Refresh"</span> runat=<span class="st">"server"</span> Text=<span class="st">"Refresh"</span>
     OnClick=<span class="st">"Refresh_Click"</span> <span class="kw">/&gt;</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>&lt;%@ Page ... %&gt;</code> &mdash; the <strong>page directive</strong>. Not HTML: an
+        instruction to the compiler about this file.</li>
+    <li><code>CodeBehind</code> and <code>Inherits</code> &mdash; the markup file compiles into a class
+        that <strong>inherits from</strong> the code-behind class. That is the mechanism; the two files
+        are one type.</li>
+    <li><code>runat="server"</code> &mdash; the attribute that makes an element a
+        <strong>server control</strong> rather than markup. Without it the tag is passed through
+        untouched, which is a five-minute debugging session everyone has once.</li>
+    <li><code>&lt;asp:GridView&gt;</code> &mdash; a control that renders its own HTML. You do not
+        control the markup it emits, which is exactly why the era's pages are hard to style and hard to
+        make accessible.</li>
+    <li><code>EnableViewState="false"</code> &mdash; <strong>the setting that matters</strong>. ViewState
+        serialises the control tree into a hidden field on every page, and on a large read-only grid it
+        can be hundreds of kilobytes travelling both ways on every postback.</li>
+    <li><code>OnClick="Refresh_Click"</code> &mdash; wires a server-side method to a client click. The
+        browser posts the whole form back and the framework works out which control raised the
+        event.</li>
+  </ul>
+</div>
 
 <div class="code-head">Orders.aspx.cs — the code-behind</div>
 <pre><code><span class="kw">public partial class</span> <span class="ty">Orders</span> : <span class="ty">System</span>.<span class="ty">Web</span>.<span class="ty">UI</span>.<span class="ty">Page</span>
@@ -350,6 +457,25 @@
 
     <span class="kw">protected void</span> Refresh_Click(<span class="kw">object</span> sender, <span class="ty">EventArgs</span> e) =&gt; BindGrid();
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public partial class</code> &mdash; <strong>partial</strong> because the other half is
+        generated from the markup file. Two files, one class.</li>
+    <li><code>Page_Load(object sender, EventArgs e)</code> &mdash; the standard event signature, found
+        by name via automatic event wire-up.</li>
+    <li><code>if (!IsPostBack)</code> &mdash; <strong>THE line of this chapter</strong>.
+        <code>Page_Load</code> runs on the first visit <em>and</em> on every postback, and it runs
+        <strong>before</strong> the control's event handler.</li>
+    <li><strong>Without the guard, the sequence breaks the page.</strong> The click posts back,
+        <code>Page_Load</code> re-binds the grid from scratch, and only then does
+        <code>Refresh_Click</code> fire &mdash; against freshly rebound state. The symptom is a button
+        that appears to do nothing, or a selection that resets itself.</li>
+    <li><strong>The page lifecycle is the whole model:</strong> Init, Load, control events, PreRender,
+        Render. Knowing that events fire <em>after</em> Load explains most Web Forms bugs, and it is
+        exactly what an interviewer maintaining one will ask.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The two bugs that are always this</div>
@@ -451,6 +577,26 @@
 
 <span class="cm">// Core: the dependency is declared, so it can be supplied — and tested.</span>
 <span class="kw">public</span> <span class="ty">AuditService</span>(<span class="ty">IHttpContextAccessor</span> accessor) =&gt; _accessor = accessor;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>HttpContext.Current</code> &mdash; a <strong>static, ambient</strong> reference to the
+        request. Available anywhere, needing nothing injected, which is why it was used
+        everywhere.</li>
+    <li><strong>It is a hidden dependency</strong> on "there is a request in flight on this thread". The
+        method signature says nothing about it, so nothing warns you when the assumption stops
+        holding.</li>
+    <li><code>Task.Run(() =&gt; ... HttpContext.Current ...)</code> &mdash; and it stops holding here.
+        Off the request thread <code>Current</code> is <strong>null</strong>, and you get a
+        <code>NullReferenceException</code> in a background task rather than an explanation.</li>
+    <li><strong>It is worse than it looks</strong>, because it usually works: the context flows across
+        <code>await</code> within a request, so the bug appears only on the paths that genuinely leave
+        the request &mdash; a fire-and-forget log, a timer, a queue handler.</li>
+    <li><code>IHttpContextAccessor accessor</code> &mdash; <strong>the dependency is declared</strong>,
+        so it can be supplied, faked in a test, and reasoned about from the signature. The value can
+        still be null off-request; the difference is that now you can see that it might be.</li>
+  </ul>
+</div>
 
 <p>
   The ambient static is also what makes Framework code hard to unit test: there is no seam. When you
@@ -483,6 +629,27 @@
     //   and that one thread is blocked on .Result, waiting for this method.</span>
     <span class="kw">return</span> Parse();
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>_service.GetAsync().Result</code> &mdash; blocks the request thread waiting for the
+        task. On ASP.NET Framework this <strong>never returns</strong>.</li>
+    <li><strong>The mechanism, precisely.</strong> The request has a
+        <code>SynchronizationContext</code> that permits <strong>one thread at a time</strong>. When
+        <code>await</code> completes, the continuation is posted back to that context. But the context
+        is occupied by the thread blocked on <code>.Result</code>, waiting for that very
+        continuation.</li>
+    <li><strong>Neither side can proceed.</strong> No exception, no timeout, no crash &mdash; the
+        request simply hangs until IIS gives up, and the log shows nothing.</li>
+    <li><strong>ASP.NET Core removed the synchronization context</strong>, so the same code does not
+        deadlock there. It still blocks a pool thread and is still wrong, but it survives &mdash; which
+        is why this is the number one thing to know when maintaining Framework code with a Core
+        background.</li>
+    <li><code>ConfigureAwait(false)</code> on every library <code>await</code> avoids it by declining to
+        resume on the captured context. It is a mitigation, and the real fix is async all the way
+        up.</li>
+  </ul>
+</div>
 
 <figure class="diagram">
   <svg viewBox="0 0 840 210" role="img" aria-labelledby="dead-title">
@@ -620,6 +787,27 @@ upgrade-assistant analyze .\LogiFlow.Web.csproj
 # Do this FIRST, on .NET Framework, and ship it. It is a safe, reviewable,
 # self-contained change that makes every later step smaller.</span>
 upgrade-assistant upgrade .\LogiFlow.Web.csproj</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>#</code> &mdash; shell comments; these are terminal commands.</li>
+    <li><code>dotnet tool install -g upgrade-assistant</code> &mdash; <code>-g</code> installs it
+        globally, as a tool rather than a package reference.</li>
+    <li><code>analyze</code> <strong>before</strong> <code>upgrade</code> &mdash; it reports what will
+        not port while changing nothing. Web Forms has no successor at all, so for an
+        <code>.aspx</code> application the honest answer from this step is often "rewrite the UI, keep
+        the domain".</li>
+    <li><strong><code>packages.config</code> &rarr; <code>PackageReference</code> first</strong>, and
+        old-style <code>.csproj</code> &rarr; SDK-style. Do it on .NET Framework, and ship it.</li>
+    <li><strong>That ordering is the real advice.</strong> It is a safe, reviewable, self-contained
+        change that still builds on the old runtime, and it makes every later step smaller. A big-bang
+        port that changes the project format and the runtime at once produces a branch nobody can
+        review and nobody dares merge.</li>
+    <li><strong>What actually blocks a port:</strong> <code>System.Web</code> itself, Web Forms,
+        WCF server-side, AppDomains, and any dependency that never shipped a .NET Standard build.
+        Those are the list <code>analyze</code> hands you.</li>
+  </ul>
+</div>
 
 <h3 id="strangler">Step 2 &mdash; the incremental route</h3>
 

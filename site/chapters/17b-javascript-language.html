@@ -75,11 +75,42 @@ setTimeout(() =&gt; <span class="ty">console</span>.log(<span class="st">'2'</sp
 <span class="ty">Promise</span>.resolve().then(() =&gt; <span class="ty">console</span>.log(<span class="st">'3'</span>));   <span class="cm">// microtask</span>
 
 <span class="ty">console</span>.log(<span class="st">'4'</span>);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>console.log('1')</code> &mdash; runs immediately, synchronously. Nothing surprising
+        yet.</li>
+    <li><code>setTimeout(fn, 0)</code> &mdash; <strong>zero does not mean now</strong>. It queues the
+        callback as a <em>macrotask</em>, to run after the current script and after all microtasks.</li>
+    <li><code>Promise.resolve().then(fn)</code> &mdash; queues a <em>microtask</em>. Already-resolved,
+        so the only reason it does not run instantly is the queue.</li>
+    <li><strong>JavaScript is single-threaded.</strong> Nothing queued can run until the currently
+        executing code returns to the event loop, which is why both callbacks wait for
+        <code>'4'</code>.</li>
+    <li><strong>Microtasks drain completely before the next macrotask.</strong> That one rule decides
+        the whole output, and it is why a promise chain always beats a
+        <code>setTimeout(0)</code>.</li>
+  </ul>
+</div>
 
 <pre><code><span class="out">1
 4
 3
 2</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>1</code> then <code>4</code> &mdash; the synchronous script runs to completion first.
+        Nothing else can interleave.</li>
+    <li><code>3</code> &mdash; the microtask queue drains next, before the browser does anything
+        else.</li>
+    <li><code>2</code> &mdash; the macrotask last, despite its zero delay and despite being
+        <em>written</em> first.</li>
+    <li><strong>Why this matters beyond a puzzle:</strong> it is the model behind every "why did my
+        state update not apply yet" question in React, and behind <code>await</code>'s ordering.
+        <code>await</code> is microtask scheduling with nicer syntax.</li>
+  </ul>
+</div>
 
 <p>
   <code>1</code> and <code>4</code> are synchronous, so they run first, in order. Then the stack is
@@ -179,6 +210,26 @@ setTimeout(order.show, <span class="nu">0</span>);          <span class="cm">// 
 
 setTimeout(() =&gt; order.show(), <span class="nu">0</span>);   <span class="cm">// 'ORD-1'  — the call site is preserved</span>
 setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">// 'ORD-1'  — bound explicitly</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>show() { ... }</code> &mdash; method shorthand in an object literal. It is an ordinary
+        function, and that is the trouble.</li>
+    <li><code>order.show()</code> prints <code>'ORD-1'</code> &mdash; <strong><code>this</code> is
+        decided by how a function is CALLED</strong>, not where it is defined. Called with
+        <code>order.</code> in front, <code>this</code> is <code>order</code>.</li>
+    <li><code>const f = order.show; f();</code> &mdash; <code>undefined</code>. The function was
+        <strong>detached</strong> from the object; there is no dot at the call site, so there is no
+        receiver.</li>
+    <li><code>setTimeout(order.show, 0)</code> &mdash; the same detachment, and <strong>this is how it
+        actually happens</strong>. Passing a method as a callback is routine, and it silently loses
+        <code>this</code> every time.</li>
+    <li><strong>The fixes:</strong> <code>order.show.bind(order)</code>, or wrap it in an arrow &mdash;
+        <code>() =&gt; order.show()</code> &mdash; which keeps the call site's dot.</li>
+    <li><strong>C# has no equivalent problem.</strong> A delegate created from an instance method
+        captures the instance permanently, which is why this catches C# developers specifically.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Professional</div>
@@ -198,6 +249,22 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
   number: <span class="st">'ORD-1'</span>,
   show: () =&gt; <span class="ty">console</span>.log(<span class="kw">this</span>.number)   <span class="cm">// ✗ undefined, always</span>
 };</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>show: () =&gt; ...</code> &mdash; an <strong>arrow function</strong> as an object
+        property, and it is always wrong here.</li>
+    <li><strong>Arrows have no <code>this</code> of their own.</strong> They inherit it lexically, from
+        the scope where they were written &mdash; and an object literal is not a scope.</li>
+    <li>So <code>this</code> is whatever it was <em>outside</em> the object: <code>undefined</code> in a
+        module, <code>window</code> in a classic script. Never the object.</li>
+    <li><strong>The rule that resolves the confusion:</strong> use an arrow when you <em>want</em> the
+        surrounding <code>this</code> &mdash; a callback inside a method &mdash; and a normal function
+        when you want the receiver, which is what a method is.</li>
+    <li>It is the exact inverse of the previous block, which is why the two are shown together: one
+        breaks by losing the receiver, the other by never having one.</li>
+  </ul>
+</div>
 </div>
 
 <h2 id="closures">Closures, and the loop bug you have already met</h2>
@@ -213,6 +280,22 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
 }
 <span class="cm">// var is function-scoped: there is ONE i. By the time the callbacks run —
 // after the loop, because setTimeout is a macrotask — that one i is 3.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>var i</code> &mdash; <strong>function-scoped</strong>, not block-scoped. There is
+        exactly <em>one</em> <code>i</code> for the whole loop.</li>
+    <li><strong>All three closures capture the same variable</strong>, not its value &mdash; the same
+        mechanism as the C# <code>for</code>-loop trap in
+        <a href="04-generics-delegates-events.html">chapter 04</a>.</li>
+    <li><code>setTimeout</code> makes it visible: the callbacks are macrotasks, so they run
+        <em>after</em> the loop has finished and <code>i</code> is already <code>3</code>.</li>
+    <li>Output is <code>3 3 3</code>. Every time, in every browser &mdash; this is not a race.</li>
+    <li><code>var</code> is also <strong>hoisted</strong>: the declaration moves to the top of the
+        function, so reading it before the line that declares it gives <code>undefined</code> rather
+        than an error. Two reasons never to use it.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ prints 0, 1, 2</div>
 <pre><code><span class="kw">for</span> (<span class="kw">let</span> i = <span class="nu">0</span>; i &lt; <span class="nu">3</span>; i++) {
@@ -220,6 +303,24 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
 }
 <span class="cm">// let is block-scoped, and a for loop creates a NEW binding each iteration.
 // Each closure captures its own.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>let i</code> &mdash; <strong>block-scoped</strong>, and a <code>for</code> loop creates
+        a <strong>new binding each iteration</strong>. That second part is special-cased in the
+        specification precisely because of the previous block.</li>
+    <li>Each closure therefore captures its own <code>i</code>, and the output is
+        <code>0 1 2</code>.</li>
+    <li><strong>C# made the identical change</strong> for <code>foreach</code> in C# 5, for the same
+        reason, and deliberately left <code>for</code> alone &mdash; where <code>i</code> genuinely is
+        one counter. JavaScript went the other way and fixed <code>for</code>.</li>
+    <li><code>let</code> is also in the <strong>temporal dead zone</strong> before its declaration:
+        reading it early is a <code>ReferenceError</code> rather than <code>undefined</code>. An error
+        beats a wrong answer.</li>
+    <li><strong>Use <code>const</code> by default and <code>let</code> when reassigning.</strong>
+        <code>var</code> has no remaining use case.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">The same law, twice</div>
@@ -265,6 +366,25 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
       <strong><code>sort()</code> mutates the array and sorts as text by default.</strong>
       <pre><code>[<span class="nu">10</span>, <span class="nu">9</span>, <span class="nu">1</span>].sort()                  <span class="cm">// [1, 10, 9]  — string comparison!</span>
 [<span class="nu">10</span>, <span class="nu">9</span>, <span class="nu">1</span>].sort((a, b) =&gt; a - b)    <span class="cm">// [1, 9, 10]  — what you meant</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>[10, 9, 1].sort()</code> gives <code>[1, 10, 9]</code> &mdash; because the default
+        comparator <strong>converts every element to a string</strong> and compares
+        lexicographically. <code>"10"</code> sorts before <code>"9"</code>.</li>
+    <li><strong>It is not a bug, it is the specification</strong>, and it is the most reliably
+        surprising line in the language.</li>
+    <li><code>(a, b) =&gt; a - b</code> &mdash; the comparator contract: negative if
+        <code>a</code> comes first, zero if equal, positive if <code>b</code> does. The same convention
+        as C#'s <code>CompareTo</code>.</li>
+    <li>Subtraction works only for numbers. For strings use
+        <code>a.localeCompare(b)</code>, which also gets Italian accents right &mdash;
+        <code>&lt;</code> compares code units and puts <code>Z</code> before <code>&agrave;</code>.</li>
+    <li><strong><code>sort</code> mutates the array in place</strong> and returns it. Use
+        <code>toSorted()</code>, or <code>[...arr].sort()</code>, when the original must survive
+        &mdash; unlike LINQ's <code>OrderBy</code>, which never mutates.</li>
+  </ul>
+</div>
       <code>OrderBy</code> returns a new sequence; <code>sort</code> reorders the one you passed it,
       which surprises people who kept a reference to it.
     </li>
@@ -304,6 +424,28 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
 <span class="kw">const</span> city  = order?.customer?.address?.city;
 <span class="kw">const</span> count = order.count ?? <span class="nu">10</span>;   <span class="cm">// 0 stays 0</span>
 <span class="kw">const</span> wrong = order.count || <span class="nu">10</span>;   <span class="cm">// 0 becomes 10 — a real bug</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>const { id, total } = order</code> &mdash; <strong>destructuring by name</strong>, not
+        by position. C#'s deconstruction is positional; this matches property names, and it works on
+        any object.</li>
+    <li><code>customer: { name }</code> &mdash; <strong>nested</strong> destructuring. It pulls
+        <code>order.customer.name</code> into a variable called <code>name</code>. Note the colon here
+        means "look inside", not "rename".</li>
+    <li><code>const [first, second] = list</code> &mdash; array destructuring, which
+        <em>is</em> positional. Same syntax family, different brackets.</li>
+    <li><code>function render({ id, total = 0 })</code> &mdash; destructuring
+        <strong>in a parameter list</strong>, with a default. This is how every React component
+        receives its props, so it stops being exotic quickly.</li>
+    <li><strong>Spread</strong> &mdash; <code>{ ...order, total: 10 }</code> copies then overrides. It
+        is the idiom for changing one field immutably, and the direct counterpart of C#'s
+        <code>with</code> expression.</li>
+    <li><strong>It is a shallow copy.</strong> Nested objects are shared with the original, which is the
+        same caveat as <code>with</code> in C# and the source of many "why did both change"
+        bugs.</li>
+  </ul>
+</div>
 
 <h2 id="async">Promises and async/await</h2>
 
@@ -338,6 +480,25 @@ setTimeout(order.show.bind(order), <span class="nu">0</span>);<span class="cm">/
 // is still useful — a dashboard with one broken tile.</span>
 <span class="kw">const</span> results = <span class="kw">await</span> <span class="ty">Promise</span>.allSettled([getOrder(<span class="nu">1</span>), getOrder(<span class="nu">2</span>)]);
 <span class="cm">// [{ status: 'fulfilled', value }, { status: 'rejected', reason }]</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>const a = await ...; const b = await ...;</code> &mdash; <strong>sequential</strong>.
+        The second request does not start until the first finishes, because <code>await</code> is a
+        suspension point. Identical to the C# case in
+        <a href="07-async-and-errors.html">chapter 07</a>.</li>
+    <li><code>Promise.all([...])</code> &mdash; starts both, waits for both.
+        <strong>Fail fast</strong>: if either rejects, the whole thing rejects at once.</li>
+    <li><strong>And the other request keeps running with nobody listening.</strong> There is no
+        cancellation token here, so a rejected <code>Promise.all</code> leaves work in flight &mdash; a
+        real difference from C#, where the token propagates.</li>
+    <li><code>const [x, y] = await ...</code> &mdash; array destructuring on the results, which arrive
+        in the order the promises were passed, not the order they completed.</li>
+    <li><code>Promise.allSettled</code> &mdash; the alternative: waits for all and never rejects,
+        returning a status per entry. The right choice when a partial result is still useful, such as
+        four independent dashboard panels.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The unhandled rejection</div>
@@ -350,6 +511,26 @@ saveOrder(order);            <span class="cm">// ✗ fire and forget</span>
 
 <span class="kw">await</span> saveOrder(order);      <span class="cm">// ✓</span>
 saveOrder(order).catch(reportError);   <span class="cm">// ✓ deliberate fire-and-forget</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>saveOrder(order);</code> with no <code>await</code> &mdash; a
+        <strong>floating promise</strong>. The call starts and the caller moves on immediately.</li>
+    <li><strong>The error has nowhere to go.</strong> If it rejects, there is no
+        <code>await</code> to throw at and no <code>.catch</code> to handle it.</li>
+    <li><strong>In a browser it is silent.</strong> It raises
+        <code>window.onunhandledrejection</code>, which nothing listens to by default, so the user sees
+        nothing happen and you get no stack trace. In Node it terminates the process instead &mdash;
+        two very different failures from one mistake.</li>
+    <li><code>await saveOrder(order)</code> &mdash; the fix in almost every case.</li>
+    <li><code>saveOrder(order).catch(reportError)</code> &mdash; <strong>deliberate</strong>
+        fire-and-forget. Attaching a handler is what makes the intent visible and the failure
+        reportable; the point is that not-awaiting must be a decision, not an omission.</li>
+    <li>C#'s equivalent is an un-awaited <code>Task</code>, which is at least usually a compiler
+        warning. JavaScript gives you nothing, which is why the ESLint rule
+        <code>no-floating-promises</code> is worth turning on.</li>
+  </ul>
+</div>
   <p>
     This is the JavaScript twin of an unawaited <code>Task</code> in C#: the compiler warns you
     there, and nothing warns you here. It is the most common cause of "the save button does nothing
@@ -370,6 +551,22 @@ saveOrder(order).catch(reportError);   <span class="cm">// ✓ deliberate fire-a
   b.addEventListener(<span class="st">'click'</span>, onDelete));
 <span class="cm">// 500 listeners. And any row rendered AFTER this line has none —
 // which is why "it works until you use the search filter".</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>querySelectorAll('.delete-btn')</code> &mdash; returns a static
+        <code>NodeList</code> of the buttons that exist <strong>at this instant</strong>.</li>
+    <li><code>.forEach(b =&gt; b.addEventListener(...))</code> &mdash; <strong>500 separate
+        listeners</strong> for 500 rows. Each is a closure held in memory for as long as its element
+        lives.</li>
+    <li><strong>The real defect is the snapshot.</strong> Any row rendered <em>after</em> this line has
+        no listener at all, so the delete button silently does nothing.</li>
+    <li><strong>"It works until you use the search filter"</strong> is the exact symptom, and it is
+        baffling until you see that filtering re-renders the rows.</li>
+    <li>Re-running the wiring after every render is the naive fix, and it double-binds anything that
+        survived &mdash; so the handler fires twice.</li>
+  </ul>
+</div>
 
 <div class="code-head">✓ event delegation — one listener, works for rows that do not exist yet</div>
 <pre><code><span class="ty">document</span>.querySelector(<span class="st">'#orders'</span>).addEventListener(<span class="st">'click'</span>, (e) =&gt; {
@@ -378,6 +575,26 @@ saveOrder(order).catch(reportError);   <span class="cm">// ✓ deliberate fire-a
   <span class="kw">if</span> (!btn) <span class="kw">return</span>;
   onDelete(btn.dataset.orderId);
 });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>One listener, on the container.</strong> Events <em>bubble</em> up the DOM, so a
+        click on any descendant reaches <code>#orders</code>.</li>
+    <li><strong>It works for rows that do not exist yet</strong>, which is the whole point. Re-render
+        freely; the listener is on the parent and never moves.</li>
+    <li><code>e.target</code> &mdash; the <strong>innermost</strong> element clicked. That may well be
+        an icon or a <code>&lt;span&gt;</code> inside the button, not the button itself, which is why
+        testing <code>e.target.classList</code> directly fails intermittently.</li>
+    <li><code>.closest('.delete-btn')</code> &mdash; walks <strong>up</strong> from the target looking
+        for a match, returning it or <code>null</code>. It is what makes the handler robust regardless
+        of the markup inside the button.</li>
+    <li><code>if (!btn) return;</code> &mdash; the click landed somewhere else in the container.
+        Required, and easy to forget.</li>
+    <li><code>btn.dataset.orderId</code> &mdash; reads the
+        <code>data-order-id</code> attribute. The dashes become camelCase, which is a small rule worth
+        knowing before it wastes ten minutes.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 <code>preventDefault</code> is not <code>stopPropagation</code></div>
@@ -402,10 +619,49 @@ saveOrder(order).catch(reportError);   <span class="cm">// ✓ deliberate fire-a
 
 <span class="cm">// app.js</span>
 <span class="kw">import</span> <span class="ty">OrderClient</span>, { total } <span class="kw">from</span> <span class="st">'./orders.js'</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>export function total(...)</code> &mdash; a <strong>named export</strong>. A module may
+        have many, and the names are part of its contract.</li>
+    <li><code>export default class OrderClient</code> &mdash; the <strong>default export</strong>, at
+        most one per module. The importer chooses its own name for it, which is both convenient and a
+        reason teams often ban it.</li>
+    <li><code>import OrderClient, { total } from './orders.js'</code> &mdash; default first, named in
+        braces. The asymmetry of the syntax is exactly the asymmetry of the two export kinds.</li>
+    <li><code>'./orders.js'</code> &mdash; the <strong>relative path with its extension</strong>. In a
+        browser the extension is required; bundlers let you omit it, which is a common source of "works
+        in dev, breaks in production".</li>
+    <li><strong>Modules are static.</strong> Imports are resolved before execution, which is what makes
+        tree-shaking possible and why <code>import</code> cannot be called conditionally &mdash;
+        <code>import()</code>, the function form, exists for that.</li>
+    <li>Modules are also strict mode by default and have their own scope, so a top-level
+        <code>const</code> is not global &mdash; unlike a classic <code>&lt;script&gt;</code>.</li>
+  </ul>
+</div>
 
 <div class="code-head">CommonJS — older Node code, and much of what is on disk</div>
 <pre><code><span class="kw">const</span> { total } = require(<span class="st">'./orders'</span>);
 module.exports = { total };</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>require('./orders')</code> &mdash; <strong>CommonJS</strong>, Node's original module
+        system. Predates ES modules and is still everywhere in the ecosystem.</li>
+    <li><strong>It is synchronous and dynamic.</strong> <code>require</code> is an ordinary function
+        call, so it can sit inside an <code>if</code> &mdash; which is why it cannot be tree-shaken and
+        ES modules can.</li>
+    <li><code>module.exports = { total }</code> &mdash; assigning an object.
+        <code>{ total }</code> is shorthand for <code>{ total: total }</code>.</li>
+    <li><strong>Why you need to recognise it:</strong> mixing the two is the source of the errors that
+        dominate a first week in Node &mdash; <em>"Cannot use import statement outside a module"</em>
+        and <em>"require is not defined in ES module scope"</em>.</li>
+    <li>The switch is <code>"type": "module"</code> in <code>package.json</code>, or the
+        <code>.mjs</code> and <code>.cjs</code> extensions to be explicit per file.</li>
+    <li><strong>Write ES modules in new code.</strong> This block is here so that an old file does not
+        stop you.</li>
+  </ul>
+</div>
 
 <p>
   <code>import</code> is static &mdash; declarations are resolved before any code runs, which is what

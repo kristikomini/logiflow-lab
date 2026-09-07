@@ -76,6 +76,36 @@
   <span class="kw">&lt;script</span> <span class="ty">src</span>=<span class="st">"app.js"</span> <span class="ty">type</span>=<span class="st">"module"</span><span class="kw">&gt;&lt;/script&gt;</span>
 <span class="kw">&lt;/body&gt;</span>
 <span class="kw">&lt;/html&gt;</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>&lt;!doctype html&gt;</code> &mdash; not decoration. Its absence puts the browser into
+        <strong>quirks mode</strong>, where box sizing and layout follow 1990s rules and your CSS
+        behaves inexplicably.</li>
+    <li><code>lang="it"</code> &mdash; screen readers choose a voice from it, browsers pick a spell
+        checker and hyphenation rules, and search engines read it. One attribute, and it is the most
+        commonly omitted accessibility feature there is.</li>
+    <li><code>&lt;meta charset="utf-8"&gt;</code> &mdash; and it must be in the
+        <strong>first 1024 bytes</strong>. Without it the browser guesses, and in Italy the guess turns
+        <code>Modena&agrave;&egrave;&igrave;</code> into mojibake.</li>
+    <li><code>&lt;meta name="viewport" ...&gt;</code> &mdash; without it a phone renders the page at
+        980px wide and scales it down, so every "why is my site tiny on mobile" question is this line
+        missing.</li>
+    <li><code>&lt;main&gt;</code> &mdash; a <strong>semantic element</strong>. It tells assistive
+        technology where the content is, so a screen reader user can skip the navigation. A
+        <code>&lt;div&gt;</code> conveys nothing.</li>
+    <li><code>&lt;h1&gt;</code> &mdash; one per page, and headings must not skip levels. Screen reader
+        users navigate by heading the way sighted users skim, so the hierarchy <em>is</em> the
+        navigation.</li>
+    <li><code>&lt;label for="customer"&gt;</code> with <code>&lt;input id="customer"&gt;</code> &mdash;
+        the <code>for</code> matches the <code>id</code>, which makes clicking the label focus the
+        input and lets a screen reader announce the field's name. It is the single highest-value
+        accessibility habit in a form.</li>
+    <li><code>name</code> versus <code>id</code> &mdash; <code>id</code> is for the label and CSS;
+        <strong><code>name</code> is what gets submitted</strong>. A field with no
+        <code>name</code> is silently absent from the POST.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Why semantic elements are worth the two seconds</div>
@@ -173,6 +203,30 @@ form.addEventListener(<span class="st">'submit'</span>, <span class="kw">async</
   <span class="cm">// change</span>
   status.textContent = <span class="st">'Salvataggio…'</span>;   <span class="cm">// textContent, not innerHTML — see below</span>
 });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>document.querySelector('#order-form')</code> &mdash; takes a
+        <strong>CSS selector</strong>, so <code>#</code> means id and <code>.</code> means class. It
+        returns the first match or <code>null</code>, never an error, which is why a typo silently
+        produces null.</li>
+    <li><code>const</code> &mdash; block-scoped and not reassignable. Default to it; use
+        <code>let</code> when you must reassign, and never <code>var</code>, which is
+        function-scoped and hoisted.</li>
+    <li><code>addEventListener('submit', handler)</code> &mdash; listens for the
+        <strong>form's</strong> submit event, not the button's click. That is deliberate: it also fires
+        when the user presses Enter in a text field.</li>
+    <li><code>async (event) =&gt; { ... }</code> &mdash; an async arrow function as the handler.
+        JavaScript's arrow is the same idea as C#'s lambda, with the same <code>=&gt;</code>.</li>
+    <li><code>event.preventDefault()</code> &mdash; <strong>stops the browser doing its own full-page
+        POST</strong> and reload. Forget it and the page navigates away mid-request, which looks like
+        your JavaScript never ran.</li>
+    <li><code>status.textContent = '...'</code> &mdash; <strong><code>textContent</code>, not
+        <code>innerHTML</code></strong>. <code>textContent</code> sets text; <code>innerHTML</code>
+        parses markup, so any user-supplied string in it is a cross-site scripting hole. This is the
+        JavaScript equivalent of <code>@Html.Raw</code>.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ <code>innerHTML</code> and XSS</div>
@@ -219,6 +273,30 @@ form.addEventListener(<span class="st">'submit'</span>, <span class="kw">async</
     status.textContent = err.message;
   }
 });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>fetch(url, { ... })</code> &mdash; returns a <strong>Promise</strong>, JavaScript's
+        <code>Task</code>. <code>await</code> works the same way it does in C#.</li>
+    <li><code>headers: { 'Content-Type': 'application/json' }</code> &mdash; required. Without it the
+        server may not bind the body at all, and ASP.NET Core returns 415 Unsupported Media Type.</li>
+    <li><code>JSON.stringify(payload)</code> &mdash; the body must be a
+        <strong>string</strong>. Passing the object directly sends <code>[object Object]</code>, which
+        is a genuinely confusing five minutes.</li>
+    <li><strong><code>fetch</code> does NOT throw on 404 or 500.</strong> It rejects only on network
+        failure &mdash; DNS, connection refused, CORS. A 500 is a perfectly successful fetch of an
+        error page, and forgetting this is the single most common fetch bug.</li>
+    <li><code>if (!response.ok)</code> &mdash; the check that has to be written every time.
+        <code>ok</code> is true for any 2xx status.</li>
+    <li><code>await response.json()</code> &mdash; the Problem Details body from
+        <a href="13-rest-principles.html">chapter 13</a>. Reading the error body is what turns "request
+        failed" into a message a user can act on.</li>
+    <li><code>problem.title ?? `HTTP ${response.status}`</code> &mdash; <code>??</code> is
+        null-coalescing, the same operator as C#'s. The backticks are a
+        <strong>template literal</strong>, JavaScript's string interpolation, with
+        <code>${...}</code> instead of <code>{...}</code>.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ CORS &mdash; the error you will meet on day one</div>
@@ -235,6 +313,28 @@ builder.Services.AddCors(o =&gt; o.AddPolicy(<span class="st">"spa"</span>, p =&
     .AllowAnyMethod()));
 
 app.UseCors(<span class="st">"spa"</span>);   <span class="cm">// before MapControllers (ch. 11 — order is behaviour)</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>CORS is a browser rule, not a server one.</strong> The request usually reaches your
+        API and is answered; the <em>browser</em> then refuses to hand the response to the script. That
+        is why the network tab shows a 200 while the console shows a CORS error.</li>
+    <li><code>AddCors(o =&gt; o.AddPolicy("spa", ...))</code> &mdash; a named policy, defined once.</li>
+    <li><code>.WithOrigins("http://localhost:5173")</code> &mdash; an <strong>exact origin</strong>:
+        scheme, host and port, with no trailing slash. A different port is a different origin, which is
+        why the SPA dev server needs naming explicitly.</li>
+    <li><strong>Never <code>AllowAnyOrigin</code> in production.</strong> Combined with credentials it
+        is forbidden outright by the specification, and alone it makes your API readable by script on
+        any site a user visits.</li>
+    <li><code>app.UseCors("spa")</code> &mdash; and the placement is the point: <strong>before</strong>
+        the endpoints, after routing. Order is behaviour, exactly as in
+        <a href="14-web-api.html">chapter 14</a>, and CORS registered too late adds headers to a
+        response nobody is allowed to read.</li>
+    <li>A non-simple request &mdash; <code>PUT</code>, or a custom header &mdash; triggers a
+        <strong>preflight <code>OPTIONS</code></strong> call first. If that is blocked by
+        authentication or a proxy, the real request never happens.</li>
+  </ul>
+</div>
 </div>
 
 <h3>JavaScript oddities worth knowing</h3>
@@ -307,6 +407,30 @@ app.UseCors(<span class="st">"spa"</span>);   <span class="cm">// before MapCont
   <span class="kw">if</span> (!res.ok) <span class="kw">throw new</span> Error(<span class="st">`HTTP </span>${res.status}<span class="st">`</span>);
   <span class="kw">return</span> res.json() <span class="kw">as</span> <span class="ty">Promise</span>&lt;<span class="ty">OrderDto</span>&gt;;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>export interface OrderDto</code> &mdash; a <strong>compile-time only</strong>
+        declaration. TypeScript interfaces vanish entirely in the emitted JavaScript; nothing is
+        checked at run time.</li>
+    <li><strong>camelCase, deliberately.</strong> <code>System.Text.Json</code> serialises C#'s
+        <code>PascalCase</code> to camelCase by default, so this mirrors what actually arrives on the
+        wire rather than what the C# looks like.</li>
+    <li><code>'Draft' | 'Submitted' | 'Shipped'</code> &mdash; a <strong>union of string
+        literals</strong>: a closed set, so a typo is a compile error and an editor can autocomplete
+        it. It is TypeScript's nearest thing to an enum, and closer to the wire than a real
+        <code>enum</code>.</li>
+    <li><code>notes?: string</code> &mdash; the <code>?</code> means the property <strong>may be
+        absent</strong>, giving <code>string | undefined</code>. That is not the same as
+        <code>string | null</code>, and an API that returns JSON <code>null</code> needs the latter
+        &mdash; a distinction that catches everyone once.</li>
+    <li><code>Promise&lt;OrderDto&gt;</code> &mdash; the return type of the async function, matching
+        C#'s <code>Task&lt;T&gt;</code>.</li>
+    <li><strong>This file is a hand-written copy of a C# contract</strong>, and hand-written copies
+        drift. Generating it from the OpenAPI document is the standard fix, and
+        <a href="18-spa-and-typescript.html">chapter 18</a> covers it.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">Generate the types, do not type them twice</div>

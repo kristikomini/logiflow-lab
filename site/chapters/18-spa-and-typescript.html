@@ -185,6 +185,34 @@
       .subscribe(o =&gt; { <span class="kw">this</span>.orders.set(o); <span class="kw">this</span>.loading.set(<span class="kw">false</span>); });
   }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>'Draft' | 'Submitted' | 'Cancelled'</code> &mdash; a union of string literals mirroring
+        the C# enum. It is a compile-time-only guarantee: nothing checks it against what the API
+        actually sends.</li>
+    <li><code>@Component({...})</code> &mdash; a <strong>decorator</strong>, TypeScript's answer to a C#
+        attribute. It attaches metadata that Angular reads at run time.</li>
+    <li><code>standalone: true</code> &mdash; the modern Angular style. No <code>NgModule</code>; the
+        component declares its own <code>imports</code>, which is much closer to how a React file
+        reads.</li>
+    <li><code>template:</code> with backticks &mdash; a <strong>template literal</strong>, so the markup
+        can span lines. It can also be <code>templateUrl</code> pointing at a separate file.</li>
+    <li><code>@if</code> and <code>@for</code> &mdash; Angular's current control-flow syntax, replacing
+        <code>*ngIf</code> and <code>*ngFor</code>. Confusingly similar to Razor's <code>@if</code>,
+        and unrelated.</li>
+    <li><code>track order.id</code> &mdash; <strong>required</strong> in the new
+        <code>@for</code>. It tells Angular how to identify a row across renders so it can move DOM
+        nodes rather than rebuild them &mdash; the same idea as <code>@key</code> in Blazor and
+        <code>key</code> in React.</li>
+    <li><code>loading()</code> and <code>orders()</code> with parentheses &mdash; these are
+        <strong>signals</strong>, read by calling them. That is what lets Angular track exactly which
+        template depends on which value.</li>
+    <li><code>| currency:'EUR'</code> &mdash; a <strong>pipe</strong>: formatting in the template,
+        locale-aware. The C# counterpart is <code>ToString("C")</code>, with the same
+        culture caveat.</li>
+  </ul>
+</div>
 
 <div class="code-head">React — a function that returns markup</div>
 <pre><code><span class="kw">export function</span> <span class="ty">OrderList</span>() {
@@ -200,6 +228,31 @@
   <span class="kw">if</span> (loading) <span class="kw">return</span> &lt;p&gt;Caricamento&hellip;&lt;/p&gt;;
   <span class="kw">return</span> &lt;&gt;{orders.map(o =&gt; &lt;tr key={o.id}&gt;&lt;td&gt;{o.orderNumber}&lt;/td&gt;&lt;/tr&gt;)}&lt;/&gt;;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>useState&lt;OrderDto[]&gt;([])</code> &mdash; a <strong>hook</strong>. It returns a
+        pair: the current value and a setter, destructured by position.</li>
+    <li><strong>Calling the setter re-runs the whole function.</strong> A React component is a function
+        of its state, executed again on every change &mdash; which is why you must never mutate state
+        in place.</li>
+    <li><code>useEffect(() =&gt; {...}, [])</code> &mdash; runs <em>after</em> render, for side effects.
+        Fetching data is the canonical example.</li>
+    <li><code>[]</code> &mdash; the <strong>dependency array</strong>, and <strong>the most important
+        two characters here</strong>. Empty means "run once". Omit it entirely and the effect runs
+        after <em>every</em> render, and since it sets state, that render triggers another &mdash; an
+        infinite fetch loop.</li>
+    <li><code>.then(r =&gt; r.json())</code> &mdash; and note what is missing: no
+        <code>response.ok</code> check, so a 500 is parsed as if it were data. The
+        <a href="17-frontend-basics.html">chapter 17</a> trap, in the wild.</li>
+    <li><code>&lt;&gt;...&lt;/&gt;</code> &mdash; a <strong>fragment</strong>: group elements without
+        adding a wrapper to the DOM.</li>
+    <li><code>key={o.id}</code> &mdash; the same identity hint as Angular's <code>track</code>. Using an
+        array index instead is the classic React bug: delete a row and the wrong ones re-render.</li>
+    <li><strong>Two frameworks, one shape.</strong> State, an effect that loads it, a loop with a
+        stable key. Recognising that is worth more than fluency in either.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Read both. The shape is the same: some state, a fetch, a loop that renders one item. If you can
@@ -236,6 +289,24 @@
 {
   <span class="st">"/api"</span>: { <span class="st">"target"</span>: <span class="st">"https://localhost:7001"</span>, <span class="st">"secure"</span>: <span class="kw">false</span> }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is a dev-server setting</strong>, not application code. JSON, so no
+        comments.</li>
+    <li><code>"/api"</code> &mdash; the path prefix to intercept. Anything else is served by the SPA
+        dev server as before.</li>
+    <li><code>"target"</code> &mdash; where those requests are forwarded, to the .NET API.</li>
+    <li><strong>The browser only ever sees one origin</strong>, so <strong>CORS never enters the
+        picture</strong> during development. The proxy is server-to-server, and CORS is purely a
+        browser rule.</li>
+    <li><code>"secure": false</code> &mdash; accept the .NET development HTTPS certificate, which is
+        self-signed. Without it the proxy refuses to connect.</li>
+    <li><strong>The trap this sets up:</strong> because CORS never appears in development, it appears
+        for the first time in production, where the SPA is on a real domain and the API is elsewhere.
+        Configure CORS deliberately rather than discovering it at deployment.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   The wrong fix is <code>AllowAnyOrigin()</code> on the server so the error goes away in
@@ -262,6 +333,26 @@ npx nswag openapi2tsclient \
   /template:Angular
 
 <span class="cm"># now a C# rename breaks the TypeScript BUILD, not the user's screen</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>#</code> &mdash; shell comments.</li>
+    <li><code>npx</code> &mdash; runs a package without installing it globally.</li>
+    <li><code>/input:...swagger.json</code> &mdash; <strong>your API already publishes its
+        schema</strong> from <a href="14-web-api.html">chapter 14</a>. This step consumes it rather
+        than duplicating it by hand.</li>
+    <li><code>/output:</code> and <code>/template:Angular</code> &mdash; where to write, and which
+        flavour of client to emit. There is a React/Fetch template too.</li>
+    <li><code>\</code> at line ends &mdash; shell line continuation; a backtick in
+        PowerShell.</li>
+    <li><strong>This is the payoff.</strong> A C# property rename now breaks the
+        <strong>TypeScript build</strong> instead of the user's screen. The hand-written interface in
+        <a href="17-frontend-basics.html">chapter 17</a> could only ever drift silently.</li>
+    <li><strong>Generate in CI, commit the output.</strong> Generating on every developer's machine
+        means the client depends on whoever ran it last, against whichever API version happened to be
+        running.</li>
+  </ul>
+</div>
 
 <p>
   Wire that into CI and the contract becomes machine-checked. This is a genuinely strong thing to
@@ -301,6 +392,23 @@ npx nswag openapi2tsclient \
   <pre><code>npm create vite@latest logiflow-ui -- --template react-ts
 <span class="cm"># or: npx @angular/cli new logiflow-ui --standalone --style css</span>
 cd logiflow-ui &amp;&amp; npm install &amp;&amp; npm run dev</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>npm create vite@latest logiflow-ui -- --template react-ts</code> &mdash; the
+        <strong>bare <code>--</code></strong> separates npm's own arguments from those passed to the
+        tool. Omit it and npm swallows <code>--template</code>.</li>
+    <li><code>react-ts</code> &mdash; the TypeScript variant. Choosing the plain
+        <code>react</code> template and adding TypeScript later is considerably more work.</li>
+    <li><code>npx @angular/cli new ... --standalone</code> &mdash; the Angular equivalent, matching the
+        standalone style in the first block.</li>
+    <li><code>npm install</code> then <code>npm run dev</code> &mdash; restore, then start the dev
+        server, which is the JavaScript world's <code>dotnet restore</code> and
+        <code>dotnet run</code>.</li>
+    <li><strong>Do this alongside the API and wire the proxy.</strong> A SPA reading real data from your
+        own endpoint teaches the boundary in an afternoon; reading it about does not.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Point it at the running API from <a href="14-web-api.html">chapter 14</a> and render a list of
     orders. Then do the experiment that teaches the lesson: rename a property on the C# DTO,

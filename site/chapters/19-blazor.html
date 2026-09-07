@@ -182,6 +182,35 @@
     <span class="kw">protected override async</span> <span class="ty">Task</span> OnInitializedAsync()
         =&gt; _orders = <span class="kw">await</span> Api.GetOrdersAsync();
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>@page "/orders"</code> &mdash; a <strong>routable</strong> component. The same
+        directive-at-the-top idea as Razor in <a href="16-aspnet-mvc.html">chapter 16</a>, but this
+        file <em>is</em> the page rather than a view rendered by a controller.</li>
+    <li><code>@rendermode InteractiveServer</code> &mdash; <strong>the most consequential line in
+        Blazor</strong>. The component runs <em>on the server</em>, and every click travels over a
+        SignalR WebSocket to get there.</li>
+    <li><strong>What that costs:</strong> a persistent connection per user, server memory per user, and
+        latency on every interaction. Excellent on a factory LAN in Modena; poor over a bad mobile
+        connection, where a dropped circuit means a "reconnecting" banner.</li>
+    <li>The alternatives are <code>InteractiveWebAssembly</code>, which downloads a .NET runtime and
+        runs in the browser, and <code>InteractiveAuto</code>, which starts on the server and switches
+        once the download completes.</li>
+    <li><code>@inject LogiFlowApiClient Api</code> &mdash; <strong>dependency injection into
+        markup</strong>. The same container as chapter 14; the component is resolved from it like any
+        other service.</li>
+    <li><code>@if (_orders is null)</code> &mdash; and the comment is the lesson.
+        <strong>Null means "not loaded yet"; an empty list means "none exist"</strong>. Collapsing the
+        two is how a loading spinner becomes "Nessun ordine" for a second on every visit.</li>
+    <li><code>@key="o.Id"</code> &mdash; the identity hint for the diffing algorithm, exactly like
+        React's <code>key</code>. Without it, reordering the list re-renders the wrong rows and can
+        move focus out of an input the user was typing in.</li>
+    <li><strong>It is C# all the way down.</strong> The same <code>OrderDto</code>, the same
+        <code>DateTime</code> handling, the same nullable analysis &mdash; which is precisely the
+        argument for Blazor in a .NET shop with no front-end specialist.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Everything you already know applies: <code>@inject</code> is the DI container from
@@ -279,6 +308,22 @@
   <div class="box-title">Try it yourself</div>
   <pre><code>dotnet run --project src/LogiFlow.Web
 <span class="cm"># then open the orders page and watch the network tab</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet run --project src/LogiFlow.Web</code> &mdash; starts the Blazor application from
+        this repository.</li>
+    <li><strong>Then watch the network tab</strong>, and that is the whole exercise. Under
+        <code>InteractiveServer</code> you will see <em>one</em> WebSocket and almost no other traffic:
+        the clicks and the DOM updates are travelling inside it.</li>
+    <li><strong>Then break the connection.</strong> Stop the server, or switch off the network for a
+        moment, and the reconnection banner appears &mdash; the failure mode you are accepting in
+        exchange for writing no JavaScript.</li>
+    <li>Compare it with the SPA in <a href="18-spa-and-typescript.html">chapter 18</a>, where the same
+        interaction is a stateless HTTP call and a dropped connection affects only that one request.
+        That contrast is the actual decision, and it is what an interviewer is asking about.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     On an InteractiveServer page, click around and notice that almost nothing is transferred except
     small WebSocket frames — the HTML is being diffed on the server. Then the experiment worth
