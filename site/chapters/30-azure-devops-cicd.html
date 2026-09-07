@@ -236,6 +236,30 @@
               <span class="ty">package</span>: <span class="st">'$(Pipeline.Workspace)/drop/app'</span>
           - <span class="ty">task</span>: AzureAppServiceManage@0
             <span class="ty">inputs</span>: { action: <span class="st">'Swap Slots'</span>, sourceSlot: staging }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>YAML, committed with the code.</strong> The pipeline is versioned and reviewed like
+        everything else, which is the whole argument over a UI-configured build.</li>
+    <li><code>trigger:</code> &mdash; which branch pushes start a run.
+        <code>'release/*'</code> is a wildcard and needs the quotes because
+        <code>*</code> is special in YAML.</li>
+    <li><code>pr:</code> &mdash; <strong>validate every pull request too</strong>, and this is the block
+        that matters. A pipeline that only runs after merge tells you about the breakage once it is
+        everyone's problem.</li>
+    <li><code>variables:</code> &mdash; reused below as <code>$(buildConfiguration)</code>. Note the
+        parentheses; <code>${{ }}</code> is compile-time template syntax and a different thing
+        entirely.</li>
+    <li><code>stages:</code> &rarr; <code>jobs:</code> &rarr; <code>steps:</code> &mdash; the hierarchy.
+        Stages gate deployments, jobs can run in parallel on different agents, steps run in
+        sequence.</li>
+    <li><code>vmImage: 'ubuntu-latest'</code> &mdash; a fresh, disposable agent per run. Cheaper and
+        faster than Windows, and fine for .NET unless you need Windows-specific dependencies.</li>
+    <li><code>UseDotNet@2</code> &mdash; pins the SDK version, so the agent's default cannot silently
+        change your compiler. This is what <code>global.json</code> from
+        <a href="01-dotnet-platform.html">chapter 01</a> exists to feed.</li>
+  </ul>
+</div>
 
 <h2 id="migrations">Database changes are the hard part</h2>
 
@@ -286,6 +310,24 @@ dotnet list package --vulnerable --include-transitive
 
 <span class="cm"># secret scanning, static analysis, container scanning…</span>
 <span class="cm"># the principle: every rule a human would have to remember becomes a build step</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet format --verify-no-changes</code> &mdash; <strong>fails the build on formatting
+        drift</strong>. It ends style arguments in code review permanently, because the answer is now
+        "the build says so".</li>
+    <li><code>--include-transitive</code> &mdash; and this is the important flag. The vulnerable package
+        is almost always one you never chose, pulled in by one you did.</li>
+    <li><strong>It fails on a CVE published after your code was written</strong>, without a single line
+        changing. That is a feature: a green build yesterday says nothing about today.</li>
+    <li><strong>The principle in one sentence:</strong> every rule a human would otherwise have to
+        remember becomes a build step. Formatting, vulnerabilities, secrets, architecture &mdash;
+        and, in this repository, <code>tools/doctor.cs</code>.</li>
+    <li><strong>A gate people learn to ignore is worse than no gate</strong>, so each of these must be
+        fast and near-zero false positives, or someone will add
+        <code>continueOnError</code> and it will never be removed.</li>
+  </ul>
+</div>
 
 <h2 id="secrets">Secrets in pipelines</h2>
 
@@ -326,6 +368,30 @@ dotnet list package --vulnerable --include-transitive
     siteConfig: { linuxFxVersion: <span class="st">'DOTNETCORE|10.0'</span>, alwaysOn: <span class="kw">true</span> }
   }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Bicep</strong> &mdash; a readable language that compiles to ARM JSON. Infrastructure
+        as code: the environment is defined in the repository rather than clicked together in a
+        portal.</li>
+    <li><code>param location string = resourceGroup().location</code> &mdash; a parameter with a
+        default, taken from the containing resource group so resources cannot drift into another
+        region.</li>
+    <li><code>resource plan 'Microsoft.Web/serverfarms@2023-01-01'</code> &mdash; the resource type
+        <strong>and the API version</strong>. Pinning it means a change in Azure's API does not silently
+        change what you deploy.</li>
+    <li><code>'plan-${appName}'</code> &mdash; string interpolation, with the same
+        <code>${}</code> as JavaScript rather than C#'s <code>{}</code>.</li>
+    <li><code>reserved: true</code> &mdash; means Linux. An unfortunate legacy name, and worth a comment
+        every time it appears.</li>
+    <li><code>identity: { type: 'SystemAssigned' }</code> &mdash; <strong>this one line creates the
+        managed identity</strong> that <a href="29-azure.html">chapter 29</a>'s passwordless connection
+        string depends on.</li>
+    <li><strong>It is declarative and idempotent.</strong> You describe the desired state and deploy
+        repeatedly; Azure works out the difference, so the same file creates the environment and
+        updates it.</li>
+  </ul>
+</div>
 
 <div class="tryit">
   <div class="box-title">Try it yourself</div>

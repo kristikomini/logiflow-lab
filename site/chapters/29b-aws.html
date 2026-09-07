@@ -107,6 +107,24 @@
 //    laptop (using your local profile) and in production (using the task
 //    role). There is no credential in your application at all.</span>
 <span class="kw">var</span> s3 = <span class="kw">new</span> <span class="ty">AmazonS3Client</span>();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>"AccessKey": "AKIA…"</code> &mdash; <strong>a long-lived credential in
+        configuration</strong>, and the reason for most AWS key leaks on GitHub. The
+        <code>AKIA</code> prefix is what secret scanners look for.</li>
+    <li><strong>Long-lived is the defect</strong>, not the storage. A key with no expiry that is valid
+        from anywhere remains dangerous however carefully it is stored.</li>
+    <li><strong>An IAM role attached to the task or instance</strong> is the fix, and it is Azure's
+        managed identity by another name: temporary credentials, rotated automatically, usable only
+        from that compute.</li>
+    <li><strong>The default provider chain</strong> &mdash; environment variables, then the shared
+        profile, then instance metadata &mdash; is why no code changes. The SDK finds credentials
+        itself, so the same binary runs locally with your profile and in ECS with the role.</li>
+    <li><strong>Never construct a client with explicit keys.</strong> Doing so opts out of the chain and
+        is what makes the leak possible in the first place.</li>
+  </ul>
+</div>
 
 <div class="code-head">registering the SDK properly in ASP.NET Core</div>
 <pre><code><span class="cm">// package: AWSSDK.Extensions.NETCore.Setup — this is the whole integration</span>
@@ -117,6 +135,24 @@ builder.Services.AddAWSService&lt;<span class="ty">IAmazonSecretsManager</span>&
 <span class="cm">// …and then it is ordinary constructor injection, and IAmazonS3 is an
 // interface, so it mocks in tests like anything else.</span>
 <span class="kw">public sealed class</span> <span class="ty">DocumentStore</span>(<span class="ty">IAmazonS3</span> s3) : <span class="ty">IDocumentStore</span> { … }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AWSSDK.Extensions.NETCore.Setup</code> &mdash; the whole integration is this package
+        plus two lines.</li>
+    <li><code>GetAWSOptions()</code> &mdash; reads the <code>AWS</code> section from configuration for
+        region and profile, and leaves credentials to the provider chain.</li>
+    <li><code>AddAWSService&lt;IAmazonS3&gt;()</code> &mdash; registers the client as a
+        <strong>singleton</strong>, which is correct: the clients are thread-safe and hold connection
+        pools, so one per request would repeat the <code>HttpClient</code> mistake from
+        <a href="08-disposal-and-thread-safety.html">chapter 08</a>.</li>
+    <li><strong><code>IAmazonS3</code> is an interface</strong>, so it substitutes in tests like any
+        other dependency &mdash; a deliberate and welcome design choice by the SDK
+        authors.</li>
+    <li><strong>Then it is ordinary constructor injection.</strong> Which is the chapter's real point:
+        the cloud provider changes the deployment story and barely touches the C#.</li>
+  </ul>
+</div>
 
 <h2 id="rds">RDS for SQL Server: the differences that catch people</h2>
 

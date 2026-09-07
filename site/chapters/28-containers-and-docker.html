@@ -163,6 +163,25 @@ USER $APP_UID
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
 ENTRYPOINT [<span class="st">"dotnet"</span>, <span class="st">"LogiFlow.Api.dll"</span>]</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>FROM ... AS build</code> &mdash; a <strong>named stage</strong>. This is a multi-stage
+        build: the SDK image is about 800 MB and is thrown away at the end.</li>
+    <li><code>WORKDIR /src</code> &mdash; sets the directory and creates it. Better than
+        <code>RUN cd</code>, which does not persist between instructions.</li>
+    <li><strong>Copy only the project files first, then restore.</strong> This is the layer-caching
+        trick and the difference between a five-second and a two-minute build.</li>
+    <li><strong>Each instruction is a cached layer</strong>, invalidated when its inputs change. Since
+        a code edit does not touch any <code>.csproj</code>, the restore layer is reused and the
+        package download is skipped entirely.</li>
+    <li><strong>Copying everything first destroys that</strong>, which is the most common Dockerfile
+        mistake: correct output, and every build restores from scratch.</li>
+    <li>The final stage uses the <strong>runtime</strong> image, per
+        <a href="01-dotnet-platform.html">chapter 01</a> &mdash; the SDK never ships. Run as a
+        non-root user, and expose 8080 rather than 80, which is the .NET 8+ default.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Why the two stages</div>
@@ -198,6 +217,29 @@ ENTRYPOINT [<span class="st">"dotnet"</span>, <span class="st">"LogiFlow.Api.dll
   redis:
     image: redis:7-alpine
     ports: [<span class="st">"6380:6379"</span>]              <span class="cm"># shifted: 6379 is often already taken</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>YAML, and indentation is structure.</strong> Tabs are invalid; a misaligned key is a
+        different meaning rather than an error.</li>
+    <li><code>services:</code> &mdash; each key is a container name <em>and</em> its
+        <strong>DNS hostname</strong> on the compose network. That is why the connection string later
+        says <code>Server=sql</code>.</li>
+    <li><code>ports: ["1433:1433"]</code> &mdash; <strong>host:container</strong>. Only needed to reach
+        it from your machine; containers talk to each other without any published port.</li>
+    <li><code>volumes: [sqldata:/var/opt/mssql]</code> &mdash; a <strong>named volume</strong>, so the
+        database survives <code>docker compose down</code>. It does <em>not</em> survive
+        <code>down -v</code>, and that flag is how people delete their data.</li>
+    <li><code>healthcheck</code> &mdash; <strong>"started" is not "ready"</strong>. SQL Server accepts
+        connections some seconds after the container starts, so without this the API starts first and
+        fails.</li>
+    <li><code>depends_on</code> alone only orders <em>starting</em>; it needs
+        <code>condition: service_healthy</code> to wait for readiness, which is the pairing that
+        matters.</li>
+    <li><code>redis:7-alpine</code> &mdash; a pinned major version on a small base image. Using
+        <code>latest</code> means the build is not reproducible.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Two details worth internalising. <strong>Service names are hostnames</strong> on the compose
@@ -281,6 +323,29 @@ docker run --rm -p 8080:8080 \
   --network logiflow_default \
   -e <span class="st">"ConnectionStrings__Default=Server=sql,1433;Database=LogiFlow;User Id=sa;Password=Str0ng!Passw0rd;TrustServerCertificate=true"</span> \
   logiflow-api</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>docker build -t logiflow-api .</code> &mdash; <code>-t</code> tags it; the trailing
+        <code>.</code> is the <strong>build context</strong>, the directory sent to the daemon. A
+        <code>.dockerignore</code> keeps <code>bin/</code>, <code>obj/</code> and
+        <code>.git</code> out of it.</li>
+    <li><code>docker images logiflow-api</code> &mdash; <strong>check the size, and this is the
+        exercise</strong>. About 110 MB means the multi-stage build worked; about 800 MB means you
+        shipped the SDK.</li>
+    <li><code>--rm</code> &mdash; delete the container when it exits, so experiments do not
+        accumulate.</li>
+    <li><code>--network logiflow_default</code> &mdash; join the network compose created, so the
+        hostname <code>sql</code> resolves. Compose prefixes the network with the project name, which
+        is where that name comes from.</li>
+    <li><code>ConnectionStrings__Default</code> &mdash; <strong>double underscore</strong>. That is how
+        .NET configuration maps an environment variable onto a nested JSON key, and it is the standard
+        way to configure a container.</li>
+    <li><code>Server=sql,1433</code> &mdash; a comma before the port in SQL Server connection strings,
+        not a colon. And <code>sql</code>, not <code>localhost</code>: inside a container
+        <code>localhost</code> is the container itself.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Note the double underscore: <code>ConnectionStrings__Default</code> is how a nested
     <code>appsettings.json</code> key becomes an environment variable, and it is the mechanism

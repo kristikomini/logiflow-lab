@@ -212,6 +212,28 @@
         <span class="kw">await</span> cache.RemoveAsync(Key(id), ct);   <span class="cm">// evict, do not update</span>
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>: IOrderService</code> &mdash; the cache is a <strong>decorator</strong>. It implements
+        the same interface it depends on, so callers cannot tell caching was added and it can be
+        switched off by changing one registration.</li>
+    <li><code>IDistributedCache</code> &mdash; the abstraction, not <code>IConnectionMultiplexer</code>.
+        Depending on the interface is what lets this run against in-memory storage with no Redis at
+        all.</li>
+    <li><strong>Read the name carefully:</strong> <code>AddDistributedMemoryCache</code> implements
+        <code>IDistributedCache</code> and is <em>not distributed</em> &mdash; it is per process. Fine
+        on one instance, silently wrong the moment you scale out.</li>
+    <li><code>$"order:v1:{id}"</code> &mdash; the key, and <strong>the <code>v1</code> is the
+        point</strong>. Change the DTO's shape and old entries deserialise into the new type as
+        garbage; bumping the version makes the old keys unreachable instead.</li>
+    <li><code>private static string Key(int id)</code> &mdash; one function, so the format cannot drift
+        between the read path and the invalidation path. A cache you can write but never invalidate is
+        the usual outcome of two hand-written strings.</li>
+    <li><strong>Cache-aside is the pattern:</strong> look in the cache, on a miss fetch and store. The
+        hard half is not this method, it is remembering to evict on every write.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Why evict rather than overwrite on write</div>
@@ -233,6 +255,24 @@
 <span class="cm">// HybridCache (.NET 9+) combines an in-process L1 with a distributed L2</span>
 <span class="cm">// and solves the stampede problem below for you.</span>
 builder.Services.AddHybridCache();</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddStackExchangeRedisCache(...)</code> &mdash; registers the Redis-backed
+        implementation of <code>IDistributedCache</code>. Nothing in the service above changes.</li>
+    <li><code>o.InstanceName = "logiflow:"</code> &mdash; a <strong>key prefix</strong>, so several
+        applications can share one Redis without colliding. It is prepended to every key you
+        write.</li>
+    <li><code>GetConnectionString("Redis")</code> &mdash; and if it is empty this registration is
+        skipped entirely, which is how this repository runs with no Redis while every line of
+        cache-aside code still executes.</li>
+    <li><code>AddHybridCache()</code> &mdash; .NET 9's combination of an in-process <strong>L1</strong>
+        and a distributed <strong>L2</strong>. L1 avoids the network for hot keys; L2 keeps instances
+        consistent.</li>
+    <li><strong>It also solves the stampede</strong> in the next block, which is the real reason to
+        prefer it over hand-rolling the two levels.</li>
+  </ul>
+</div>
 
 <h2 id="expiry">Expiry and invalidation</h2>
 
@@ -289,6 +329,26 @@ builder.Services.AddHybridCache();</code></pre>
 
 <span class="cm">// By hand: a per-key SemaphoreSlim, or add jitter to the TTL so a whole</span>
 <span class="cm">// generation of keys does not expire on the same tick.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>The stampede:</strong> a popular key expires, and every request that arrives in the
+        next few milliseconds misses, so all of them query the database at once. The cache was
+        protecting the database and its expiry is what knocks it over.</li>
+    <li><code>GetOrCreateAsync(key, factory, options, ct)</code> &mdash; <strong>a single flight per
+        key</strong>. Concurrent callers for the same key wait for one factory invocation rather than
+        each running their own.</li>
+    <li><code>async token =&gt; await repo.GetAsync(id, token)</code> &mdash; the factory. It receives
+        its own token, and runs <em>only</em> on a miss.</li>
+    <li><code>Expiration = TimeSpan.FromMinutes(10)</code> &mdash; an absolute TTL. Prefer it to a
+        sliding one for anything a user might see: sliding expiry means a busy key is never refreshed
+        and can serve stale data indefinitely.</li>
+    <li><strong>By hand it is a per-key <code>SemaphoreSlim</code></strong>, or
+        <strong>jitter</strong> on the TTL &mdash; a random spread so a whole generation of keys
+        written in one batch does not expire on the same tick. Jitter is the cheaper of the two and
+        fixes the commonest case.</li>
+  </ul>
+</div>
 
 <p>
   The second failure mode is <strong>cache penetration</strong>: repeated requests for a key that
@@ -326,6 +386,21 @@ builder.Services.AddHybridCache();</code></pre>
   <div class="box-title">Try it yourself</div>
   <pre><code>docker run -d -p 6379:6379 redis:latest
 docker <span class="kw">exec</span> -it $(docker ps -qf ancestor=redis) redis-cli</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>docker run -d -p 6379:6379 redis:latest</code> &mdash; <code>-d</code> detached, and
+        <strong>host port : container port</strong>. 6379 is Redis's default.</li>
+    <li><code>docker exec -it ... redis-cli</code> &mdash; <code>-it</code> is interactive plus a
+        terminal, which is what makes the shell usable rather than immediately exiting.</li>
+    <li><code>$(docker ps -qf ancestor=redis)</code> &mdash; <strong>command substitution</strong>: run
+        the inner command and use its output. <code>-q</code> prints only ids and
+        <code>-f ancestor=redis</code> filters by image, so this finds the container without you
+        copying an id.</li>
+    <li>Nothing is persisted by default, so removing the container discards everything &mdash; which is
+        fine here and a real decision in production.</li>
+  </ul>
+</div>
   <pre><code>SET order:1 <span class="st">"{\"id\":1,\"total\":49.9}"</span>
 GET order:1
 TTL order:1                 <span class="cm"># -1 → no expiry. This is the bug.</span>
@@ -334,6 +409,28 @@ TTL order:1                 <span class="cm"># 60</span>
 KEYS order:*                <span class="cm"># never run this in production — it blocks the server</span>
 SCAN 0 MATCH order:* COUNT 100   <span class="cm"># the safe version</span>
 INFO stats                  <span class="cm"># keyspace_hits vs keyspace_misses = your hit rate</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>SET</code> and <code>GET</code> &mdash; Redis is a key-value store and the value is
+        <strong>opaque bytes</strong>. The JSON here means nothing to Redis; the escaping is only the
+        shell's.</li>
+    <li><code>TTL order:1</code> returning <code>-1</code> &mdash; <strong>no expiry, and this is the
+        bug</strong>. A key written without a TTL stays until memory runs out or someone deletes it,
+        and stale data with no expiry is worse than no cache.</li>
+    <li><code>EXPIRE order:1 60</code> &mdash; seconds. Better to set it when writing, atomically, than
+        as a second command that can be missed.</li>
+    <li><code>KEYS order:*</code> &mdash; <strong>never in production</strong>. Redis is
+        single-threaded, so scanning every key blocks every other client for the duration &mdash; an
+        outage caused by a diagnostic command.</li>
+    <li><code>SCAN 0 MATCH order:* COUNT 100</code> &mdash; the safe version: a cursor, returning small
+        batches. It may return duplicates and miss keys added during the scan, which is the price of
+        not blocking.</li>
+    <li><code>INFO stats</code> &mdash; <code>keyspace_hits</code> against
+        <code>keyspace_misses</code> is your hit rate, and <strong>the number that decides whether the
+        cache is worth its complexity</strong>. Below about 80% it usually is not.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then wire <code>AddStackExchangeRedisCache</code> into the chapter 14 API, cache one endpoint,
     and watch the SQL log go quiet on the second request. Then update the row directly in SSMS

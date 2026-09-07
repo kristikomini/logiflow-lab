@@ -270,6 +270,29 @@
     }
   ]
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is <code>.vscode/launch.json</code></strong>, JSON with no comments.</li>
+    <li><code>"type": "coreclr"</code> &mdash; the .NET debugger. It is what the C# extension
+        installs, and the wrong value here is why "nothing happens on F5".</li>
+    <li><code>"request": "launch"</code> &mdash; start the process. The alternative is
+        <code>"attach"</code>, for debugging something already running such as a container.</li>
+    <li><code>"preLaunchTask": "build"</code> &mdash; runs a task from
+        <code>tasks.json</code> first. Without it you debug the <em>previous</em> build and wonder why
+        a breakpoint moved.</li>
+    <li><code>"program"</code> &mdash; the <strong>DLL</strong>, not the project. The path embeds
+        <code>Debug</code> and <code>net10.0</code>, so it breaks on a framework upgrade &mdash; an
+        unpleasant five minutes.</li>
+    <li><code>${workspaceFolder}</code> &mdash; a variable substituted by VS Code, so the file is
+        portable between machines.</li>
+    <li><code>"env": { "ASPNETCORE_ENVIRONMENT": "Development" }</code> &mdash; what selects
+        <code>appsettings.Development.json</code> and the developer exception page. Omit it and the app
+        runs as Production locally.</li>
+    <li><code>"serverReadyAction"</code> &mdash; watches the output for the listening URL and opens a
+        browser at it.</li>
+  </ul>
+</div>
 
 <p>
   Extensions worth having: <strong>C# Dev Kit</strong>, <strong>REST Client</strong> (send HTTP
@@ -290,6 +313,24 @@ POST {{host}}/api/v1/orders
 Content-Type: application/json
 
 { <span class="st">"customerId"</span>: 42, <span class="st">"notes"</span>: <span class="st">"consegna urgente"</span> }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>A <code>.http</code> file</strong>, executable from VS Code or Rider. It lives beside
+        the code and is committed, which is the entire advantage over a Postman collection on somebody
+        else's laptop.</li>
+    <li><code>@host = ...</code> &mdash; a <strong>variable</strong>, referenced below as
+        <code>{{host}}</code>. Change one line to point at staging.</li>
+    <li><code>###</code> &mdash; the <strong>request separator</strong>. Each block is one request, and
+        the editor puts a clickable <em>Send</em> above it.</li>
+    <li><code>GET {{host}}/api/v1/orders/42</code> &mdash; verb, URL, then headers on following lines.
+        The blank line before the body is required, exactly as in raw HTTP.</li>
+    <li><code>Content-Type: application/json</code> &mdash; without it ASP.NET Core returns 415 and does
+        not bind the body, per <a href="14-web-api.html">chapter 14</a>.</li>
+    <li><strong>See <code>requests/logiflow.http</code></strong> in this repository, which walks the
+        whole order flow in about six clicks.</li>
+  </ul>
+</div>
 
 <h2 id="cli">The CLI is part of the tooling</h2>
 
@@ -304,6 +345,27 @@ dotnet ef migrations list           <span class="cm"># (ch. 09)</span>
 dotnet-counters monitor -p &lt;pid&gt;    <span class="cm"># live GC, thread pool, request rate</span>
 dotnet-dump collect  -p &lt;pid&gt;       <span class="cm"># a memory dump to analyse offline</span>
 dotnet-trace collect -p &lt;pid&gt;       <span class="cm"># CPU profile of a live process</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet watch</code> &mdash; rebuild and restart on save, with hot reload for many edits.
+        The tightest feedback loop available without an IDE.</li>
+    <li><code>--filter "Category=Unit"</code> &mdash; runs the tests tagged with
+        <code>[Trait("Category", "Unit")]</code>, so the slow container-backed suite stays out of the
+        inner loop.</li>
+    <li><code>dotnet format</code> &mdash; applies <code>.editorconfig</code> across the solution. Its
+        real value is in CI as <code>--verify-no-changes</code>, which ends formatting arguments in
+        code review permanently.</li>
+    <li><code>dotnet list package --vulnerable</code> &mdash; known CVEs in your dependencies. Add
+        <code>--include-transitive</code>, because the risky package is usually one you never chose.</li>
+    <li><code>dotnet-counters monitor -p &lt;pid&gt;</code> &mdash; <strong>live counters on a running
+        process</strong>: GC collections, heap size, thread pool queue length, requests per second. No
+        profiler, no restart.</li>
+    <li><strong>These are the tools that impress in an interview</strong>, because they answer "the
+        service is slow in production and I cannot attach a debugger" &mdash; alongside
+        <code>dotnet-dump</code> and <code>dotnet-trace</code>.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">.editorconfig</div>

@@ -145,6 +145,28 @@
         result.IsFailure.ShouldBeTrue();
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>[Fact]</code> &mdash; xUnit's attribute for a test with no parameters. The
+        parameterised sibling is <code>[Theory]</code> with <code>[InlineData]</code>.</li>
+    <li><code>Submit_fails_when_the_order_has_no_lines</code> &mdash; <strong>the name is
+        documentation</strong>. Underscores because it is a sentence, and it should read as the rule
+        being asserted. A failing test's name is the first thing anyone sees.</li>
+    <li><strong>Arrange, Act, Assert</strong> &mdash; and the blank lines between them are deliberate.
+        Two acts in one test means two tests.</li>
+    <li><code>Order.Create(...).Value</code> &mdash; the factory returns a
+        <code>Result&lt;T&gt;</code>, so <code>.Value</code> unwraps it. Fine in a test where failure
+        would itself be a bug.</li>
+    <li><code>ACustomer()</code> &mdash; a <strong>builder helper</strong>. It keeps irrelevant setup
+        out of the test so only the detail that matters is visible.</li>
+    <li><code>result.IsFailure.ShouldBeTrue()</code> &mdash; <strong>one expectation</strong>. Asserting
+        five things means the first failure hides the other four.</li>
+    <li><strong>This is a unit test in the true sense:</strong> no database, no container, no mock. The
+        domain has no dependencies, which is exactly what
+        <a href="23-architecture-and-cqrs.html">chapter 23</a>'s layering bought.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -223,6 +245,24 @@
         <span class="cm">//        ↑ asserting the absence of a side effect is often the real test</span>
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Substitute.For&lt;ICustomerRepository&gt;()</code> &mdash; a
+        <strong>test double</strong> from NSubstitute. Moq is the other common choice and the concepts
+        map one to one.</li>
+    <li><strong>You can only substitute an interface</strong>, which is why the handler depends on one.
+        Testability is a consequence of the dependency rule, not a separate goal.</li>
+    <li><code>private readonly</code> fields &mdash; xUnit creates <strong>a new instance of the test
+        class per test</strong>, so these are fresh every time. No shared state, no ordering
+        dependencies.</li>
+    <li><strong>Stub what the code needs; verify only what matters.</strong> Asserting that every method
+        was called with exact arguments produces a test that fails on every refactor while catching no
+        bugs.</li>
+    <li><strong>Mock at the boundary, never the internals.</strong> A test that substitutes your own
+        domain objects is testing the mocking framework.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ Mocking your own domain</div>
@@ -257,6 +297,26 @@
     <span class="cm">// Everything else is production: the same Program.cs, the same DI,</span>
     <span class="cm">// the same middleware, the same endpoints. Only the connection string moves.</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>WebApplicationFactory&lt;Program&gt;</code> &mdash; boots the <strong>real
+        application</strong> in memory: the real pipeline, the real DI container, the real middleware.
+        The generic argument is why <code>Program</code> must be reachable, which is what
+        <code>InternalsVisibleTo</code> or a <code>public partial class Program</code> is for.</li>
+    <li><code>MsSqlContainer</code> &mdash; <strong>Testcontainers</strong>. A real SQL Server in
+        Docker, started for the test run.</li>
+    <li><strong>This is the point of the chapter.</strong> The EF Core in-memory provider is
+        <em>not a database</em>: no constraints, no transactions, no SQL translation. A test against it
+        passes for queries SQL Server rejects, which is worse than no test.</li>
+    <li><code>IAsyncLifetime</code> &mdash; xUnit's async setup and teardown.
+        <code>InitializeAsync</code> starts the container.</li>
+    <li><strong>~10 seconds, once</strong> &mdash; shared across the whole test class or collection.
+        Per-test would be unusable; per-run is a price worth paying.</li>
+    <li><code>AddInMemoryCollection</code> &mdash; overrides configuration so the application points at
+        the container's connection string instead of the developer's local server.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ <code>UseInMemoryDatabase</code> is not a database</div>
@@ -302,6 +362,23 @@
 dotnet test tests/LogiFlow.Domain.Tests             <span class="cm"># fast, no Docker</span>
 dotnet test --filter <span class="st">"FullyQualifiedName~Order"</span>    <span class="cm"># just the order tests</span>
 dotnet test --collect:<span class="st">"XPlat Code Coverage"</span>        <span class="cm"># coverlet</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet test</code> &mdash; every test project in the solution.</li>
+    <li><code>dotnet test tests/LogiFlow.Domain.Tests</code> &mdash; <strong>fast, and no
+        Docker</strong>. This is the one to run on every save; the integration suite is for before a
+        push.</li>
+    <li><code>--filter "FullyQualifiedName~Order"</code> &mdash; <code>~</code> means
+        <em>contains</em>. Other operators are <code>=</code> and <code>!=</code>, and
+        <code>Category</code> works with <code>[Trait]</code>.</li>
+    <li><code>--collect:"XPlat Code Coverage"</code> &mdash; coverlet, producing a Cobertura file that a
+        tool such as ReportGenerator turns into HTML.</li>
+    <li><strong>Coverage measures what ran, not what was checked.</strong> A test with no assertions
+        scores the same as a good one, which is why a coverage target becomes a number people game
+        rather than a quality signal. Use it to find code nothing touches.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then do the exercise that teaches the most: open
     <a href="https://github.com/kristi2002/LogiFlow/tree/main/src/LogiFlow.Domain/"><code>src/LogiFlow.Domain</code></a>, break one business

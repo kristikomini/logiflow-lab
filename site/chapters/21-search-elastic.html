@@ -38,6 +38,22 @@
 
 <div class="code-head">the query every project starts with</div>
 <pre><code><span class="kw">SELECT</span> * <span class="kw">FROM</span> dbo.Products <span class="kw">WHERE</span> Name <span class="kw">LIKE</span> <span class="st">'%pompa idraulica%'</span>;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>LIKE '%pompa idraulica%'</code> &mdash; a <strong>leading wildcard</strong>, so no
+        index can be used and every row is scanned. Chapter 11's sargability rule, arriving as a
+        feature request.</li>
+    <li><strong>It is also wrong, not merely slow.</strong> It finds only that exact substring: not
+        <em>pompe idrauliche</em>, not <em>pompa idraulico</em>, not a misspelling, and it cannot rank
+        a title match above a description match.</li>
+    <li><strong>The words matter here.</strong> Italian is heavily inflected, so exact-substring
+        matching fails far more often than it does in English &mdash; which is why full-text search is
+        not a luxury in this market.</li>
+    <li>SQL Server's own full-text index solves part of it. Elasticsearch is what you reach for when
+        relevance ranking, facets and typo tolerance are the requirement.</li>
+  </ul>
+</div>
 
 <p>Four separate problems, and none of them is fixable with an index:</p>
 <ol>
@@ -159,6 +175,29 @@
     }
   }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is a PUT to Elasticsearch's HTTP API</strong>, defining the
+        <strong>mapping</strong> &mdash; the schema for an index. It is JSON, so no comments in the
+        real file.</li>
+    <li><code>"type": "text"</code> &mdash; <strong>analysed</strong>: split into tokens, lower-cased
+        and stemmed at index time. This is what makes it searchable rather than merely
+        comparable.</li>
+    <li><code>"analyzer": "italian"</code> &mdash; Italian stemming and stop words, so
+        <em>pompe</em> and <em>pompa</em> reduce to one token and <em>di</em> and <em>la</em> are
+        discarded. Using the default English analyser on Italian text is a quiet, permanent quality
+        loss.</li>
+    <li><code>"fields": { "keyword": ... }</code> &mdash; a <strong>multi-field</strong>: the same
+        source value indexed a second way. You address it as <code>name.keyword</code>.</li>
+    <li><code>"type": "keyword"</code> &mdash; <strong>not analysed</strong>: stored whole. Required for
+        sorting, exact filtering and aggregation, none of which work on an analysed field.</li>
+    <li><strong>text for searching, keyword for filtering</strong> is the single most useful sentence
+        about Elasticsearch mappings, and the source of most beginner confusion.</li>
+    <li><code>"category": { "type": "keyword" }</code> &mdash; deliberately not analysed. A category is
+        an exact value, and stemming it would be actively harmful.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The mistake everyone makes once</div>
@@ -217,6 +256,30 @@
   <span class="st">"sort"</span>: [ <span class="st">"_score"</span>, { <span class="st">"name.keyword"</span>: <span class="st">"asc"</span> } ],
   <span class="st">"highlight"</span>: { <span class="st">"fields"</span>: { <span class="st">"name"</span>: {} } }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>"bool"</code> &mdash; the compound query. Its clauses are
+        <code>must</code>, <code>filter</code>, <code>should</code> and
+        <code>must_not</code>.</li>
+    <li><code>"must"</code> &mdash; must match <strong>and contributes to the relevance
+        score</strong>. This is where the user's typed text goes.</li>
+    <li><code>"match"</code> &mdash; runs the field's analyser over the query text too, which is why
+        <em>pompe idrauliche</em> finds documents containing <em>pompa idraulica</em>. Matching the
+        analysis on both sides is the whole mechanism.</li>
+    <li><code>"filter"</code> &mdash; <strong>yes or no only, no scoring</strong>, and therefore
+        cacheable. Much faster, and the right place for anything that is a constraint rather than a
+        preference.</li>
+    <li><code>"term"</code> &mdash; an <strong>exact</strong> match, not analysed. Using
+        <code>term</code> against a <code>text</code> field is the classic mistake: the stored tokens
+        are lower-cased and stemmed, so <code>"Ricambi"</code> matches nothing.</li>
+    <li><code>"range"</code> with <code>"lte"</code> &mdash; less-than-or-equal. Ranges belong in
+        <code>filter</code>: a price ceiling is a constraint, and letting it affect the score is
+        meaningless.</li>
+    <li><strong>Getting this split right is most of search performance.</strong> Everything the user
+        typed goes in <code>must</code>; everything they clicked goes in <code>filter</code>.</li>
+  </ul>
+</div>
 
 <div class="table-wrap">
 <table>
@@ -273,6 +336,27 @@
 
     <span class="kw">return</span> response.Documents.Select(d =&gt; d.ToDto()).ToList();
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddSingleton</code> &mdash; correct here. The client is thread-safe and holds a
+        connection pool, so one per application is right; one per request would be the
+        <code>HttpClient</code> mistake again.</li>
+    <li><code>_ =&gt;</code> &mdash; a <strong>discard</strong> for the unused
+        <code>IServiceProvider</code> parameter of the factory overload.</li>
+    <li><code>cfg["Elastic:Url"]!</code> &mdash; the <code>!</code> is null-forgiving: an assertion that
+        configuration contains it. <code>ValidateOnStart</code> options from chapter 14 would be
+        better, since this crashes on first use rather than at boot.</li>
+    <li><code>.DefaultIndex("products")</code> &mdash; so individual calls need not repeat it.</li>
+    <li><code>SearchAsync&lt;ProductDocument&gt;(s =&gt; s...)</code> &mdash; a
+        <strong>fluent descriptor</strong>. The lambda builds the same JSON as the block above; the
+        generic parameter is the type the hits deserialise into.</li>
+    <li><strong><code>ProductDocument</code> is not your entity.</strong> The search index is a separate
+        denormalised copy shaped for querying &mdash; which is the read model of
+        <a href="23-architecture-and-cqrs.html">chapter 23</a>, and it means something must keep the
+        two in step.</li>
+  </ul>
+</div>
 
 <h2 id="keeping-in-sync">Keeping it in sync &mdash; the real hard part</h2>
 
@@ -320,6 +404,21 @@
   <pre><code>docker run -d -p 9200:9200 -e <span class="st">"discovery.type=single-node"</span> \
   -e <span class="st">"xpack.security.enabled=false"</span> \
   docker.elastic.co/elasticsearch/elasticsearch:8.15.0</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>-e "discovery.type=single-node"</code> &mdash; skips cluster formation. Without it the
+        container waits for peers that will never arrive and never becomes ready.</li>
+    <li><code>-e "xpack.security.enabled=false"</code> &mdash; disables authentication and TLS, which
+        are <strong>on by default</strong> in 8.x. Acceptable for a throwaway local container and
+        unacceptable anywhere else.</li>
+    <li><code>-p 9200:9200</code> &mdash; the HTTP API port. 9300 is the internal transport port and is
+        deliberately not exposed here.</li>
+    <li><code>\</code> at line ends &mdash; shell continuation; a backtick in PowerShell.</li>
+    <li><strong>It needs real memory</strong> &mdash; the JVM defaults are substantial, and a container
+        that exits immediately is usually Docker's memory limit rather than your command.</li>
+  </ul>
+</div>
   <p>Then, with <code>curl</code> or the REST client in VS Code:</p>
   <ol>
     <li>Create the <code>products</code> mapping above, with the Italian analyzer.</li>

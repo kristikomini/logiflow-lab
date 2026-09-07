@@ -239,6 +239,25 @@
 <span class="cm">// 5. Correlate with change. What deployed, what configuration changed, what
 //    did the third party do? Most incidents are caused by a change, and most
 //    of those changes were ours.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Step 1 is not a tool, and it is the highest-value line here.</strong> "It's broken"
+        cannot be investigated; a correlation id, an order number, or a timestamp plus a username
+        can.</li>
+    <li><code>traces | where customDimensions.CorrelationId == "9f2c…"</code> &mdash;
+        <strong>KQL</strong>, the Application Insights query language. The pipe chains operators, much
+        like a shell.</li>
+    <li><code>customDimensions</code> &mdash; where structured logging's fields land. This query is only
+        possible because <a href="25-observability.html">chapter 25</a>'s scope put the id on every
+        line.</li>
+    <li><strong>Read the whole request's story, in order</strong> &mdash; not just the error. The
+        exception is where it stopped; the lines before it are why.</li>
+    <li><strong>Resist fixing before understanding.</strong> The first plausible cause is often a
+        symptom, and a fix aimed at a symptom produces a second incident that is harder to
+        read.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ "It works on my machine"</div>
@@ -301,6 +320,26 @@
 - [ ] ValidateOnStart on every Options class          (owner, date)
 - [ ] Fail the pipeline when staging and production keys diverge
 - [ ] Runbook entry: "5xx after a deploy → roll back first"</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Markdown, and the shape is the discipline.</strong> A post-mortem template is what
+        stops the write-up becoming a defence.</li>
+    <li><strong>Impact first, in user terms.</strong> "~1,200 users, 61 failed checkouts, no data loss"
+        is what a manager needs; "the pod restarted" is not.</li>
+    <li><strong>Detection, with the delay.</strong> Three minutes from failure to alert is itself a
+        finding: if detection had taken an hour, the fix would be a monitor rather than a code
+        change.</li>
+    <li><strong>Mitigation is separate from cause</strong>, deliberately. Rolling back at 14:31 stopped
+        the bleeding; understanding why comes afterwards, and conflating them is how outages get
+        extended.</li>
+    <li><strong>Cause names a change, not a person.</strong> "Release 4.13 added a required
+        configuration key" is actionable; "X forgot" produces silence at the next
+        incident.</li>
+    <li><strong>Blameless is a practical stance, not a kindness.</strong> The only way to learn what
+        happened is if the person who knows is willing to say.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 Read where the five whys stopped</div>
@@ -381,6 +420,25 @@ A background dispatcher publishes and marks rows sent.
 + Duplicate delivery becomes possible, so consumers must be idempotent.
 − A dispatcher process now exists and needs monitoring: alert on the age of
   the oldest undispatched row.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>An ADR &mdash; Architecture Decision Record.</strong> A numbered, immutable note
+        recording a decision and, crucially, <em>why</em>.</li>
+    <li><code>## Status</code> &mdash; Accepted, with a date, and whether it supersedes another. Records
+        are never edited; a later one supersedes an earlier one, so the reasoning at the time survives
+        intact.</li>
+    <li><code>## Context</code> &mdash; <strong>the problem, before any solution</strong>. Here it is
+        the dual-write from <a href="22-messaging-and-queues.html">chapter 22</a>, stated as a
+        constraint rather than a preference.</li>
+    <li><code>## Decision</code> &mdash; what was chosen, in the present tense.</li>
+    <li><strong>What an ADR really prevents</strong> is the conversation where someone eighteen months
+        later says "why on earth is it done this way" and, finding no answer, changes it back into the
+        bug it was avoiding.</li>
+    <li>See <a href="https://github.com/kristi2002/LogiFlow/tree/main/docs/adr">docs/adr</a> in this
+        repository.</li>
+  </ul>
+</div>
 
 <p>
   Two things make that worth writing. It records the <strong>alternatives</strong>, so in eighteen

@@ -276,6 +276,30 @@
         ...
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>public sealed record CreateOrderCommand(...) : IRequest&lt;Result&lt;Guid&gt;&gt;</code>
+        &mdash; the <strong>request</strong>: a record with no behaviour, whose name states the
+        intent.</li>
+    <li><code>IRequest&lt;TResponse&gt;</code> &mdash; the marker the mediator dispatches on. The
+        generic argument ties the request to its response type, so the wiring is type-checked.</li>
+    <li><code>Result&lt;Guid&gt;</code> &mdash; <strong>expected outcomes are values, not
+        exceptions</strong>. "Customer not found" is a legitimate answer to a command; only bugs and
+        infrastructure failures throw.</li>
+    <li><code>IReadOnlyList&lt;OrderLineDto&gt;</code> &mdash; a DTO, not a domain entity. The command
+        crosses a boundary, so it carries data rather than behaviour.</li>
+    <li><strong>The handler does orchestration only</strong> &mdash; load, call the domain, save. No
+        HTTP, no SQL, no logging and no transaction, because each of those is a decorator wrapped
+        around it.</li>
+    <li><code>ICustomerRepository</code>, <code>IOrderRepository</code> &mdash; interfaces defined in
+        Application and implemented in Infrastructure. That is the dependency inversion the whole
+        architecture rests on.</li>
+    <li><strong>CQRS here means separating the two <em>shapes</em></strong>: commands go through the
+        domain and its invariants; queries can project straight to a DTO and skip it. Separate
+        databases are a different, much larger decision that this does not imply.</li>
+  </ul>
+</div>
 
 <p>
   Notice what the handler does <em>not</em> contain: no <code>try/catch</code> for logging, no
@@ -300,6 +324,23 @@
     CancelOrder.cs
     GetOrderById.cs
     SearchOrders.cs</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Folders by feature, not by kind</strong> &mdash; the layout from
+        <a href="00d-how-a-project-is-built.html">chapter 00d</a>, at production scale.</li>
+    <li><code>CreateOrder.cs</code> holding the command, the handler <em>and</em> the validator
+        &mdash; <strong>one file per use case</strong>. Everything a change touches opens
+        together.</li>
+    <li><strong>It reads as a list of what the system does.</strong> A new developer can enumerate the
+        operations from the file names, which no <code>Services/</code> folder ever
+        allows.</li>
+    <li><code>GetOrderById.cs</code> and <code>SearchOrders.cs</code> beside the commands &mdash;
+        queries are use cases too, and they are the ones that may bypass the domain entirely.</li>
+    <li><strong>The file gets long and that is acceptable.</strong> Three small types that are always
+        read together beat three files that are always opened together.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Changing "create order" means opening one file. Deleting the feature means deleting one file.
@@ -326,7 +367,47 @@
   <div class="box-title">Try it yourself</div>
   <p>Watch the architecture defend itself. Add this line to any file in the Domain project:</p>
   <pre><code><span class="kw">using</span> <span class="ty">Microsoft</span>.EntityFrameworkCore;</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>One line, and it is the whole chapter's rule.</strong> A
+        <code>using Microsoft.EntityFrameworkCore;</code> inside the Domain or Application project
+        means the abstraction has leaked.</li>
+    <li><strong>The dependency direction</strong> is: Domain references nothing, Application references
+        Domain, Infrastructure references Application, and the API composes them. EF Core is an
+        Infrastructure concern.</li>
+    <li><strong>Why it matters concretely:</strong> the moment a handler knows about
+        <code>DbContext</code>, testing it needs a database, and the rule about when an order may be
+        cancelled becomes entangled with how it is stored.</li>
+    <li><code>IQueryable&lt;T&gt;</code> on a repository interface is the subtler version of the same
+        leak &mdash; the type is in the BCL, but it hands callers the ability to compose translated
+        queries and thereby exports EF's semantics anyway.</li>
+    <li><strong>Discipline does not hold this line; the compiler does.</strong> Which is what the next
+        block is for.</li>
+  </ul>
+</div>
   <pre><code>dotnet test tests/LogiFlow.ArchitectureTests</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>dotnet test tests/LogiFlow.ArchitectureTests</code> &mdash; the layering rules as
+        <strong>executable tests</strong>, using a library such as NetArchTest to assert over
+        assemblies by reflection.</li>
+    <li><strong>Project references already enforce most of it.</strong> Domain simply cannot reference
+        Infrastructure, because the reference does not exist &mdash; that is a compiler
+        guarantee.</li>
+    <li><strong>What tests add is everything a reference cannot express:</strong> that no handler is
+        public when it need not be, that every entity has a private parameterless constructor for EF,
+        that nothing in Application mentions
+        <code>Microsoft.EntityFrameworkCore</code> even transitively.</li>
+    <li>See
+        <a href="https://github.com/kristi2002/LogiFlow/blob/main/tests/LogiFlow.ArchitectureTests/LayeringTests.cs">LayeringTests.cs</a>
+        for the ones this repository enforces.</li>
+    <li><strong>Written-down rules rot; failing builds do not.</strong> That is the argument for
+        spending a test project on this, and it is the same argument as
+        <code>tools/doctor.cs</code>.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     It fails, by name, in milliseconds &mdash; see
     <a href="https://github.com/kristi2002/LogiFlow/blob/main/tests/LogiFlow.ArchitectureTests/LayeringTests.cs"><code>LayeringTests.cs</code></a>.

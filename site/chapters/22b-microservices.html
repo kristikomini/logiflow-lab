@@ -293,6 +293,30 @@
         }
     }
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>: BackgroundService</code> &mdash; the base class for long-running work in .NET. It is
+        an <code>IHostedService</code>, started and stopped with the application.</li>
+    <li><code>IServiceScopeFactory scopes</code> &mdash; <strong>the important parameter</strong>. A
+        <code>BackgroundService</code> is a <strong>singleton</strong>, so it must not hold a scoped
+        service such as a <code>DbContext</code>; it creates a scope per iteration instead.</li>
+    <li><strong>That is chapter 14's rule with teeth:</strong> injecting a
+        <code>DbContext</code> here would capture one instance for the process lifetime, and it would
+        accumulate tracked entities until the memory ran out.</li>
+    <li><code>ExecuteAsync(CancellationToken ct)</code> &mdash; the one method to override. The token is
+        signalled on shutdown, and honouring it is what makes deployment clean rather than a
+        kill.</li>
+    <li><code>using var scope = scopes.CreateScope()</code> &mdash; a fresh scope, disposed each time,
+        exactly as a request would have.</li>
+    <li><strong>An unhandled exception stops the service silently</strong> in older versions, and stops
+        the host in current ones. Either way, wrap the loop body in try/catch and log &mdash; a
+        background job that quietly died is very hard to notice.</li>
+    <li><strong>The wider point of the chapter:</strong> this is a scheduled job in your existing
+        process, with no new dependency, no service discovery and no distributed tracing. Reach for it
+        before reaching for a microservice.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 The three answers, in order of preference</div>

@@ -143,6 +143,27 @@
   </p>
   <pre><code>logger.LogInformation($<span class="st">"Handled {name} in {ms}ms"</span>);        <span class="cm">// ✗ one opaque string</span>
 logger.LogInformation(<span class="st">"Handled {Name} in {Ms}ms"</span>, name, ms); <span class="cm">// ✓ message + fields</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>$"Handled {name} in {ms}ms"</code> &mdash; <strong>interpolation, and it is
+        wrong here</strong>. The values are baked into one opaque string before the logger ever sees
+        them.</li>
+    <li><strong>You cannot query it.</strong> "Show me every request slower than 500 ms" is impossible
+        once <code>ms</code> is part of a sentence, and every distinct duration becomes its own unique
+        message.</li>
+    <li><code>"Handled {Name} in {Ms}ms", name, ms</code> &mdash; <strong>structured logging</strong>.
+        The template and the values are stored separately, so <code>Name</code> and
+        <code>Ms</code> arrive as queryable fields.</li>
+    <li><strong>The braces are positional</strong>, matched to the arguments in order, not by name
+        &mdash; so swapping two arguments silently mislabels both. The names are for the log system,
+        not for binding.</li>
+    <li><strong>The template is also the group key.</strong> Identical templates aggregate, which is
+        what lets a dashboard say "this message occurred 40,000 times" &mdash; impossible with
+        interpolation.</li>
+    <li>Analyzer <code>CA2254</code> catches this, and it is worth turning on as an error.</li>
+  </ul>
+</div>
   <p>
     The second form reaches Seq or Application Insights with <code>Name</code> and <code>Ms</code>
     as separately indexed properties. You can then ask <em>"every request over 500 ms, grouped by
@@ -196,6 +217,28 @@ logger.LogInformation(<span class="st">"Handled {Name} in {Ms}ms"</span>, name, 
     logger.LogInformation(<span class="st">"Handled {RequestName} in {Ms}ms"</span>, name, sw.ElapsedMilliseconds);
     <span class="kw">return</span> response;
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>logger.BeginScope(...)</code> &mdash; attaches fields to <strong>every log written
+        inside the <code>using</code></strong>, at any depth. You annotate once instead of passing an
+        id through twelve method signatures.</li>
+    <li><code>using (...)</code> as a statement with braces &mdash; the scope's lifetime is exactly the
+        block. Disposal is what pops it.</li>
+    <li><code>Activity.Current?.TraceId</code> &mdash; the <strong>W3C trace id</strong> that .NET
+        maintains automatically and propagates across HTTP calls through the
+        <code>traceparent</code> header. Correlation across services is already there; the job is to
+        surface it.</li>
+    <li><code>?? traceId</code> &mdash; a fallback for when no activity is in flight, such as a
+        background job.</li>
+    <li><code>typeof(TRequest).Name</code> &mdash; the request type as a field, so logs can be grouped
+        by use case.</li>
+    <li><code>await next()</code> &mdash; this is a <strong>pipeline behaviour</strong>, the decorator
+        from <a href="23-architecture-and-cqrs.html">chapter 23</a>. Everything inside inherits the
+        scope, <strong>including EF Core's own logging</strong> &mdash; so the SQL statements are
+        tagged with the correlation id too, which is what makes an incident traceable end to end.</li>
+  </ul>
+</div>
 
 <p>
   Two things follow. First, this belongs in <em>one</em> place — a
@@ -219,6 +262,26 @@ app.MapHealthChecks(<span class="st">"/health/live"</span>, <span class="kw">new
 <span class="cm">// "Can I serve traffic?" — if this fails, take me out of rotation</span>
 <span class="cm">// but do NOT restart me: the database being down is not my fault.</span>
 app.MapHealthChecks(<span class="st">"/health/ready"</span>, <span class="kw">new</span>() { Predicate = h =&gt; h.Tags.Contains(<span class="st">"ready"</span>) });</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>AddHealthChecks()</code> then <code>.AddSqlServer(...)</code> &mdash; checks that
+        actually open a connection, rather than returning 200 because the process is alive.</li>
+    <li><code>tags: ["ready"]</code> &mdash; labels, and the labels are what make the two endpoints
+        below different.</li>
+    <li><code>/health/live</code> with <code>Predicate = _ =&gt; false</code> &mdash;
+        <strong>runs no checks at all</strong>. It answers only "is this process responding". If it
+        fails, restart me.</li>
+    <li><code>/health/ready</code> with the <code>ready</code> tag &mdash; "can I serve traffic". If it
+        fails, <strong>take me out of rotation but do not restart me</strong>: the database being down
+        is not something restarting fixes.</li>
+    <li><strong>Conflating the two causes an outage.</strong> Put the database check on the liveness
+        probe and a brief database blip makes Kubernetes restart every instance simultaneously, turning
+        a degradation into a total failure.</li>
+    <li>A readiness check must also be <strong>cheap</strong>. It runs every few seconds per instance,
+        so a query that scans a table is a self-inflicted load test.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Collapsing these into one endpoint is a classic outage amplifier: the database has a five-second
@@ -248,6 +311,22 @@ app.MapHealthChecks(<span class="st">"/health/ready"</span>, <span class="kw">ne
     logger.LogError(ex, <span class="st">"Failed"</span>);
     <span class="kw">throw</span>;                      <span class="cm">// …and the layer above does the same</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>logger.LogError(ex, "Failed"); throw;</code> &mdash; the anti-pattern, and it looks
+        responsible.</li>
+    <li><strong>The layer above does the same thing</strong>, and so does the one above that. One
+        failure becomes five stack traces in the log, which makes it look like five incidents.</li>
+    <li><code>"Failed"</code> &mdash; and no context. No id, no parameters, nothing to search for. The
+        stack trace says where; nothing says <em>which</em>.</li>
+    <li><strong>Log where you handle, not where you catch.</strong> If you are rethrowing, you are not
+        handling &mdash; so add context and let it travel, or do not catch at all.</li>
+    <li><strong>One place should log unhandled failures:</strong> the global exception handler from
+        <a href="14-web-api.html">chapter 14</a>. It has the request, the trace id and the user, which
+        is exactly the context this <code>catch</code> lacks.</li>
+  </ul>
+</div>
   <p>
     One failure, five stack traces, and the on-call engineer counting how many incidents there
     were. Handle it or log it — not both. Log once, at the boundary that decides what the caller
@@ -261,9 +340,40 @@ app.MapHealthChecks(<span class="st">"/health/ready"</span>, <span class="kw">ne
   <div class="box-title">Try it yourself</div>
   <pre><code>docker compose up -d
 dotnet run --project src/LogiFlow.Api</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>docker compose up -d</code> &mdash; starts the supporting containers detached. Note
+        <code>compose</code> as a subcommand, not the older <code>docker-compose</code>
+        binary.</li>
+    <li><strong>In this repository the collector is optional.</strong>
+        <code>Program.cs</code> asks "is an OTLP endpoint configured?" rather than "is this
+        Development?" &mdash; a capability check, not an environment check, and the better habit.</li>
+    <li><code>dotnet run --project src/LogiFlow.Api</code> &mdash; the API, which now exports traces and
+        metrics to the collector started above.</li>
+    <li>Without the collector, traces and metrics are still <em>recorded</em> in-process and Serilog
+        still writes to the console. Nothing is shipped anywhere, and nothing fails.</li>
+  </ul>
+</div>
   <p>Make a request, then take the trace id from the response and find everything it touched:</p>
   <pre><code>curl -i http://localhost:5000/orders/does-not-exist
 <span class="cm"># the Problem Details body carries a traceId — grep the console for it</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>curl -i</code> &mdash; <code>-i</code> includes the <strong>response
+        headers</strong>, which is where <code>traceparent</code> appears.</li>
+    <li><strong>The 404 is deliberate.</strong> An error response is the one you most want to be able to
+        trace, and it exercises the whole chain.</li>
+    <li><strong>The Problem Details body carries a <code>traceId</code></strong>, per
+        <a href="13-rest-principles.html">chapter 13</a>. That is the field a user can read out over
+        the phone.</li>
+    <li><code>#</code> &mdash; a shell comment.</li>
+    <li><strong>Grep the console for it</strong>, and that is the exercise: one id, quoted by a user,
+        finding the exact request in the log. Everything in this chapter exists to make that thirty
+        seconds instead of an afternoon.</li>
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     Then the experiment worth doing: change one log call in
     <code>LoggingBehavior</code> from a message template to string interpolation, restart, and

@@ -120,6 +120,28 @@ git pull                            <span class="cm"># fetch + merge from the re
 git log --oneline --graph --decorate -20
 git diff                            <span class="cm"># working tree vs staged</span>
 git diff --staged                   <span class="cm"># staged vs last commit</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>git status</code> &mdash; <strong>run it constantly</strong>. Nearly every confusing
+        git situation is answered by it, and it prints the command you probably want next.</li>
+    <li><code>git switch -c feature/order-export</code> &mdash; create and move.
+        <code>switch</code> is the modern verb; <code>checkout</code> still works and does too many
+        unrelated things, which is why it was split.</li>
+    <li><code>git add src/LogiFlow.Api/</code> &mdash; stage specific paths. The
+        <strong>staging area</strong> is git's distinctive idea: what you have changed and what you are
+        about to commit are separate.</li>
+    <li><code>git add -p</code> &mdash; <strong>review hunk by hunk</strong>, and the habit worth
+        building. It catches the debug line and the stray formatting change before they reach the
+        diff a colleague reads.</li>
+    <li><code>git push -u origin feature/...</code> &mdash; <code>-u</code> sets the upstream, so later
+        <code>git push</code> and <code>git pull</code> need no arguments. Only needed the first
+        time.</li>
+    <li><code>git pull</code> &mdash; a <code>fetch</code> plus a <code>merge</code>. Knowing it is two
+        operations is what makes <code>--rebase</code> and its merge commits understandable rather than
+        magic.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   <code>git switch</code> and <code>git restore</code> replaced the overloaded
@@ -204,6 +226,25 @@ git add &lt;files&gt;
 git rebase --continue
 <span class="cm"># or, at any point:</span>
 git rebase --abort            <span class="cm"># puts everything back. Nothing is lost.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>git merge main</code> &mdash; brings main into your branch and creates a merge commit.
+        <strong>Safe, always</strong>: it adds history rather than rewriting it.</li>
+    <li><code>git rebase main</code> &mdash; <strong>replays your commits on top of main</strong>,
+        producing a linear history. Each commit is rewritten, so they get new hashes.</li>
+    <li><strong>The rule that keeps you safe:</strong> never rebase a branch other people have pulled.
+        Rewriting shared history forces everyone else into a recovery they did not ask for.</li>
+    <li><code>git add &lt;files&gt;</code> then <code>git rebase --continue</code> &mdash; note there is
+        <strong>no commit step</strong>. Staging the resolution is what tells the rebase to
+        proceed.</li>
+    <li>A rebase conflicts <strong>per commit</strong>, so a long branch can present the same conflict
+        repeatedly &mdash; which is the honest argument for merging instead.</li>
+    <li><code>git rebase --abort</code> &mdash; <strong>puts everything back, and nothing is
+        lost</strong>. Worth knowing before you start, because it turns a rebase from frightening into
+        reversible.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ The golden rule of rebasing</div>
@@ -232,6 +273,24 @@ git rebase --abort            <span class="cm"># puts everything back. Nothing i
 =======
     <span class="kw">var</span> total = lines.Sum(l =&gt; l.NetPrice) * (1 + vatRate);
 &gt;&gt;&gt;&gt;&gt;&gt;&gt; feature/vat</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>These seven-character markers are inserted into your file</strong> by git. They are
+        not a special format to learn; the file is now invalid text that you must edit.</li>
+    <li><code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> &mdash; the start of
+        <strong>your</strong> side. <code>HEAD</code> is where you currently are.</li>
+    <li><code>=======</code> &mdash; the divider. Above it yours, below it theirs.</li>
+    <li><code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature/vat</code> &mdash; the end, labelled with where the
+        other change came from.</li>
+    <li><strong>During a rebase the sides are swapped</strong> from what you expect, because your
+        commits are being replayed onto theirs. That is why "HEAD" is worth reading rather than
+        assuming.</li>
+    <li><strong>The example is a real conflict, not a textual one.</strong> One side sums gross prices,
+        the other applies VAT to net ones. No tool can merge that, because the answer requires knowing
+        which is correct.</li>
+  </ul>
+</div>
 <pre><code><span class="cm"># Above the ======= is YOUR side; below it is theirs.</span>
 <span class="cm"># Edit the file into what it should ACTUALLY be — often neither version —</span>
 <span class="cm"># delete all three markers, then:</span>
@@ -239,6 +298,24 @@ git add src/Order.cs
 git commit                    <span class="cm"># or: git rebase --continue</span>
 
 git merge --abort             <span class="cm"># escape hatch: undo the whole merge</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>"Often neither version"</strong> is the important sentence. Two people changed the
+        same line for different reasons, and the right result is frequently a third thing.</li>
+    <li><strong>Delete all three markers.</strong> Leaving one behind commits
+        <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> into the source, and it compiles nowhere &mdash;
+        which is at least a fast failure.</li>
+    <li><code>git add src/Order.cs</code> &mdash; staging is how you declare the conflict resolved.
+        Until then git refuses to continue.</li>
+    <li><code>git commit</code> with no message &mdash; for a merge, git supplies one. For a rebase you
+        use <code>--continue</code> instead.</li>
+    <li><code>git merge --abort</code> &mdash; the escape hatch. <strong>Undoes the whole merge</strong>
+        and returns you to before it started.</li>
+    <li><strong>Build and run the tests after resolving.</strong> A conflict resolved into something
+        that compiles is not the same as one resolved correctly.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   The most common mistake is resolving mechanically &mdash; picking one side to make the markers go
@@ -277,6 +354,24 @@ git merge --abort             <span class="cm"># escape hatch: undo the whole me
   </p>
   <pre style="margin:.7em 0"><code>git reflog                    <span class="cm"># find the commit you were on before the mistake</span>
 git reset --hard HEAD@{3}     <span class="cm"># go back to it</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>git reflog</code> &mdash; <strong>the undo history</strong>, and the single most useful
+        command in this chapter. It records every position <code>HEAD</code> has held, including
+        commits no branch points at any more.</li>
+    <li><code>HEAD@{3}</code> &mdash; "where HEAD was three moves ago". The reflog lists them with what
+        each move was, so you can read rather than guess.</li>
+    <li><code>git reset --hard HEAD@{3}</code> &mdash; move the branch back and match the working tree
+        to it. <strong><code>--hard</code> discards uncommitted changes</strong>, so commit or stash
+        first.</li>
+    <li><strong>Almost nothing in git is truly lost.</strong> A bad reset, a deleted branch, a botched
+        rebase &mdash; the commits survive in the reflog for weeks. Knowing this converts most git
+        panic into a two-command fix.</li>
+    <li>The exception is genuinely uncommitted work. The reflog records commits, so anything never
+        committed is gone &mdash; which is an argument for committing early and tidying later.</li>
+  </ul>
+</div>
   <p>
     Knowing this exists is the difference between a bad ten minutes and a lost day. It is also a
     genuinely good thing to mention when asked about Git.
@@ -315,6 +410,25 @@ so any order with a coupon was undercharged by the discount amount.
 Removed the duplicate in OrderTotals and added a regression test.
 
 Fixes #482</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Subject line, blank line, body.</strong> The blank line is structural: git treats the
+        first line as the subject everywhere, and without the blank line the whole message becomes
+        one.</li>
+    <li><strong>Imperative mood</strong> &mdash; "Fix", not "Fixed" or "Fixes". It completes the
+        sentence "this commit will…", which is the convention git's own tooling uses.</li>
+    <li><strong>About 50 characters</strong>, and no full stop. It appears in
+        <code>git log --oneline</code>, in blame views and in pull request lists.</li>
+    <li><strong>The body explains WHY.</strong> The diff already shows what changed; it cannot show that
+        the discount was subtracted in two places. That is the sentence a colleague needs in eighteen
+        months.</li>
+    <li><strong>Wrap the body at ~72 characters.</strong> Git does not wrap it for you, and terminals
+        indent it.</li>
+    <li><code>Fixes #482</code> &mdash; GitHub closes the issue when this merges, and links the two
+        permanently. Free traceability for one line.</li>
+  </ul>
+</div>
 
 <p>
   Subject in the imperative, under about 50 characters, no full stop. Blank line. Body explaining
@@ -329,6 +443,24 @@ obj/
 *.user
 appsettings.Development.json    <span class="cm"># if it contains anything real</span>
 *.env</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong><code>.gitignore</code> is patterns, one per line.</strong> A trailing
+        <code>/</code> means a directory.</li>
+    <li><code>bin/</code> and <code>obj/</code> &mdash; build output, regenerated every time.
+        Committing them causes conflicts on binary files nobody can resolve.</li>
+    <li><code>.vs/</code> and <code>*.user</code> &mdash; per-developer IDE state. <code>*</code> is a
+        wildcard.</li>
+    <li><code>appsettings.Development.json</code> &mdash; <strong>and the comment is the
+        judgement</strong>. Ignore it only if it contains anything real; a template with no secrets is
+        better committed, so a new colleague can run the project.</li>
+    <li><code>#</code> &mdash; a comment in a <code>.gitignore</code>.</li>
+    <li><strong>Ignoring does not untrack.</strong> A file already committed stays tracked forever;
+        <code>git rm --cached</code> is needed, and the secret remains in history until it is
+        rewritten. Rotate the credential rather than trusting the deletion.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ A committed secret is a leaked secret</div>
@@ -356,6 +488,26 @@ git switch main
 git commit -am <span class="st">"Change on main"</span>
 
 git merge feature            <span class="cm"># ← conflict. Open the file and look at the markers.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>&amp;&amp;</code> &mdash; the shell's "only if the previous succeeded". Not git.</li>
+    <li><code>echo "line one" &gt; file.txt</code> &mdash; <code>&gt;</code> overwrites,
+        <code>&gt;&gt;</code> appends. One character between "change the file" and "destroy the
+        file".</li>
+    <li><code>git commit -am "..."</code> &mdash; <code>-a</code> stages every
+        <strong>tracked</strong> file. It does <em>not</em> pick up new ones, which is why the first
+        commit here needs <code>git add .</code> and the later ones do not.</li>
+    <li><strong>Two branches, one file, one line</strong> &mdash; the minimum reproduction of a
+        conflict, and it takes about thirty seconds.</li>
+    <li><code>git merge feature</code> &mdash; the conflict. <strong>Open the file and look at the
+        markers</strong> from the earlier block, in a situation you created deliberately and can throw
+        away.</li>
+    <li><strong>Do this once, before it happens for real.</strong> Meeting your first conflict in a
+        shared repository at five o'clock is how people learn to fear the tool instead of using
+        it.</li>
+  </ul>
+</div>
   <p>Then, in the same repository:</p>
   <ol>
     <li>Resolve it, commit, and read <code>git log --graph --oneline</code>.</li>

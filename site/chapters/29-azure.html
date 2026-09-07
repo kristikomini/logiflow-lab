@@ -194,6 +194,20 @@
 <span class="st">"ConnectionStrings"</span>: {
   <span class="st">"Default"</span>: <span class="st">"Server=sql-logiflow-prod.database.windows.net;Database=LogiFlow;Authentication=Active Directory Default;"</span>
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Authentication=Active Directory Default</code> &mdash; <strong>and there is no
+        password</strong>. That is what makes this file safe to commit.</li>
+    <li><strong>Managed identity:</strong> Azure gives the App Service its own identity, and the SQL
+        server grants that identity access. Nothing to rotate, nothing to leak, nothing to paste into a
+        pipeline variable.</li>
+    <li><code>Default</code> &mdash; the credential chain tries managed identity in Azure and falls back
+        to your <code>az login</code> session locally, so the same string works on both.</li>
+    <li><strong>The best secret is one that does not exist.</strong> Key Vault stores secrets safely;
+        managed identity removes them.</li>
+  </ul>
+</div>
 <pre><code><span class="cm">// Program.cs — read the rest of the secrets from Key Vault, as the app's own identity</span>
 <span class="kw">if</span> (!builder.Environment.IsDevelopment())
 {
@@ -201,6 +215,24 @@
         <span class="kw">new</span> <span class="ty">Uri</span>($<span class="st">"https://kv-logiflow-prod.vault.azure.net/"</span>),
         <span class="kw">new</span> <span class="ty">DefaultAzureCredential</span>());
 }</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>if (!builder.Environment.IsDevelopment())</code> &mdash; local development keeps using
+        <code>appsettings.Development.json</code> and user secrets, so nobody needs vault access to run
+        the app.</li>
+    <li><code>AddAzureKeyVault(...)</code> &mdash; adds Key Vault as a
+        <strong>configuration provider</strong>. Secrets then arrive through
+        <code>IConfiguration</code> like everything else, so no code knows where they came from.</li>
+    <li><strong>Provider order decides precedence</strong> &mdash; later wins. Adding this last means
+        the vault overrides appsettings, which is what you want.</li>
+    <li><code>new DefaultAzureCredential()</code> &mdash; the same chain again: managed identity in
+        Azure, your developer login outside it.</li>
+    <li><strong>It is read at start-up</strong>, not per request. Rotating a secret needs a restart or
+        an explicit reload &mdash; a real operational detail people discover during an
+        incident.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 <code>DefaultAzureCredential</code> is the piece worth understanding</div>
@@ -244,6 +276,25 @@ az webapp deploy --resource-group rg-logiflow-prod \
 <span class="cm"># then swap: near-zero downtime, and instantly reversible</span>
 az webapp deployment slot swap --resource-group rg-logiflow-prod \
                                --name app-logiflow-api-prod --slot staging</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>--slot staging</code> &mdash; a <strong>deployment slot</strong>: a full copy of the app
+        on the same plan, with its own hostname. Production is untouched by this
+        command.</li>
+    <li><strong>Warm it up before swapping.</strong> A .NET app is slow on its first request while the
+        JIT works, per <a href="01-dotnet-platform.html">chapter 01</a>. Swapping cold moves that
+        penalty to real users.</li>
+    <li><code>deployment slot swap</code> &mdash; swaps the routing, not the files. Near-zero downtime,
+        because the new instance is already running and warm.</li>
+    <li><strong>And it is instantly reversible.</strong> Swapping back is the fastest rollback available
+        anywhere, which is the real reason slots are worth the cost.</li>
+    <li><strong>Slot settings are the trap.</strong> Configuration marked "deployment slot setting"
+        stays with the slot; everything else travels with the app, so an unmarked staging connection
+        string will happily follow you into production.</li>
+    <li><code>\</code> at line ends &mdash; shell continuation; a backtick in PowerShell.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   Slots are the cheapest safe-deployment mechanism Azure offers, because the swap warms the new
@@ -265,6 +316,26 @@ requests
 <span class="kw">union</span> requests, dependencies, exceptions, traces
 | <span class="kw">where</span> operation_Id == <span class="st">"8f2b1c…"</span>
 | <span class="kw">order by</span> timestamp <span class="kw">asc</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>KQL again</strong>, as in <a href="25b-production-support.html">chapter 25b</a>.
+        Pipes chain operators left to right.</li>
+    <li><code>ago(1h)</code> &mdash; a relative time literal. <code>success == "False"</code> is a
+        string, which is a genuine oddity of the schema and catches everyone once.</li>
+    <li><code>summarize failures = count(), p95 = percentile(duration, 95) by name</code> &mdash;
+        aggregate <strong>by endpoint</strong>. <code>by</code> is KQL's
+        <code>GROUP BY</code>.</li>
+    <li><strong>p95, not the average.</strong> An average hides the tail; the 95th percentile is the
+        experience of the unluckiest one in twenty users, which is the number that generates
+        complaints.</li>
+    <li><code>union requests, dependencies, exceptions, traces</code> &mdash; four tables as one, which
+        is what produces the complete story of a single request.</li>
+    <li><code>operation_Id</code> &mdash; the trace id from
+        <a href="14-web-api.html">chapter 14</a>'s Problem Details. This query is the payoff of every
+        correlation decision made earlier in the site.</li>
+  </ul>
+</div>
 
 <p>
   The second query is why returning a <code>traceId</code> in your error responses matters: a user
@@ -302,6 +373,29 @@ az webapp log tail -g rg-demo -n app-demo-&lt;yourname&gt;    <span class="cm">#
 
 <span class="cm"># and, importantly:</span>
 az group delete -n rg-demo --yes                        <span class="cm"># delete the group, delete the bill</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>az login</code> &mdash; opens a browser and caches a token. Everything after it runs as
+        you.</li>
+    <li><code>-l westeurope</code> &mdash; the region. Pick one close to your users; from Italy that is
+        usually West Europe or Italy North, and it also decides data residency.</li>
+    <li><code>--sku F1</code> &mdash; <strong>the free tier</strong>: 60 CPU-minutes a day, no custom
+        domain, no slots. Enough to see a real deployment, not enough to run anything.</li>
+    <li><code>--is-linux</code> &mdash; cheaper and the default for .NET. Windows plans cost more and
+        are only needed for Windows-specific dependencies.</li>
+    <li><code>-n app-demo-&lt;yourname&gt;</code> &mdash; the name becomes
+        <code>&lt;name&gt;.azurewebsites.net</code>, so it must be
+        <strong>globally unique</strong>. That is why the placeholder is there.</li>
+    <li><code>dotnet publish -c Release</code> then zip &mdash; <code>-c Release</code> matters:
+        publishing a Debug build to production is a small, common and entirely avoidable
+        mistake.</li>
+    <li><code>az webapp log tail</code> &mdash; live console output. The first thing to reach for when
+        a deployment starts and immediately stops.</li>
+    <li><strong>Delete the resource group when you have finished.</strong> One command removes
+        everything in it, and it is the only reliable way not to be surprised by a bill.</li>
+  </ul>
+</div>
 </div>
 
 <div class="box note">

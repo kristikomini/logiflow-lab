@@ -234,6 +234,26 @@
 <span class="kw">await</span> DoTheWork(message, ct);
 db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty">DateTimeOffset</span>.UtcNow));
 <span class="kw">await</span> db.SaveChangesAsync(ct);              <span class="cm">// same transaction as the work</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Delivery is at-least-once, everywhere.</strong> A broker that guarantees a message
+        arrives must be willing to send it twice, because it cannot distinguish a lost message from a
+        lost acknowledgement.</li>
+    <li><strong>So the handler must be idempotent</strong>, and that is not optional advice: it is the
+        only way the system is correct.</li>
+    <li><code>db.ProcessedMessages.AnyAsync(m =&gt; m.Id == message.Id, ct)</code> &mdash;
+        <strong>the message id is the deduplication key</strong>, which is why
+        <code>OutboxMessage</code> carries an <code>Id</code> and puts it on the wire.</li>
+    <li><code>return;</code> on a duplicate &mdash; acknowledge and move on. Throwing would make the
+        broker redeliver it forever.</li>
+    <li><strong>The insert and the work must share one transaction.</strong> Recording the id in a
+        separate transaction leaves a window where the work committed and the record did not, so a
+        redelivery repeats it.</li>
+    <li><code>AnyAsync</code> rather than counting &mdash; it stops at the first row and becomes
+        <code>EXISTS</code> in SQL, per <a href="06-collections-and-linq.html">chapter 06</a>.</li>
+  </ul>
+</div>
   <p>
     Better still, make the operation naturally idempotent: <em>set</em> the status to Shipped
     rather than <em>toggle</em> it; <code>MERGE</code> rather than <code>INSERT</code>. Then a
@@ -254,6 +274,23 @@ db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty
 
 <span class="kw">await</span> bus.PublishAsync(orderPlaced);  <span class="cm">// swap them and get the mirror bug:</span>
 <span class="kw">await</span> db.SaveChangesAsync(ct);        <span class="cm">// → a message about an order that never committed.</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Two writes, two systems, no shared transaction.</strong> The database and the broker
+        cannot commit together, and that is the entire problem this chapter exists for.</li>
+    <li><code>SaveChangesAsync</code> then <code>PublishAsync</code> &mdash; if the process dies between
+        them, <strong>the order exists and nobody was ever told</strong>. The warehouse never ships
+        it.</li>
+    <li><strong>Swapping them gives the mirror bug:</strong> a message about an order that never
+        committed. Downstream acts on something that does not exist.</li>
+    <li><strong>There is no ordering that fixes it</strong>, which is the point of showing both. A retry
+        or a try/catch does not help either &mdash; the process can die in the
+        <code>catch</code>.</li>
+    <li>Distributed transactions across the two would solve it and are avoided for good reasons: they
+        are slow, they hold locks across a network, and most brokers do not support them.</li>
+  </ul>
+</div>
 
 <p>
   You cannot commit to a database and a broker atomically, so no ordering of those two lines is
@@ -269,6 +306,27 @@ db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty
                        │ commit: both, or neither
                        ▼
       OutboxProcessor polls, publishes, marks done</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is a diagram, not code.</strong> It is the outbox pattern, and the box is one
+        database transaction.</li>
+    <li><strong>The message becomes a ROW</strong>, inserted into <code>OutboxMessages</code> in the
+        same transaction as the business change. That is the trick: one transactional resource, so
+        atomicity is available again.</li>
+    <li><strong>Both or neither.</strong> The order and the intent to publish it commit together, so the
+        pair from the previous block cannot diverge.</li>
+    <li><code>OutboxProcessor</code> &mdash; a background loop that polls for unsent rows, publishes
+        them, and marks them done. See
+        <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Persistence/Outbox/OutboxProcessor.cs">OutboxProcessor.cs</a>
+        in this repository.</li>
+    <li><strong>It converts the failure into duplicates, not losses.</strong> A crash after publishing
+        and before marking done means the message is sent twice &mdash; which is exactly why the first
+        block's idempotency check is mandatory.</li>
+    <li>Ordering costs extra: rows must be dispatched in sequence per aggregate if downstream cares,
+        and that serialises the processor.</li>
+  </ul>
+</div>
 
 <p class="subtle">
   And note why this is at-least-once and not exactly-once: if the process dies <em>after</em>
@@ -323,6 +381,23 @@ db.ProcessedMessages.Add(<span class="kw">new</span>(message.Id, <span class="ty
   <div class="box-title">Try it yourself</div>
   <pre><code>docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 <span class="cm"># management UI at http://localhost:15672 — guest / guest</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>--name rabbit</code> &mdash; names the container so later commands need not look up an
+        id.</li>
+    <li><code>-p 5672:5672</code> &mdash; the <strong>AMQP protocol</strong> port, which your
+        application connects to.</li>
+    <li><code>-p 15672:15672</code> &mdash; the <strong>management UI</strong>, a different thing on a
+        different port. Mixing the two up is the usual first failure.</li>
+    <li><code>rabbitmq:3-management</code> &mdash; the <code>-management</code> tag matters: the plain
+        image has no UI and port 15672 answers nothing.</li>
+    <li><strong>Use the UI.</strong> Watching a message sit in a queue, get consumed, and reappear on
+        the dead-letter queue after three failed attempts is worth more than the paragraph describing
+        it.</li>
+    
+  </ul>
+</div>
   <p class="subtle" style="margin-top:.6em">
     In the UI create a queue, publish a message by hand, and watch <em>Ready</em> go to 1. Now the
     experiment: start a consumer, stop it mid-way through processing <em>without</em>
