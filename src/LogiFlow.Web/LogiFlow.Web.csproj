@@ -52,4 +52,35 @@
     practice's clothing.
   -->
 
+  <PropertyGroup>
+    <!--
+      NO LOCK FILE FOR THIS PROJECT.
+
+      Look above: there are no PackageReference items at all. This is a Blazor app that talks
+      to the API over HTTP, so everything it needs comes from the framework reference the Web
+      SDK adds implicitly. A lock file therefore pins nothing this project asks for.
+
+      What it did record was one SDK injected item, Microsoft.AspNetCore.App.Internal.Assets,
+      and its version follows whichever ASP.NET Core patch is installed on the machine doing
+      the restore. That is not stable across environments:
+
+        this laptop            has 10.0.8 installed, so the SDK injects it and the lock
+                               file was written with [10.0.8, )
+        sdk:10.0.300 image     injects nothing, and locked mode reported exactly that:
+                               "project's package references: None"
+
+      So the file could not be correct on a laptop and in the build image at once, and a
+      regeneration only moves the failure to the other side. Same shape as the file based
+      apps under tools/, for the same reason, and the fix is the same: stop writing one.
+      A locked restore then has nothing to disagree about.
+
+      The projects that declare real packages keep their lock files. That is where the
+      supply chain guarantee lives, and none of it is weakened by this.
+
+      Fixed the publish-images workflow, which failed here with NU1004 on its first run.
+    -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <RestoreLockedMode>false</RestoreLockedMode>
+  </PropertyGroup>
+
 </Project>
