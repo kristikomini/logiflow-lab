@@ -1,6 +1,6 @@
 # The LogiFlow Course
 
-Twenty-eight modules that take you from advanced C# through the runtime underneath it, out to a
+Twenty-nine modules that take you from advanced C# through the runtime underneath it, out to a
 deployable enterprise .NET service — and then to a job offer. Every module points at real,
 running, tested code in this repository; nothing here is a toy example written to illustrate a
 point and then thrown away.
@@ -137,6 +137,7 @@ follow directly from modules 01 and 04.
 | 25 | [Distributed systems and integration](module-25-distributed-systems/) | The dual-write problem, at-least-once and idempotency, retries with backoff and jitter, circuit breakers and bulkheads, sagas and compensation, and eventual consistency explained honestly |
 | 26 | [Design patterns and SOLID](module-26-patterns-and-solid/) | The patterns actually in this codebase and the problem each one solved — plus the ones deliberately left out, and how to argue both sides of the repository pattern |
 | 27 | [C# version by version](module-27-csharp-versions/) | Every release from 1.0 to 14, what each one was solving, and which features you lose on .NET 8 and .NET 6 |
+| 28 | [Industrial software and the IT/OT boundary](module-28-industrial-and-ot/) | MES, SCADA, WCS and OT as words you can use precisely, the machine layer's missing schema, subscription over polling, OEE as a definition rather than a measurement, traceability, AGV traffic deadlock, and what `cantiere` and `trasferta` mean for your life |
 
 ---
 
@@ -161,7 +162,7 @@ follow directly from modules 01 and 04.
 
 ```bash
 cd labs/Labs.Playground
-dotnet run list          # 30 demos, grouped by topic
+dotnet run list          # 34 demos, grouped by topic
 dotnet run deferred      # run one
 dotnet run all           # run every one, in order
 ```

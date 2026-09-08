@@ -35,6 +35,13 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+    <!--
+      The full generic host, for LogiFlow.Wcs. A warehouse control system is a worker rather
+      than a web application: it has no HTTP surface, and it must keep dispatching when nobody
+      is looking at a browser. Hosting.Abstractions above is the interface-only slice the other
+      libraries reference; this is the implementation, needed only by the process that hosts it.
+    -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
     <PackageVersion Include="Serilog.Sinks.OpenTelemetry" Version="4.2.0" />
   </ItemGroup>

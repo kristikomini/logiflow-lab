@@ -11,6 +11,7 @@
     <Project Path="src/LogiFlow.Application/LogiFlow.Application.csproj" />
     <Project Path="src/LogiFlow.Domain/LogiFlow.Domain.csproj" />
     <Project Path="src/LogiFlow.Infrastructure/LogiFlow.Infrastructure.csproj" />
+    <Project Path="src/LogiFlow.Wcs/LogiFlow.Wcs.csproj" />
     <Project Path="src/LogiFlow.Web/LogiFlow.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 51 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 53 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -387,6 +387,32 @@ self.IT_CHAPTERS = {
       "Le migrazioni del database le faccio come step della pipeline, non all'avvio dell'applicazione, altrimenti più istanze partono insieme e si sovrappongono.",
     ],
     keep: ["pipeline", "build", "release", "artifact", "YAML", "deploy", "rollback"],
+  },
+  "32-industrial-and-mes": {
+    say: [
+      "Un MES sta al livello 3 della piramide ISA-95: sotto c'\u00e8 la supervisione, sopra l'ERP. Si occupa di mandare in produzione gli ordini, contare pezzi buoni e scarti, registrare le causali di fermo, calcolare l'OEE e tenere la tracciabilit\u00e0.",
+      "L'OEE \u00e8 disponibilit\u00e0 per prestazione per qualit\u00e0. Il punto per\u00f2 \u00e8 che le tre frazioni dipendono da definizioni concordate: decidere cosa conta come fermo pianificato sposta il numero di diversi punti senza toccare nulla in linea.",
+      "Non ho esperienza di programmazione PLC e non me la attribuisco. Lavoro sopra il PLC: prendo i dati, tengo il registro, mando gli ordini e rispondo all'ERP.",
+    ],
+    keep: ["MES", "SCADA", "PLC", "HMI", "OPC UA", "ISA-95", "OEE", "batch", "lotto"],
+  },
+  "32b-talking-to-machines": {
+    say: [
+      "Con Modbus leggo un numero a un indirizzo: il protocollo non porta n\u00e9 il tipo n\u00e9 l'unit\u00e0 di misura, quindi la scalatura sta in un solo punto del codice, nella definizione del tag.",
+      "Preferisco una subscription al polling: un fermo di sessanta millisecondi non lo vedo interrogando una volta al secondo, e il polling pesa sul PLC, non su di me.",
+      "OPC UA porta nome, tipo, qualit\u00e0 e due timestamp: quello della macchina e quello del server. La differenza tra i due \u00e8 la latenza, ed \u00e8 la prima cosa su cui metterei un allarme.",
+      "Un valore con qualit\u00e0 Uncertain lo salvo con la sua qualit\u00e0 e lo escludo dalle medie: registrarlo come zero sporca il dato e non se ne accorge nessuno.",
+    ],
+    keep: ["Modbus", "OPC UA", "MQTT", "tag", "polling", "subscription", "timestamp", "quality", "deadband", "gateway", "backpressure"],
+  },
+  "32c-wcs-traffic-and-commissioning": {
+    say: [
+      "Il traffic manager assegna le zone tutte insieme o nessuna: cos\u00ec un veicolo non ne tiene mai solo una parte, e il deadlock non si pu\u00f2 proprio formare.",
+      "In campo non esiste il timeout: due veicoli fermi uno davanti all'altro in corsia ci restano fino a domattina, quindi il deadlock va prevenuto per costruzione, non gestito dopo.",
+      "La dimensione delle zone \u00e8 la leva sulla produttivit\u00e0: zone troppo grandi mettono in fila movimenti che non si darebbero fastidio a vicenda.",
+      "So che gran parte del lavoro vero \u00e8 il collaudo e la messa in servizio in cantiere. Posso chiedere quante settimane di trasferta sono previste in un anno?",
+    ],
+    keep: ["WCS", "AGV", "LGV", "deadlock", "throughput", "OEE", "FAT", "SAT", "commissioning"],
   },
   "33b-ai-in-dotnet": {
     say: [

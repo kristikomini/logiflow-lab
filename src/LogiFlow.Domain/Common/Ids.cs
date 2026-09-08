@@ -132,3 +132,34 @@ namespace LogiFlow.Domain.Shipping
         public override string ToString() => Value.ToString();
     }
 }
+
+namespace LogiFlow.Domain.Automation
+{
+    /// <summary>Identifies a piece of <see cref="Equipment"/>.</summary>
+    /// <param name="Value">The underlying GUID.</param>
+    public readonly record struct EquipmentId(Guid Value) : IStronglyTypedId<EquipmentId>
+    {
+        /// <inheritdoc />
+        public static EquipmentId From(Guid value) => new(value);
+
+        /// <inheritdoc />
+        public static EquipmentId New() => new(Guid.CreateVersion7());
+
+        /// <inheritdoc />
+        public override string ToString() => Value.ToString();
+    }
+
+    /// <summary>Identifies a <see cref="TransportOrder"/>.</summary>
+    /// <param name="Value">The underlying GUID.</param>
+    public readonly record struct TransportOrderId(Guid Value) : IStronglyTypedId<TransportOrderId>
+    {
+        /// <inheritdoc />
+        public static TransportOrderId From(Guid value) => new(value);
+
+        /// <inheritdoc />
+        public static TransportOrderId New() => new(Guid.CreateVersion7());
+
+        /// <inheritdoc />
+        public override string ToString() => Value.ToString();
+    }
+}

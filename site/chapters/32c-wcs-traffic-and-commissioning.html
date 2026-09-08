@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>32c · Traffic, OEE and commissioning — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="32c-wcs-traffic-and-commissioning">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 7 &mdash; What the region actually runs <span>&rsaquo;</span> Chapter 32c</p>
+<h1>Traffic, OEE and commissioning</h1>
+<p class="lede">
+  The layer above the wire: two vehicles wanting one aisle, the number on the wall and the argument
+  underneath it, the recall query you must be able to answer in an hour &mdash; and what the job is
+  actually like, which nobody writes down.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the adverts</div>
+  <p>
+    E80&nbsp;Group in Viano advertises a <strong>.NET</strong> engineer for <em>AGV traffic
+    management</em>: real-time control of robots and autonomous vehicles, bidirectional ERP
+    integration, <em>throughput optimisation</em>, and <strong>testing in simulation
+    environments</strong>. System Logistics wants the same in Fiorano, and adds
+    <em>&ldquo;attività di cantiere fino al rilascio al cliente&rdquo;</em>.
+  </p>
+  <p>
+    Chapter 32b was the protocol. This is the product those two companies actually sell &mdash; a
+    <strong>WCS</strong>, a warehouse control system &mdash; and this repository has one:
+    <code>cd src/LogiFlow.Wcs &amp;&amp; dotnet run</code>. No PLC, no hardware, no licence.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="deadlock">Two vehicles, one aisle</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Two people meet in a corridor exactly wide enough for one. Each has already stepped in. Each is
+    waiting for the other to back out.
+  </p>
+  <p>
+    People solve this in a second, because people can improvise. Two loaded vehicles that were each
+    told <em>go forward through here</em> cannot. They will still be there in the morning.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    A <strong>transport order</strong> is <em>move this load unit from A to B</em>. To execute it a
+    vehicle must own every <strong>zone</strong> on its route while it is in them &mdash; a stretch
+    of aisle, a crossing, a lift &mdash; because a zone that fits one vehicle and contains two is a
+    collision. So a traffic manager is a resource allocator: vehicles are threads, zones are locks,
+    and the analogy holds all the way down including the part everyone hopes it will not.
+  </p>
+</div>
+
+<pre><code>$ dotnet run traffic
+
+── 1. Acquire in the order the route needs ──
+   V1 took zone 0
+   V2 took zone 1
+   V1 STUCK waiting for zone 1
+   V2 STUCK waiting for zone 0
+   completed: 0 of 2
+
+── 2. The same two moves, lowest zone id first ──
+   V1 route 0→1, took [0, 1] — through
+   V2 route 1→0, took [0, 1] — through
+   completed: 2 of 2</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Both vehicles behaved perfectly reasonably.</strong> V1 goes north, V2 goes south,
+        each takes the zones its route needs in the order it meets them. That is a guaranteed cycle
+        in the wait-for graph.</li>
+    <li><code>completed: 0 of 2</code> &mdash; and the timeout in the demo exists only so the demo
+        <em>ends</em>. On a real floor there is no timeout.</li>
+    <li><strong>The fix is one line: <code>route.Order()</code>.</strong> A cycle needs two holders
+        acquiring in opposite orders, so if everybody acquires ascending, opposite orders cannot
+        happen.</li>
+    <li><strong>There is a second benefit that is easy to miss.</strong> V2 now waits <em>before</em>
+        it enters rather than halfway through &mdash; a vehicle blocked at the mouth of an aisle is
+        somewhere a human can walk past; one blocked in the middle is an obstruction.</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <div class="box-title">Why "add a timeout and recover" is the wrong reflex</div>
+  <p>
+    <strong>Nothing times out on a floor.</strong> There is no supervisor process that kills a stuck
+    vehicle and no user who gives up and refreshes.
+  </p>
+  <p>
+    <strong>And there is no safe recovery action.</strong> Suppose you detect the cycle — now what?
+    Reversing a vehicle means driving backwards along a route planned forwards, past a zone that may
+    now be occupied, possibly carrying two tonnes, in a space designed on the assumption that
+    vehicles go one way. That is a physical manoeuvre with its own safety case, not a
+    <code>catch</code> block.
+  </p>
+  <p>
+    So deadlock is <strong>prevented by construction</strong>, never detected and recovered from.
+  </p>
+</div>
+
+<h2 id="allocator">All-or-nothing, and the bug you introduce fixing it</h2>
+
+<p>
+  Sorting the route is one correct answer. The stronger one, and what most real traffic managers do,
+  is <strong>allocate the whole route atomically</strong>: you get all of it or none of it. A party
+  that holds nothing until it holds everything can never be half of a deadlock, which is why the
+  allocator in this repository has no ordering rule in it at all.
+</p>
+
+<pre><code>public Allocation Request(EquipmentId vehicle, IEnumerable&lt;string&gt; route, DateTimeOffset nowUtc)
+{
+    string[] zones = [.. route.Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    // Asking while still holding is the one way back to hold-and-wait.
+    if (_heldBy.Values.Contains(vehicle))
+        return new Allocation(AllocationOutcome.AlreadyHolding, null);
+
+    if (CanGrant(zones, skipQueueCheck: false))
+    {
+        Grant(vehicle, zones, nowUtc);
+        return new Allocation(AllocationOutcome.Granted, null);
+    }
+
+    _queue.Add(new PendingRequest(vehicle, zones, nowUtc));    // FIFO, and it matters
+    return new Allocation(AllocationOutcome.Queued, _queue.Count - 1);
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Real code</strong> &mdash;
+        <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Domain/Automation/ZoneAllocator.cs"><code>ZoneAllocator.cs</code></a>,
+        in the Domain layer, with no dependencies at all.</li>
+    <li><code>AlreadyHolding</code> &mdash; refused loudly rather than tolerated. Hold-and-wait is
+        the single route back to deadlock, so it is a caller bug, not a traffic condition.</li>
+    <li><code>skipQueueCheck: false</code> &mdash; <strong>the anti-starvation rule.</strong> A
+        newcomer whose route is entirely free may still not have it, if any of those zones is one a
+        <em>waiting</em> vehicle is holding out for.</li>
+    <li><strong>Without that, all-or-nothing trades deadlock for starvation</strong> &mdash; and
+        starvation is worse in one specific way: deadlock is obvious and this is not. Throughput
+        looks healthy, nobody raises a ticket, and one vehicle sits in the same spot for twenty
+        minutes until a shift supervisor mentions it in passing.</li>
+    <li><strong>It is not thread-safe, on purpose.</strong> You are granting tens of routes a second,
+        not millions. One single-threaded component that owns the whole zone table is trivially
+        fair, trivially auditable, and fast enough by orders of magnitude. Reaching for distributed
+        locking here is a self-inflicted wound.</li>
+    <li><strong>Zone names compare case-insensitively</strong>, because they come from a floor plan
+        drawn by a person and <code>AISLE-3</code> being a different zone from <code>Aisle-3</code>
+        is two vehicles in one aisle.</li>
+  </ul>
+</div>
+
+<p>
+  Strict FIFO would be fair and useless &mdash; one vehicle waiting for a busy aisle would stop
+  every unrelated move in the building. So the queue is served front to back but does not
+  <em>stop</em> at the first refusal: a request further down whose zones are free, and which no
+  earlier request wants, may proceed.
+</p>
+
+<h2 id="throughput">Zone size is the throughput dial</h2>
+
+<pre><code>   Six vehicles, four moves each, identical driving, ordered acquisition throughout.
+
+    3 zones   fleet finished in   621 ms
+   12 zones   fleet finished in   369 ms</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Same vehicles, same algorithm, no deadlock either way.</strong> The only thing that
+        changed is how finely the same floor is cut into zones.</li>
+    <li><strong>Coarse zones serialise moves that never actually conflict.</strong> Two vehicles at
+        opposite ends of a long aisle are not in each other's way — but if the whole aisle is one
+        zone, one of them waits.</li>
+    <li><strong>This is what &ldquo;throughput optimisation&rdquo; means in a WCS advert</strong>,
+        and it is mostly this decision rather than clever code. Worth knowing before an interview,
+        because the instinct is to talk about algorithms and the honest answer is about
+        modelling.</li>
+    <li><strong>The dial does not go to infinity.</strong> Every boundary is an acquire and a
+        release, so cut finely enough and vehicles spend their time asking permission. A zone
+        smaller than a vehicle plus its braking distance is not a zone — the vehicle occupies two of
+        them at all times and you have gained bookkeeping. And some boundaries exist because a
+        safety scanner is there, which an engineer signed for and you model around.</li>
+  </ul>
+</div>
+
+<h2 id="oee">OEE is a definition, not a measurement</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A teacher wants one number for how good a day the class had. She multiplies three things: how
+    much of the lesson they were actually working, how fast they worked while working, and how much
+    of the work was any good.
+  </p>
+  <p>
+    Then somebody asks whether the fire drill counts as lost time. The answer changes the number,
+    and nothing about the day changed at all.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>OEE = Availability × Performance × Quality.</strong> Three fractions, multiplied. Each
+    is a ratio of two numbers somebody had to define, and that is the whole story.
+    <code>dotnet run oee</code> takes one eight-hour shift as an event log and computes it twice,
+    changing exactly one decision:
+  </p>
+</div>
+
+<pre><code>   planned downtime EXCLUDED
+      planned production time   430 min      run time  393 min
+      Availability  91.4%   Performance  94.7%   Quality  97.5%
+      →  OEE  84.3%
+
+   planned downtime INCLUDED
+      planned production time   480 min      run time  393 min
+      Availability  81.9%   Performance  94.7%   Quality  97.5%
+      →  OEE  75.6%</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Same shift, same machine, same pieces. Eight and a half points.</strong> Nobody
+        touched anything on the floor.</li>
+    <li><strong>Both are defensible</strong> — they answer <em>how well did the equipment run when
+        we asked it to</em> and <em>how much of the shift did we get out of it</em>. The standard
+        OEE definition is the first; the second, widened to calendar time, has its own name,
+        <strong>TEEP</strong>.</li>
+    <li><strong>The plant manager sees one number and does not know which produced it.</strong>
+        Whoever decides what counts as planned downtime moves it by several points — and that person
+        is often you by default, because you wrote the query. Get the definition written down,
+        agreed and dated.</li>
+    <li><strong>Store the events, compute the number.</strong> You will be asked to change the
+        definition, usually a year after the number has been on a wall. A stored percentage cannot
+        be recomputed, explained, or restated. A table of stops with reasons and durations can be
+        recomputed a hundred times.</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <div class="box-title">The loss that hides</div>
+  <p>
+    <strong>Micro-stops.</strong> A jam cleared by an operator in eight seconds is usually below the
+    PLC's logging threshold, so it never becomes a stop event. The time is still gone — so it comes
+    out of <strong>Performance</strong> instead of <strong>Availability</strong>, and the line looks
+    <em>slow</em> rather than <em>stopped</em>. That sends improvement projects at the wrong target
+    for a year.
+  </p>
+  <p>
+    <strong>If Performance is mysteriously low and nobody can explain it, look for unlogged short
+    stops first.</strong> That is a diagnosis rather than a formula, and it is what an interviewer
+    is hoping to hear.
+  </p>
+  <p>
+    And <strong>Performance above 100% is not a good day</strong>: the configured ideal cycle time is
+    wrong, or somebody ran the line over its rated speed. Clamp it and raise a data-quality alarm.
+    Displaying 104% quietly teaches everybody that the number is decorative.
+  </p>
+</div>
+
+<h2 id="traceability">Traceability, which is not a feature</h2>
+
+<p>
+  The question is: <em>a customer complains about this box. What was in it, and what else is
+  affected?</em> The answer has to name the production batch, the raw-material lots that went into
+  it, the machine, the process values, the shift and often the operator. In food, pharma, cosmetics
+  and automotive this is a <strong>legal obligation</strong> with named regulations behind it, and
+  the deadline is measured in hours because the alternative is recalling everything.
+</p>
+
+<pre><code>production_order      what we were asked to make
+batch                 one execution of it on one line, with start and end
+batch_input           batch × material lot × quantity        ← the genealogy edge
+unit / pallet         what came out, with its own id
+stop_event            batch × start × duration × reason × who entered it
+process_sample        batch × tag × value × quality × source time   (the cheap path)
+shift                 who was on, and when</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>batch_input</code> &mdash; <strong>this one table is the whole traceability story.</strong>
+        Get it right and both directions of the genealogy query are a recursive CTE away. Leave it
+        out because &ldquo;the ERP already knows&rdquo; and you cannot answer the question at all —
+        which you discover during a recall, at the worst possible moment.</li>
+    <li><strong>Genealogy runs both ways, and both get asked.</strong> <em>Backwards</em>: this box
+        is bad, what went into it? <em>Forwards</em>: this raw lot was contaminated, where did it
+        all go? The forward query decides how much product you recall, and it is the one people
+        forget to test.</li>
+    <li><code>stop_event</code> stores a duration and a <strong>reason</strong>, never a computed
+        availability. Everything in the OEE section follows from that.</li>
+    <li><strong>The reason is chosen by a person</strong> on a touchscreen with gloves on. Short
+        list, their language, common ones first, never free text — or you get
+        <code>jam</code>, <code>Jam</code>, <code>jammed</code> and one entry that is a phone
+        number.</li>
+    <li><code>process_sample</code> lives on a different path with a different lifetime: full rate
+        for weeks, minute aggregates forever. Conflating it with the rest is how a table becomes
+        4&nbsp;TB.</li>
+    <li><strong>Append-only, retained for years.</strong> Corrections are new records with an author
+        and a reason, never an <code>UPDATE</code>. Five to ten years is routine, which is a schema
+        decision taken on day one.</li>
+  </ul>
+</div>
+
+<h2 id="simulation">Testing in simulation environments</h2>
+
+<p>
+  E80's advert asks for it by name, and it is not a nice-to-have here: <strong>there is one line, it
+  is making product, and you may have it for four hours on a Sunday.</strong> A simulator you can run
+  a thousand times is the only way to be confident before those four hours start.
+</p>
+
+<pre><code>[Fact]
+public void AnHourOfOperation_MovesWorkContinuously()
+{
+    (TransportDispatcher dispatcher, SimulatedPlcGateway floor, ManualClock clock) = Warehouse();
+
+    for (int pass = 0; pass &lt; PassesPerHour; pass++)
+        RunOnePass(dispatcher, floor, clock);      // advance clock, tick floor, run the loop
+
+    dispatcher.Completed.ShouldBeGreaterThan(100);
+
+    int secondHalf = dispatcher.Completed - completedAtHalfway;
+    secondHalf.ShouldBeGreaterThan(completedAtHalfway / 2);
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>An hour of warehouse operation, in under a second, deterministically.</strong> The
+        clock is a test double the test advances by hand and the simulator is seeded, so a failure is
+        reproducible rather than a story about a bad afternoon.</li>
+    <li><strong>The second assertion is the real one.</strong> What is being checked is not a number
+        — it is that the warehouse <em>keeps working</em>. A system that deadlocks, leaks a zone or
+        starves a vehicle produces a healthy first few minutes and then a flat line, which a short
+        test would happily pass.</li>
+    <li><strong>Nothing sleeps.</strong> A throughput assertion that depended on real delays would be
+        a flaky test dressed up as a guarantee.</li>
+    <li><strong>A simulator earns its place by being wrong in a known way.</strong> This one models
+        travel, faults latching, commands being refused and a 40&nbsp;ms scan lag — and its own
+        documentation lists what it does <em>not</em> model: no packet loss or reordering, no
+        electrical noise, no clock drift. That list is worth more than the simulator.</li>
+  </ul>
+</div>
+
+<div class="box tip">
+  <div class="box-title">The restart problem, which a database does not solve</div>
+  <p>
+    After a crash the vehicles are physically where they are, holding real space, whatever your
+    process believes. An allocator that comes back from a table it wrote before it died will route a
+    second vehicle into an occupied aisle while the software is convinced everything is fine.
+  </p>
+  <p>
+    <strong>You rebuild the zone table from where the machines report themselves to be</strong>,
+    never from your own last write. That is the failure mode with a safety dimension rather than an
+    availability one, and it is a very good thing to be able to say out loud.
+  </p>
+</div>
+
+<h2 id="the-job">What the job is actually like</h2>
+
+<p>
+  Nobody writes this down, and the single biggest reason people leave these jobs is discovering the
+  lifestyle after signing.
+</p>
+
+<table>
+  <thead><tr><th>Italian</th><th>What it means for you</th></tr></thead>
+  <tbody>
+    <tr><td><strong>la commessa</strong></td><td>The job order. Everything — budgets, hours, deadlines, your calendar — is organised by it.</td></tr>
+    <tr><td><strong>il cantiere</strong></td><td>The customer's site during installation. <em>"Attività di cantiere"</em> in an advert means weeks there, repeatedly.</td></tr>
+    <tr><td><strong>la trasferta</strong></td><td>Travel to it, and the allowance paid for it. Ask for weeks per year, not an adjective.</td></tr>
+    <tr><td><strong>il collaudo</strong></td><td>Acceptance test. <strong>FAT</strong> at your factory, <strong>SAT</strong> at theirs — and the payment milestone is usually on the second.</td></tr>
+    <tr><td><strong>la messa in servizio</strong></td><td>Commissioning: where your software meets the real machine and every office assumption is tested at once.</td></tr>
+    <tr><td><strong>il fermo macchina</strong></td><td>Downtime. Priced per hour, and everybody knows the number.</td></tr>
+    <tr><td><strong>il capitolato</strong></td><td>The customer's specification, which you are contractually held to.</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <div class="box-title">Three questions to ask them, in the first interview</div>
+  <ol>
+    <li><strong>&ldquo;How much trasferta, realistically, in weeks per year?&rdquo;</strong> The
+        honest answer ranges from four days to twenty weeks. Ask for the number.</li>
+    <li><strong>&ldquo;Who owns the PLC side, and how do we work together?&rdquo;</strong> This tells
+        you whether there is a real automation team or whether &ldquo;the software guy&rdquo; absorbs
+        everything — and whether a mystery takes an hour or a week.</li>
+    <li><strong>&ldquo;What happens at 03:00 when a line is down?&rdquo;</strong> Is there a rota, is
+        it paid, how often does it fire, can you connect remotely. A company with a good answer has
+        thought about its people.</li>
+  </ol>
+</div>
+
+<div class="box tip">
+  <div class="box-title">And the sentence that makes the rest credible</div>
+  <p>
+    <em>&ldquo;I am a .NET developer, not a PLC programmer, and I would not claim otherwise. I work
+    above the PLC — I take the tags, keep the record, dispatch the work and answer to the ERP. To
+    understand what I am being handed I wrote a Modbus client and server by hand and an OPC UA
+    client.&rdquo;</em>
+  </p>
+  <p>
+    That is respected. They are not looking for a second electrical engineer; they are looking for
+    somebody who can write maintainable C# <em>and</em> talk to the electrical engineer without
+    either of them getting frustrated. Claiming ladder logic you have not written is discovered in
+    one follow-up question.
+  </p>
+</div>
+
+<h2 id="rules">Golden rules</h2>
+
+<ol>
+  <li>Nothing times out on a floor. Deadlock is prevented by construction, never detected and recovered.</li>
+  <li>A vehicle that never holds part of a route can never be half of a deadlock.</li>
+  <li>All-or-nothing plus retry trades deadlock for starvation, which is worse because the dashboard looks healthy. Queue FIFO.</li>
+  <li>Zone size is the throughput dial, and tuning it beats clever code.</li>
+  <li>One single-threaded allocator beats distributed locks. You are granting tens per second, not millions.</li>
+  <li>Journal every grant and release. <em>Why did vehicle 7 wait four minutes</em> is a question you will be asked.</li>
+  <li>Rebuild zone state from where the vehicles say they are, never from a table written before the crash.</li>
+  <li>Store the events and compute the number. A stored OEE cannot be explained or restated.</li>
+  <li>Whoever defines planned downtime sets the OEE.</li>
+  <li>Performance above 100% is a data-quality alarm, not a good day.</li>
+  <li>Unexplained low Performance means unlogged micro-stops until proven otherwise.</li>
+  <li>Traceability is a legal obligation with an hours-long deadline, and the <em>forward</em> query is the one that decides how much you recall.</li>
+  <li>Commissioning is the job, not the end of it.</li>
+</ol>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"Two AGVs are stopped facing each other in an aisle. What went wrong, and how do you prevent it?"</p>
+  <p class="a">
+    Each holds a zone the other needs, so there is a cycle in the wait-for graph. It cannot be
+    recovered by timeout, because nothing on a floor times out — they will still be there tomorrow —
+    and reversing a loaded vehicle is a physical manoeuvre with a safety case, not an exception
+    handler. Prevent it by construction: a total order on zone ids so everybody acquires ascending,
+    or an allocator that grants a whole route atomically. If you choose atomic grants, add FIFO
+    queueing, or you have traded deadlock for starvation.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you make the warehouse move more pallets per hour?"</p>
+  <p class="a">
+    Look at zone granularity before looking at code. Coarse zones serialise moves that never actually
+    conflict, and re-cutting the floor plan is usually worth more than any algorithmic change. Then
+    measure the maximum wait per transport order rather than the mean, because a healthy average
+    hides one vehicle starving. The limits on the other side are real too: every boundary costs an
+    acquire and a release, a zone smaller than a vehicle is bookkeeping, and safety boundaries are
+    not yours to move.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"The ERP says 500 units were produced; the MES says 496. Who is right?"</p>
+  <p class="a">
+    Neither, until you know what each is counting. The usual causes are a boundary — pieces made
+    after the ERP's cut-off, or scrap counted at a different station — and a definition, such as
+    whether a reworked piece counts once or twice. The answer is not to make the numbers agree; it is
+    to show from the event log exactly which four pieces differ and why. Which is only possible if
+    you stored events rather than a total.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Your OEE went from 84% to 76% overnight and nothing changed on the line. What happened?"</p>
+  <p class="a">
+    Somebody changed what counts as planned downtime — almost certainly in the query, not on the
+    floor. Excluding planned stops from the denominator answers "how well did the equipment run when
+    we asked it to"; including them answers "how much of the shift did we get". Both are defensible
+    and the difference here is eight and a half points. This is why the definition has to be written
+    down and dated, and why you store the stop events rather than the percentage.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How would you test a warehouse control system before it is installed?"</p>
+  <p class="a">
+    Against a simulator, driven by an injected clock so a simulated hour runs in milliseconds and
+    deterministically. Assert that work keeps moving over a long run rather than that a number is
+    hit once — a system that deadlocks or leaks a zone looks fine for the first few minutes. Assert
+    the invariants directly: never two vehicles in one zone, never more zones held than vehicles can
+    hold. And write down what the simulator does not model, because that list is the set of bugs it
+    will never catch.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"How much travel is in this role?"</p>
+  <p class="a">
+    Asking this is the point. <em>Cantiere</em> and <em>trasferta</em> in the advert mean a
+    meaningful part of the job happens at the customer's plant until they sign — and the honest range
+    across companies is four days to twenty weeks a year. Ask for weeks, whether it is Italy or
+    abroad, how long a typical trip is, and how weekends are handled. An experienced candidate asks;
+    it is not an awkward question, it is a signal.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

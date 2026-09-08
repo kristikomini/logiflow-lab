@@ -4755,5 +4755,191 @@ window.RULES = [
     "claim": "Know what the version you are interviewing for supports.",
     "why": "Being able to say \"that needs C# 11, so on .NET 6 you would write it this way\" is worth more than knowing the newest feature.",
     "continues": false
+  },
+  {
+    "id": "m28-you-are-hired-for-level-3-and-the-job-is-the",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "You are hired for Level 3, and the job is the two boundaries.",
+    "why": "Below is a machine with no schema and no patience; above is an ERP that thinks in money. The middle is ordinary C#.",
+    "continues": false
+  },
+  {
+    "id": "m28-the-machine-layer-has-no-schema",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "The machine layer has no schema.",
+    "why": "A register is a number at an address, and units, scaling, word order and what counts as `running` all live in a spreadsheet outside the protocol.",
+    "continues": false,
+    "checkpoints": [
+      "running"
+    ]
+  },
+  {
+    "id": "m28-a-value-is-a-sample-not-the-truth",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "A value is a sample, not the truth.",
+    "why": "It was taken at a time that is not now, and asking again gets you a different one rather than the same one confirmed.",
+    "continues": false
+  },
+  {
+    "id": "m28-never-poll-for-events",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Never poll for events.",
+    "why": "Subscribe. The interesting things on a line are shorter than any interval you can afford, and the ones that matter most are the shortest.",
+    "continues": false
+  },
+  {
+    "id": "m28-two-timestamps-always",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Two timestamps, always",
+    "why": "— when the machine says it was true, and when you received it. One column throws away the only latency measurement the protocol gives you for free.",
+    "continues": false
+  },
+  {
+    "id": "m28-store-quality-never-just-the-value",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Store quality, never just the value.",
+    "why": "`Bad` and `Uncertain` are readings, not nulls, and averaging them with good ones invents data that nobody measured.",
+    "continues": false,
+    "checkpoints": [
+      "Bad",
+      "Uncertain"
+    ]
+  },
+  {
+    "id": "m28-the-machine-does-not-wait-for-your-consumer",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "The machine does not wait for your consumer.",
+    "why": "Backpressure is a choice between losing the past and losing the present, and it must be made deliberately rather than defaulted into.",
+    "continues": false
+  },
+  {
+    "id": "m28-store-the-events-and-compute-the-number",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Store the events and compute the number.",
+    "why": "A stored OEE cannot be explained, cannot be recomputed when the definition changes, and the definition will change.",
+    "continues": false
+  },
+  {
+    "id": "m28-whoever-defines-planned-downtime-sets-the",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Whoever defines planned downtime sets the OEE.",
+    "why": "The same shift is 84% or 76% depending on one decision that involves no machine at all.",
+    "continues": false
+  },
+  {
+    "id": "m28-performance-above-100-is-a-data-quality",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Performance above 100% is a data-quality alarm, not a good day.",
+    "why": "The configured ideal cycle time is wrong, or somebody ran the line over its rated speed.",
+    "continues": false,
+    "checkpoints": [
+      "100"
+    ]
+  },
+  {
+    "id": "m28-traceability-is-a-legal-obligation-not-a",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Traceability is a legal obligation, not a feature.",
+    "why": "In food, pharma and automotive the question is which lot, which machine, which shift — and the answer must survive years.",
+    "continues": false
+  },
+  {
+    "id": "m28-deadlock-on-a-floor-is-prevented-not",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Deadlock on a floor is prevented, not detected.",
+    "why": "Acquire zones in a total order or grant a whole route atomically, because nothing times out when two vehicles are nose to nose.",
+    "continues": false
+  },
+  {
+    "id": "m28-zone-size-is-the-throughput-dial",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Zone size is the throughput dial",
+    "why": ", and tuning it beats clever code — coarse zones serialise moves that never actually conflict.",
+    "continues": true
+  },
+  {
+    "id": "m28-the-line-is-on-an-isolated-network-on",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "The line is on an isolated network on purpose.",
+    "why": "Data leaves OT through a gateway, outward only, and \"we'll just put it in the cloud\" is a proposal, not a plan.",
+    "continues": false
+  },
+  {
+    "id": "m28-assume-you-may-not-patch-the-hmi",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Assume you may not patch the HMI.",
+    "why": "A Windows box from 2009 whose vendor warranty forbids you to touch it is normal; you compensate around it rather than fixing it.",
+    "continues": false
+  },
+  {
+    "id": "m28-commissioning-is-the-job-not-the-end-of-it",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Commissioning is the job, not the end of it.",
+    "why": "Half of this work happens on site, with the line stopped and people waiting, and the candidate who knows that is the one who lasts.",
+    "continues": false
   }
 ];

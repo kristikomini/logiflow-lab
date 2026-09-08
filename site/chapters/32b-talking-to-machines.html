@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>32b · Talking to machines — LogiFlow Academy</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161925" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="../assets/learn.css">
+</head>
+<body data-chapter="32b-talking-to-machines">
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main">
+
+<p class="crumbs">Part 7 &mdash; What the region actually runs <span>&rsaquo;</span> Chapter 32b</p>
+<h1>Talking to machines</h1>
+<p class="lede">
+  Chapter 32 gave you the vocabulary. This one is the wire: what a register actually is, what OPC UA
+  buys you over it, why you must never poll for events, and who pays when your consumer cannot keep
+  up with a machine that will not slow down for anybody.
+</p>
+
+<div class="box note">
+  <div class="box-title">From the adverts</div>
+  <p>
+    System Logistics in Fiorano Modenese wants <em>&ldquo;supervisione e gestione del traffico&rdquo;</em>
+    and <em>&ldquo;tracking&rdquo;</em> for automated warehouses, in <strong>C#, .NET, T-SQL and
+    WPF</strong>. A Modena SME wants C# desktop applications with <strong>OPC-UA</strong> concepts
+    and <strong>Siemens PLC</strong>. The technology is the technology you already know. What is
+    missing is this chapter.
+  </p>
+  <p>
+    Everything here runs on your laptop with no hardware, no licence and no factory:
+    <code>dotnet run modbus</code>, <code>dotnet run tags</code> and
+    <code>dotnet run labs/opc-ua.cs</code>.
+  </p>
+</div>
+
+<nav id="toc"></nav>
+
+<h2 id="no-schema">The machine layer has no schema</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Imagine a friend who can only ever say numbers. You ask how they are and they say
+    <em>&ldquo;one&rdquo;</em>. You ask how warm it is and they say <em>&ldquo;two hundred and
+    twenty-five&rdquo;</em>.
+  </p>
+  <p>
+    They are not being difficult &mdash; that is genuinely all they can say. Somebody once wrote on
+    a piece of paper that <em>one means happy</em> and that you have to divide the temperature by
+    ten. If you lose the paper, the numbers still arrive and they no longer mean anything.
+  </p>
+  <p>That piece of paper is the whole problem, and it is usually a spreadsheet.</p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <strong>Modbus is a number at an address. That is the entire data model.</strong> Published in
+    1979, free of licence, small enough for a four-euro microcontroller &mdash; which is why it is
+    in an enormous amount of equipment that is still running and will still be running in ten
+    years.
+  </p>
+  <p>Run the demo and read the bytes:</p>
+</div>
+
+<pre><code>$ dotnet run modbus
+
+   →  00 01 00 00 00 06 01 03 00 00 00 04
+      ─┬─── ─┬─── ─┬─── ┬─ ┬─ ─┬─── ─┬───
+       │     │     │    │  │    │     └ quantity  = 4 registers
+       │     │     │    │  │    └────── start     = 0
+       │     │     │    │  └─────────── function  = 3
+       │     │     │    └────────────── unit id   = 1
+       │     │     └─────────────────── length    = 6 bytes follow
+       │     └───────────────────────── protocol  = 0 (always)
+       └─────────────────────────────── transaction id = 1
+
+   ←  00 01 00 00 00 0B 01 03 08 00 01 00 01 86 A3 00 E1</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Seven bytes of header, then the request.</strong> That header is called the MBAP,
+        and the whole protocol fits on one page. The demo implements a working server and client
+        over a raw <code>TcpListener</code> with no package at all.</li>
+    <li><code>transaction id</code> &mdash; yours to choose; the device echoes it. It exists so you
+        can match a reply to a request when several are in flight.</li>
+    <li><code>length = 6 bytes follow</code> &mdash; and it counts the unit id <em>plus</em> the
+        request, so it is one more than you expect. <strong>Get this wrong and the stream
+        desynchronises</strong>: every subsequent frame is garbage, which presents as
+        &ldquo;it worked for ten minutes&rdquo; &mdash; the worst kind of bug to be handed.</li>
+    <li><code>function = 3</code> &mdash; read holding registers. There are a couple of dozen
+        function codes and you will use three of them.</li>
+    <li><code>start = 0</code> &mdash; and the spreadsheet says <code>40001</code>. The
+        <code>4xxxx</code> prefix means &ldquo;holding register&rdquo; and the rest is one-based.
+        <strong>Every Modbus integration loses an afternoon to that exactly once.</strong></li>
+    <li><strong>The reply is 17 bytes and the last 8 are the payload</strong> &mdash; four
+        registers, big-endian, and nothing else. No names, no units, no types, no timestamp, no
+        quality flag.</li>
+  </ul>
+</div>
+
+<h3 id="word-order">The trap that is not in any specification</h3>
+
+<p>
+  A 32-bit counter does not fit in a 16-bit register, so it is split across two. Modbus fixes the
+  byte order <em>inside</em> a register and says <strong>nothing</strong> about the order
+  <em>between</em> two of them. The same eight bytes therefore have two readings, and the demo
+  prints both:
+</p>
+
+<pre><code>   40002/40003 — one counter in two registers:
+      high-word-first :      100,003
+      word-swapped    : 2,258,829,313   ← same bytes</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Both numbers are decodings of identical bytes.</strong> Roughly half the devices in
+        the field use each convention, and there is no field anywhere that tells you which.</li>
+    <li><strong>You find out because the number is absurd</strong> &mdash; or, far worse, because it
+        is plausible. A counter reading 100,003 when it should read 3 looks like a machine that has
+        been busy.</li>
+    <li><strong>The fix is procedural, not technical:</strong> on day one, change a value you can
+        see and watch which decoding tracks it. Do that before anything is built on top.</li>
+    <li><strong>The same applies to scaling.</strong> <code>225</code> is 22.5&nbsp;°C only because
+        a spreadsheet says <em>tenths</em>, and signed only because the same spreadsheet says so.
+        Read it unsigned and &minus;1&nbsp;°C becomes 65,526 tenths.</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <div class="box-title">The rule that follows</div>
+  <p>
+    Scaling and units live in <strong>one</strong> place in your code &mdash; a tag definition
+    &mdash; and never as an inline <code>/ 10.0</code> at a call site. The day the device is
+    replaced with one that sends hundredths, you want to change one line, not hunt divisions
+    through a codebase.
+  </p>
+</div>
+
+<h2 id="opc-ua">OPC UA: the spreadsheet, moved into the protocol</h2>
+
+<p>
+  Every trap above is an <em>absence</em>. OPC UA is what filling those absences looks like. The
+  lab starts a real server, connects a real client and asks for the same temperature:
+</p>
+
+<pre><code>$ dotnet run labs/opc-ua.cs
+
+   name             Oven temperature
+   description      Chamber temperature, thermocouple TC-1
+   value            22.9
+   type             Double
+   status           Good [0x00000000]
+   source timestamp 02:22:08.465   ← when the MACHINE says it was true
+   server timestamp 02:22:08.465   ← when the SERVER saw it
+   gap              0 ms   ← and here is the honest part</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>name</code>, <code>description</code> &mdash; written by whoever built the machine and
+        travelling <em>with</em> the value, instead of sitting beside it in an <code>.xls</code>.</li>
+    <li><code>type Double</code> &mdash; a real type, not two guessed words in a guessed order.</li>
+    <li><code>status Good</code> &mdash; <strong>quality</strong>. A sensor is allowed to say
+        <em>Uncertain</em>, which is not the same as zero and must never be averaged with real
+        readings.</li>
+    <li><strong>Two timestamps, in the protocol, for free.</strong> The gap between them is your
+        latency &mdash; measurable without adding a clock of your own.</li>
+    <li><code>gap 0 ms</code> &mdash; and the demo says why: its server and its
+        &ldquo;machine&rdquo; are the same process, so there is nothing for the value to be late
+        by. <strong>It refuses to fake a plausible 40&nbsp;ms</strong>, because a tool that lies
+        about its own fidelity is worse than one that admits a limit.</li>
+    <li><strong>And you can browse.</strong> <code>Line1.Oven</code> can be asked what it contains
+        and it answers. Modbus has no request that means <em>what do you have</em>.</li>
+  </ul>
+</div>
+
+<div class="box tip">
+  <div class="box-title">The sentence to have ready</div>
+  <p>
+    <em>&ldquo;OPC UA moves the spreadsheet into the protocol, and the spreadsheet is what was
+    going to go wrong.&rdquo;</em>
+  </p>
+</div>
+
+<h3 id="opc-ua-reality">Three things that are not in the marketing</h3>
+
+<p>
+  <strong>Security is certificates, and it is where every project actually starts.</strong> Client
+  and server each hold an X.509 certificate and each must trust the other's before a session is
+  permitted. The practical consequence: <strong>the first connection to a new server always
+  fails.</strong> The fix is a person moving a <code>.der</code> file out of the
+  <code>rejected</code> folder into the <code>trusted</code> folder, on both machines, usually over
+  a phone call, usually at the worst moment. The demo sets
+  <code>SetAutoAcceptUntrustedCertificates(true)</code> so it can run at all &mdash; that means
+  &ldquo;trust anybody&rdquo;, and it belongs in a commissioning tool and a test fixture, never in
+  what you leave behind.
+</p>
+
+<p>
+  <strong>Sampling and publishing are two different intervals.</strong> Sampling is how often the
+  <em>server</em> reads the device; publishing is how often it talks to <em>you</em>. Sampling is
+  work for the device &mdash; asking for 10&nbsp;ms on 5,000 tags is how you bring a PLC to its
+  knees from the comfort of your desk. They are separate on purpose, so a slow link cannot force you
+  to miss fast events: samples queue and arrive together, each carrying the timestamp it actually
+  had. Which only works if <code>QueueSize</code> is greater than 1, and the default is&nbsp;1.
+</p>
+
+<p>
+  <strong>The deadband decides your storage bill.</strong> <em>Only tell me when it moves by more
+  than 0.5&nbsp;°C.</em> On a real plant that is the difference between a database that fills in a
+  week and one that fills in a decade, and it is the first thing to ask about when somebody tells
+  you OPC UA is slow.
+</p>
+
+<div class="box warn">
+  <div class="box-title">Two things people get wrong out loud</div>
+  <p>
+    <strong>&ldquo;OPC&rdquo; is ambiguous.</strong> Classic OPC (OPC DA) is COM/DCOM, Windows only,
+    and configuring DCOM across a domain boundary is a rite of passage nobody enjoyed. OPC UA is a
+    different protocol with a different stack. If somebody says &ldquo;we have OPC&rdquo;, find out
+    which &mdash; it changes what you are being asked to do.
+  </p>
+  <p>
+    <strong>ISA-95 does not define OPC UA.</strong> They are named in the same breath, and there is
+    an ISA-95 companion specification for OPC UA, but ISA-95 is the model of the levels and B2MML is
+    MESA's XML implementation of it. Saying &ldquo;ISA-95 defines OPC UA&rdquo; is the kind of small
+    wrongness a person who has been in the room will notice.
+  </p>
+</div>
+
+<h2 id="polling">Never poll for events</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    You want to know if the light in the next room ever flickers. You open the door once a minute
+    and look.
+  </p>
+  <p>
+    The light flickered for a tenth of a second, twice, while the door was shut. Your report says
+    the light has been on all day, and your report is not <em>approximately</em> wrong &mdash; it is
+    missing something that happened.
+  </p>
+</div>
+
+<div class="box pro">
+  <div class="box-title">🎓 Professional</div>
+  <p>
+    <code>dotnet run tags</code> simulates three seconds of a machine with a fault lasting
+    <strong>60&nbsp;ms</strong>, and polls at 1&nbsp;Hz &mdash; a generous rate for a supervisor
+    watching a few hundred tags:
+  </p>
+</div>
+
+<pre><code>   polling at 1 Hz  : saw states [running, running, running]
+   subscription     : saw 3 transitions —
+                          0 ms  → running
+                       1370 ms  → FAULTED
+                       1430 ms  → running</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>The poller reports a perfect shift.</strong> As far as the database is concerned the
+        fault did not happen, and the maintenance report is missing an event rather than being
+        slightly off.</li>
+    <li><strong>Polling faster does not fix it.</strong> The events that matter most on a line are
+        the shortest &mdash; a micro-stop cleared in eight seconds, a sensor glitching for 40&nbsp;ms.
+        A 100&nbsp;ms poll still misses a 60&nbsp;ms pulse, and now you are doing ten times the
+        work.</li>
+    <li><strong>And the work lands on the device, not on you.</strong> This is the part web habits
+        do not prepare you for: hammering your own database is a problem you can see, but here the
+        thing you degrade belongs to somebody else and shows up as <em>the machine got
+        slower</em>.</li>
+    <li><strong>Where polling is still right:</strong> slow, non-event data where you want a
+        heartbeat rather than edges &mdash; a daily counter, a setpoint only a human changes, an
+        &ldquo;is the gateway alive&rdquo; check. The rule is not <em>never poll</em>; it is
+        <em>never poll for events</em>.</li>
+  </ul>
+</div>
+
+<h2 id="two-clocks">Two clocks, and the column everybody drops</h2>
+
+<p>
+  Every reading has two times attached: <strong>source</strong>, when the machine says the value was
+  true, and <strong>receive</strong>, when you had it. OPC UA carries both. Almost every quick
+  implementation stores one, and the one it stores is the receive time &mdash; or worse,
+  <code>DateTime.Now</code> at the moment of the <code>INSERT</code>, which is a third clock nobody
+  asked for.
+</p>
+
+<pre><code>public readonly record struct TelemetrySample(
+    EquipmentId EquipmentId,
+    string Tag,
+    double Value,
+    Quality Quality,                       // Good | Uncertain | Bad
+    DateTimeOffset SourceTimestampUtc,     // when the MACHINE says it was true
+    DateTimeOffset ReceivedAtUtc)          // when THIS PROCESS had it
+{
+    public TimeSpan Age =&gt; ReceivedAtUtc - SourceTimestampUtc;
+
+    public bool IsTrustworthy =&gt; Quality == Quality.Good;
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>This is real code in this repository</strong> &mdash;
+        <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Domain/Automation/TelemetrySample.cs"><code>TelemetrySample.cs</code></a>
+        &mdash; not a sketch.</li>
+    <li><code>Age</code> &mdash; <strong>the cheapest diagnostic you will ever have.</strong>
+        Normally 30&nbsp;ms; when it becomes 900&nbsp;ms a gateway is struggling or a link is
+        saturated, and you know before an operator notices the screen lagging.</li>
+    <li><strong>It is allowed to go negative</strong>, and that is a finding rather than a bug to
+        clamp: it means the device's clock is <em>ahead</em> of yours. PLCs are often not on NTP.</li>
+    <li><code>IsTrustworthy</code> excludes <code>Uncertain</code> deliberately. A value the device
+        will not vouch for is not a value you may quietly average &mdash; an hour of thermocouple
+        dropouts recorded as <code>0&nbsp;°C</code> drags a shift average down by a plausible
+        amount and is never found, because there is no error anywhere.</li>
+    <li><strong>Order by source time, not arrival time.</strong> A gateway that buffered through a
+        dropped link delivers a burst afterwards, out of order &mdash; exactly when you are
+        investigating something.</li>
+  </ul>
+</div>
+
+<h2 id="backpressure">The machine does not wait for your consumer</h2>
+
+<p>
+  This is the sentence that separates a work queue from a machine feed. <code>dotnet run tags</code>
+  sends a burst of 60 tag changes &mdash; a pallet arrives and everything changes at once &mdash;
+  into a bounded channel of 16, with a consumer needing ~15&nbsp;ms each because it writes to a
+  database:
+</p>
+
+<pre><code>                 held the      delivered   ids that
+                 machine for   to the DB   arrived
+                 ───────────   ─────────   ────────────
+   Wait             765 ms       60/60      #0 … #59
+   DropOldest         0 ms       16/60      #44 … #59
+   DropWrite          0 ms       16/60      #0 … #15</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>Read the last column, not the counts.</strong> Both drop policies lost the same
+        <em>number</em> of events and lost completely different events &mdash; and only one of those
+        two mistakes is visible on an operator's screen.</li>
+    <li><code>Wait</code> &mdash; loses nothing and charges the producer 765&nbsp;ms. Correct for a
+        work queue, wrong for a machine: <strong>you cannot actually make a conveyor wait.</strong>
+        The loss still happens; you have moved it into a lag and then into a socket buffer with no
+        counter on it.</li>
+    <li><code>DropOldest</code> &mdash; ends on <code>#59</code>, the newest. You stay current and
+        lose history. Right for a live screen, where a value from four seconds ago is worse than
+        useless because somebody is deciding from it.</li>
+    <li><code>DropWrite</code> &mdash; ends on <code>#15</code> and never learns what happened
+        after. Almost never right for telemetry; exactly right for an alarm sequence you must not
+        reorder.</li>
+    <li><strong>The real answer is both paths at once:</strong> <code>DropOldest</code> into the
+        live view, and a separate durable path &mdash; a file, a queue, an outbox &mdash; for
+        what you are legally required to still have in three years. The screen and the record have
+        opposite requirements and should never share a queue.</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <div class="box-title">Count the drops, or the failure is invisible by construction</div>
+  <p>
+    <code>DropOldest</code> throws data away with <strong>no exception, no log line and no return
+    value</strong>. In .NET, <code>TryWrite</code> returns <code>true</code> whether or not it
+    discarded something &mdash; so code that checks the return value is counting nothing while
+    looking like it counts. The only way to observe it is the <code>itemDropped</code> callback on
+    <code>Channel.CreateBounded</code>. Put that counter on the dashboard next to throughput.
+  </p>
+</div>
+
+<h2 id="the-boundary">One port, two adapters</h2>
+
+<p>
+  The machine layer is the one dependency you genuinely cannot have on your laptop &mdash; there is
+  no LocalDB for a filling line. That single fact decides the architecture, and it decides it in a
+  direction this repository has already argued once, about <code>IDistributedCache</code>: depend on
+  an interface, choose the implementation with a capability check, and ship with the real one
+  switched off.
+</p>
+
+<pre><code>public interface IEquipmentGateway
+{
+    string Description { get; }                                  // which adapter is live
+    IReadOnlyList&lt;EquipmentDescriptor&gt; Fleet { get; }            // commissioning data
+
+    IAsyncEnumerable&lt;TelemetrySample&gt; SubscribeAsync(CancellationToken ct);
+    Task&lt;CommandAck&gt; SendAsync(EquipmentCommand command, CancellationToken ct);
+    Task&lt;CommandAck&gt; AcknowledgeAsync(EquipmentId id, string by, CancellationToken ct);
+}</code></pre>
+
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><strong>No <code>ReadRegister(int)</code>.</strong> That would not be an abstraction, it
+        would be Modbus with C# syntax &mdash; and the day the next line speaks OPC UA you would
+        find &ldquo;register number&rdquo; had leaked into three hundred call sites.</li>
+    <li><strong>No <code>GetCurrentState()</code>, deliberately.</strong> Offering a snapshot is an
+        invitation to poll. A caller who needs the current value keeps a projection of the stream in
+        memory &mdash; a dictionary, not a round trip to the floor.</li>
+    <li><code>SendAsync</code> returns an <strong>acknowledgement, not a result</strong>. A conveyor
+        does not finish moving a pallet inside your <code>await</code>; the outcome arrives later on
+        the stream. Modelling it as <code>Task&lt;MoveResult&gt;</code> produces a supervisor that
+        holds a request open for ninety seconds and falls over the first time a pallet jams.</li>
+    <li><code>AcknowledgeAsync</code> has its own method because it is <strong>separately
+        audited</strong> &mdash; who cleared the fault, when, on whose authority.</li>
+    <li><code>Fleet</code> is commissioning data rather than discovery, because Modbus has no
+        request meaning <em>what do you have</em>. An OPC UA adapter would fill it by browsing; the
+        interface is the same either way, which is the point of having one.</li>
+  </ul>
+</div>
+
+<p>
+  It is all in this repository and it runs with no hardware:
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Application/Abstractions/Automation/IEquipmentGateway.cs">the port</a>,
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Automation/SimulatedPlcGateway.cs">the simulator</a>,
+  <a href="https://github.com/kristi2002/LogiFlow/blob/main/src/LogiFlow.Infrastructure/Automation/ModbusEquipmentGateway.cs">the Modbus adapter</a>.
+  Chapter&nbsp;32c is what runs on top of them.
+</p>
+
+<h2 id="which">Which protocol you will actually meet</h2>
+
+<p>
+  You do not choose. This is what catches people who prepare by picking a favourite: the protocol is
+  a property of the installation, and a single plant routinely has all of these at once.
+</p>
+
+<table>
+  <thead><tr><th>What you find</th><th>What it means for you</th></tr></thead>
+  <tbody>
+    <tr><td><strong>OPC UA</strong></td><td>Best case. Ask about deadbands and sampling intervals before anything else.</td></tr>
+    <tr><td><strong>Siemens S7 / Modbus / EtherNet/IP</strong></td><td>You will be handed a register map as a spreadsheet. See the top of this chapter.</td></tr>
+    <tr><td><strong>MQTT</strong></td><td>Newer sensors, or an existing push-to-cloud path. Ask who owns the broker and what the topic convention is — there is always one and it is never documented.</td></tr>
+    <tr><td><strong>A share full of CSV files</strong></td><td>A machine from 2004 whose vendor no longer exists. Treat the file as a protocol: encoding, partial writes, and the file still being written while you read it.</td></tr>
+    <tr><td><strong>A barcode scanner</strong></td><td>It presents as a keyboard. The whole design question is which control had focus.</td></tr>
+    <tr><td><strong>An operator typing it in</strong></td><td>The stop reason is chosen from a list by a person, and it is the most valuable field in the database.</td></tr>
+  </tbody>
+</table>
+
+<div class="box tip">
+  <div class="box-title">The question that shows you have done this</div>
+  <p>
+    <em>&ldquo;What do the machines speak, and is there already a gateway or a historian?&rdquo;</em>
+    If there is, most of this chapter is somebody else's problem and your job is the layer above it.
+    If there is not, you have just found out what your first three months are.
+  </p>
+</div>
+
+<h2 id="rules">Golden rules</h2>
+
+<ol>
+  <li>The documented register number and the wire address differ by one. <code>40001</code> is address&nbsp;0.</li>
+  <li>Word order between two registers is a guess until you verify it against a value you can change and watch.</li>
+  <li>Scaling and units live in exactly one place in your code, because they do not live in the protocol at all.</li>
+  <li>Read the registers you need in <strong>one</strong> request. A request per tag is how a supervisor that worked at your desk falls over on a real line.</li>
+  <li>An OPC UA value carries name, type, quality and two timestamps. That is the whole argument for it.</li>
+  <li>The first OPC UA connection always fails on certificate trust. Budget for it; never solve it in production by auto-accepting everything.</li>
+  <li>Sampling interval and publishing interval are different, and <code>QueueSize = 1</code> silently discards everything between publishes.</li>
+  <li>Never poll for events. Poll only for heartbeats and slow values.</li>
+  <li>Store both timestamps, and order by source time.</li>
+  <li>Quality is a column, not a filter. <code>Uncertain</code> is a reading, and recording it as zero corrupts an average nobody will ever un-corrupt.</li>
+  <li>The machine never waits for your consumer. Backpressure is a choice between losing the past and losing the present, and it must be made deliberately.</li>
+  <li>Count every drop. A silent discard is a failure mode invisible by construction.</li>
+</ol>
+
+<h2 id="interview">Interview questions</h2>
+
+<div class="qa">
+  <p class="q">"How would you get data out of a PLC?"</p>
+  <p class="a">
+    Ask what is already there before proposing anything, because the answer is usually decided.
+    OPC UA if the installation is modern — a subscription, not a poll, with an information model
+    carrying type, unit, quality and a source timestamp. MQTT for newer IIoT sensors and for pushing
+    outward. A direct driver — S7, Modbus TCP, EtherNet/IP — for older or cheaper equipment, where
+    the register map arrives as a spreadsheet. And in practice also: a barcode scanner behaving as a
+    keyboard, an operator choosing a stop reason from a list, and a CSV dropped on a share every ten
+    minutes by a machine from 2004.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why is subscription better than polling here?"</p>
+  <p class="a">
+    Because you cannot poll fast enough. A fault lasting 60&nbsp;ms is invisible at 1&nbsp;Hz, and
+    the events that matter most are the shortest. Polling also costs the device rather than you:
+    asking 5,000 tags every second is real work for a PLC with a scan cycle to meet. Subscription
+    inverts it — the server samples at an interval you agree and publishes only what changed.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"You are given a 32-bit counter split across two Modbus registers. What could go wrong?"</p>
+  <p class="a">
+    The word order between the two registers is not specified by Modbus, so the same bytes decode to
+    two wildly different numbers depending on convention, and roughly half the devices in the field
+    use each. Nothing in the data says which. You verify it on day one against a value you can change
+    and watch — because the failure mode is not an error, it is a plausible number.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Your consumer cannot keep up with the tag stream. What do you do?"</p>
+  <p class="a">
+    Decide what to lose, explicitly. Blocking the producer is correct for a work queue and wrong for
+    a machine — the line will not slow down, so you have converted data loss into an unbounded lag
+    and a buffer overflowing somewhere you cannot see. Usually drop the oldest for the live screen so
+    it stays current, and put anything legally required down a separate durable path. Then fix the
+    consumer, because both of those are triage. And count the drops, or you have built a system whose
+    failure mode is invisible.
+  </p>
+</div>
+
+<div class="qa">
+  <p class="q">"Why store two timestamps on every reading?"</p>
+  <p class="a">
+    Because they are different, and the gap between them is free latency measurement: a source time
+    the machine stands behind, and a receive time from your own clock. A gap that is normally
+    30&nbsp;ms and becomes 900&nbsp;ms tells you a gateway is struggling before an operator notices.
+    It also lets you detect a device whose clock is wrong, which is common because PLCs are often
+    not on NTP — and it lets you order by when things happened rather than when they arrived, which
+    matters precisely when a gateway has buffered through an outage.
+  </p>
+</div>
+
+<div id="pager"></div>
+  </main>
+</div>
+<script src="../assets/chapters.js"></script>
+<script src="../assets/quizzes-1.js"></script>
+<script src="../assets/quizzes-2.js"></script>
+<script src="../assets/quizzes-3.js"></script>
+<script src="../assets/store.js"></script>
+<script src="../assets/site.js"></script>
+<script src="../assets/quiz.js"></script>
+<script src="../assets/learn.js"></script>
+<script src="../assets/notes.js"></script>
+<script src="../assets/account.js"></script>
+<script src="../assets/italiano.js"></script>
+<script src="../assets/italiano-panel.js"></script>
+</body>
+</html>

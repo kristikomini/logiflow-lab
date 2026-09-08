@@ -23,6 +23,22 @@ public static partial class Program
     /// <param name="Run">The demo itself.</param>
     private sealed record Demo(string Name, string Category, string Description, Action Run);
 
+    /// <summary>Adapts an async demo to the registry's one shape.</summary>
+    /// <remarks>
+    /// <para>
+    /// Yes, this blocks on a <see cref="Task"/> — the thing the <c>deadlock</c> demo exists to
+    /// warn you about. It is safe *here* and nowhere else in this repository, for one reason:
+    /// a console application has no <see cref="SynchronizationContext"/>, so the continuation
+    /// resumes on a thread-pool thread rather than queueing behind the thread that is waiting.
+    /// </para>
+    /// <para>
+    /// The rule that survives outside this file is the one the demo teaches: block only at the
+    /// very top of the stack, where you own the thread and nobody is waiting behind you. In a
+    /// UI handler or a classic ASP.NET request this same line deadlocks.
+    /// </para>
+    /// </remarks>
+    private static Action Async(Func<Task> run) => () => run().GetAwaiter().GetResult();
+
     private static readonly Demo[] Demos =
     [
         // ── The language ───────────────────────────────────────────────────────────────
@@ -62,6 +78,12 @@ public static partial class Program
         new("json",       "runtime",     "System.Text.Json: the four traps", Json),
         new("exceptions", "runtime",     "throw vs throw ex, filters, and what an exception costs", Exceptions),
         new("reflection", "runtime",     "Reflection: the metadata lookup, the boxing, and the cache that kills both", Reflection),
+
+        // ── Industrial: where the software meets the machines ──────────────────────────
+        new("modbus",     "industrial",  "Modbus TCP by hand: the wire has no types", Async(ModbusAsync)),
+        new("tags",       "industrial",  "Polling loses events, and the machine will not wait for you", Async(TagsAsync)),
+        new("oee",        "industrial",  "OEE from the event stream, and the argument underneath it", Oee),
+        new("traffic",    "industrial",  "Two AGVs, one aisle: the deadlock and the one-line fix", Async(TrafficAsync)),
     ];
 
     /// <summary>Entry point.</summary>

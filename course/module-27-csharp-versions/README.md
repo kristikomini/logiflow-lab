@@ -240,4 +240,7 @@ most of what makes modern C# readable.
 
 ## Next
 
-→ [The Laws of C#](../LAWS-OF-CSHARP.md) — the whole language and runtime as one numbered canon.
+→ [Module 28 — Industrial software and the IT/OT boundary](../module-28-industrial-and-ot/)
+
+The last module, and the one furthest from the language: the layer where software meets machines,
+which is where a large share of the .NET work in this region actually is.

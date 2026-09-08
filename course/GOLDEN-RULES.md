@@ -572,7 +572,7 @@ them up.
 
 ## [Module 17 — Landing a .NET job in Modena and Bologna](module-17-career-emilia-romagna/)
 
-> The card. Technique is the other twenty-seven modules; this is the part candidates get wrong.
+> The card. Technique is the other twenty-eight modules; this is the part candidates get wrong.
 
 1. **Search the whole Modena–Bologna corridor**, not one city. It is one labour market and it is
    forty minutes wide.
@@ -921,3 +921,38 @@ them up.
     boilerplate left in the language.
 12. **Know what the version you are interviewing for supports.** Being able to say "that needs C#
     11, so on .NET 6 you would write it this way" is worth more than knowing the newest feature.
+
+## [Module 28 — Industrial software and the IT/OT boundary](module-28-industrial-and-ot/)
+
+1. **You are hired for Level 3, and the job is the two boundaries.** Below is a machine with no
+   schema and no patience; above is an ERP that thinks in money. The middle is ordinary C#.
+2. **The machine layer has no schema.** A register is a number at an address, and units, scaling,
+   word order and what counts as `running` all live in a spreadsheet outside the protocol.
+3. **A value is a sample, not the truth.** It was taken at a time that is not now, and asking
+   again gets you a different one rather than the same one confirmed.
+4. **Never poll for events.** Subscribe. The interesting things on a line are shorter than any
+   interval you can afford, and the ones that matter most are the shortest.
+5. **Two timestamps, always** — when the machine says it was true, and when you received it. One
+   column throws away the only latency measurement the protocol gives you for free.
+6. **Store quality, never just the value.** `Bad` and `Uncertain` are readings, not nulls, and
+   averaging them with good ones invents data that nobody measured.
+7. **The machine does not wait for your consumer.** Backpressure is a choice between losing the
+   past and losing the present, and it must be made deliberately rather than defaulted into.
+8. **Store the events and compute the number.** A stored OEE cannot be explained, cannot be
+   recomputed when the definition changes, and the definition will change.
+9. **Whoever defines planned downtime sets the OEE.** The same shift is 84% or 76% depending on
+   one decision that involves no machine at all.
+10. **Performance above 100% is a data-quality alarm, not a good day.** The configured ideal cycle
+    time is wrong, or somebody ran the line over its rated speed.
+11. **Traceability is a legal obligation, not a feature.** In food, pharma and automotive the
+    question is which lot, which machine, which shift — and the answer must survive years.
+12. **Deadlock on a floor is prevented, not detected.** Acquire zones in a total order or grant a
+    whole route atomically, because nothing times out when two vehicles are nose to nose.
+13. **Zone size is the throughput dial**, and tuning it beats clever code — coarse zones serialise
+    moves that never actually conflict.
+14. **The line is on an isolated network on purpose.** Data leaves OT through a gateway, outward
+    only, and "we'll just put it in the cloud" is a proposal, not a plan.
+15. **Assume you may not patch the HMI.** A Windows box from 2009 whose vendor warranty forbids
+    you to touch it is normal; you compensate around it rather than fixing it.
+16. **Commissioning is the job, not the end of it.** Half of this work happens on site, with the
+    line stopped and people waiting, and the candidate who knows that is the one who lasts.

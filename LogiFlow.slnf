@@ -7,6 +7,7 @@
       "src\\LogiFlow.Application\\LogiFlow.Application.csproj",
       "src\\LogiFlow.Domain\\LogiFlow.Domain.csproj",
       "src\\LogiFlow.Infrastructure\\LogiFlow.Infrastructure.csproj",
+      "src\\LogiFlow.Wcs\\LogiFlow.Wcs.csproj",
       "src\\LogiFlow.Web\\LogiFlow.Web.csproj",
       "tests\\LogiFlow.Academy.Api.Tests\\LogiFlow.Academy.Api.Tests.csproj",
       "tests\\LogiFlow.Api.IntegrationTests\\LogiFlow.Api.IntegrationTests.csproj",

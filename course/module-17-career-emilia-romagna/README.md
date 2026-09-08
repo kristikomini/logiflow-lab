@@ -107,7 +107,7 @@ After this course you will be strong on 1, 2 and 4. Be honest with yourself abou
 | 5 | **Something with a UI** — Blazor, or WPF/WinForms for the industrial world | **Module 18**, which builds the Blazor front end over LogiFlow. It is a weekend, and it materially widens your options in this market |
 | 6 | **Git, Docker, CI** | Modules 00, 13 |
 | 7 | **Azure or on-prem ops** | Module 13. Note that manufacturing is often still on-premises — do not assume cloud |
-| 8 | **Industrial context** — MES, PLC, OPC UA, SCADA vocabulary | Not in this course. Reading the Wikipedia page for each puts you ahead of most applicants for Motor/Packaging Valley roles |
+| 8 | **Industrial context** — MES, SCADA, WCS, PLC, OPC UA | **[Module 28](../module-28-industrial-and-ot/)**, and [site chapter 32](../../site/chapters/32-industrial-and-mes.html). Ranked eighth for the region as a whole and **far higher than that** along the Sassuolo–Fiorano–Viano belt, where intralogistics and machine builders hire .NET people continuously — for those employers it outranks Azure |
 | 9 | **Legacy .NET Framework** — `Global.asax`, `web.config`, WebForms, IIS pools, and migrating incrementally rather than rewriting | [Site chapter 16b](../../site/chapters/16b-aspnet-framework.html). Adverts that list *ASP.NET* and *ASP.NET Core* as two skills, or name 4.8 by version, are describing their repository |
 
 **The unfair advantage available to you:** almost nobody applying at junior or mid level can explain
@@ -356,7 +356,7 @@ search run in parallel, because the job search is the slower of the two.
 
 ## 12. Golden rules
 
-> The card. Technique is the other twenty-seven modules; this is the part candidates get wrong.
+> The card. Technique is the other twenty-eight modules; this is the part candidates get wrong.
 
 1. **Search the whole Modena–Bologna corridor**, not one city. It is one labour market and it is
    forty minutes wide.

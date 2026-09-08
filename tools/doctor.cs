@@ -23,7 +23,7 @@
 //   4. course/GOLDEN-RULES.md   <->  site/assets/rules.js      generated
 //   5. course/**.md + src/**.cs <->  course headings and files cross-refs
 //   6. course/**.md             <->  Labs.Playground's demos   cited by name
-//   7. every README and page    <->  the counts they state     "51 chapters"
+//   7. every README and page    <->  the counts they state     "53 chapters"
 //      (patterns for the sentences that state one, then a scan of the rest)
 //   8. site/assets/store.js     <->  the Academy API's copy    one formula, twice
 //
@@ -588,7 +588,7 @@ IEnumerable<Issue> CheckSectionReferences()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  9. `Covered in: course/module-.../file.md` — 80 of them at the last count.
+//  9. `Covered in: course/module-.../file.md` — 95 of them at the last count.
 //     These are the reason reading a class and reading its chapter is one
 //     gesture, and a dead one costs exactly that.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -638,10 +638,14 @@ IEnumerable<Issue> CheckDemoCitations()
         yield break;
     }
 
-    // Words that follow `dotnet run` without naming a demo.
+    // Words that follow `dotnet run` without naming a demo. "tools" and "labs"
+    // are there because a .NET 10 file-based app is run by PATH rather than by
+    // name — `dotnet run tools/doctor.cs`, `dotnet run labs/opc-ua.cs` — and the
+    // capture below stops at the slash, leaving the directory looking like a
+    // demo that does not exist.
     HashSet<string> notDemos = new(StringComparer.Ordinal)
     {
-        "list", "all", "tools", "help",
+        "list", "all", "tools", "labs", "help",
     };
 
     HashSet<string> cited = new(StringComparer.Ordinal);
@@ -671,7 +675,7 @@ IEnumerable<Issue> CheckDemoCitations()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 11. Counts written into prose: "51 chapters", "464 questions", "362 Golden
+// 11. Counts written into prose: "53 chapters", "464 questions", "362 Golden
 //     rules". Every other check in this file compares two things that both
 //     move, so drift shows up as a mismatch. A number in a sentence has no
 //     other end to compare against — it is simply true on the day it is typed
@@ -915,7 +919,7 @@ IEnumerable<Issue> CheckProseCounts()
                     // Remember where this pattern matched. The scan below skips
                     // any number inside one of these spans: a specific pattern
                     // has already checked it, quite possibly against a different
-                    // quantity — "these twenty-eight chapters are not in it" is a
+                    // quantity — "these thirty chapters are not in it" is a
                     // claim about the advert-gap count, not about the site's 47.
                     owned.Add((path, m.Index, m.Index + m.Length));
 

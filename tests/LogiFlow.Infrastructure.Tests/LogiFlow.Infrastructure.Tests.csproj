@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\LogiFlow.Infrastructure\LogiFlow.Infrastructure.csproj" />
+    <!-- The commissioning tests drive the real dispatcher against the simulated floor. -->
+    <ProjectReference Include="..\..\src\LogiFlow.Wcs\LogiFlow.Wcs.csproj" />
   </ItemGroup>
 
   <ItemGroup>

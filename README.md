@@ -16,7 +16,7 @@ You need the .NET 10 SDK and SQL Server. Nothing else — no Docker, no Redis, n
 ```bash
 # 1. Build, and run the application's own test suites
 dotnet build
-dotnet test LogiFlow.slnf      # 234 tests, all green
+dotnet test LogiFlow.slnf      # 264 tests, all green
 
 # 2. Run the API (it creates, migrates and seeds its database on first start)
 cd src/LogiFlow.Api
@@ -128,17 +128,21 @@ src/
   LogiFlow.Infrastructure   EF Core, SQL Server, Redis, JWT, the outbox processor, the mailer.
   LogiFlow.Api              Minimal API endpoints, auth, error handling, observability.
   LogiFlow.Web              Blazor Web App (InteractiveServer). A CLIENT of the API, over HTTP.
+  LogiFlow.Wcs              The warehouse control system: the process that talks to the machines.
+                            A WORKER, not a web app — a WCS that dies when an app pool recycles
+                            is a stopped line. Runs a SIMULATED floor with no hardware at all.
   LogiFlow.Academy.Api      Accounts for the tutorial site, and its static host. Standalone:
                             references none of the layers above. SQLite by default, so it runs
                             with no database server and no configuration at all.
 
 tests/
-  LogiFlow.Domain.Tests         30 tests. No mocks, no database, milliseconds.
+  LogiFlow.Domain.Tests         56 tests. No mocks, no database, milliseconds.
   LogiFlow.Application.Tests    Handlers, with NSubstitute for I/O only.
   LogiFlow.Api.IntegrationTests Real HTTP against a real SQL Server, in a throwaway database.
                                 Also the versioning, SignalR and gRPC surfaces, end to end.
   LogiFlow.ArchitectureTests    Tests over the dependency graph. These keep the design honest.
-  LogiFlow.Infrastructure.Tests 41 tests. Retry policy, redirect guard, options validation, MIME.
+  LogiFlow.Infrastructure.Tests 45 tests. Retry policy, redirect guard, options validation, MIME,
+                                and the commissioning run: an hour of simulated warehouse.
   LogiFlow.Academy.Api.Tests    83 tests over the accounts service, on SQLite :memory:.
 
 tools/
@@ -150,15 +154,19 @@ tools/
 
 labs/
   Labs.Exercises    Graded exercises. 113 tests, currently RED. Make them green.
-  Labs.Playground   30 runnable demos — watch deferred execution, a lost update, a
+  Labs.Playground   34 runnable demos — watch deferred execution, a lost update, a
                     memory leak and the async deadlock actually happen.
   Labs.Benchmarks   BenchmarkDotNet. Every performance claim in the course is checkable.
   Labs.LoadTests    NBomber. The other half: what the SYSTEM does under concurrent load,
                     which is where connection pools and row contention live. Needs the
                     API running, so it is not in LogiFlow.slnf.
+  opc-ua.cs         A real OPC UA server and client, talking to each other offline with
+                    no hardware. A .NET 10 file-based app rather than a project, to keep
+                    the OPC Foundation stack out of the solution:
+                    `dotnet run labs/opc-ua.cs`.
 
 course/             The guided path through all of it. Start at course/README.md.
-                    28 modules, and 50 deeper chapters sitting beside them — one per topic,
+                    29 modules, and 57 deeper chapters sitting beside them — one per topic,
                     linked from a contents table at the top of each module. The `Covered in:`
                     comments throughout src/ and tests/ point straight at them, so reading a
                     class and reading its chapter are one gesture.
@@ -166,14 +174,14 @@ course/             The guided path through all of it. Start at course/README.md
                     course/LAWS-OF-CSHARP.md the same knowledge by concept, in twelve books.
                     course/SOLUTIONS.md      worked answers to the labs, with the reasoning.
 
-site/               A browsable W3Schools-style tutorial: 51 ordered chapters with a
-                    sidebar, built around one real .NET job advert — twenty-eight of them the advert
+site/               A browsable W3Schools-style tutorial: 53 ordered chapters with a
+                    sidebar, built around one real .NET job advert — thirty of them the advert
                     never mentions but the Modena/Bologna/Milano market keeps asking for,
                     including WinForms/WPF, industrial/MES, Business Central and the screening
                     test. Every idea explained twice — once simply, once the way you would
                     answer it in an interview. Open site/index.html. No build step.
 
-                    It also grades you: 464 questions, a test at the end of every chapter, a
+                    It also grades you: 498 questions, a test at the end of every chapter, a
                     spaced-repetition deck built from whatever you got wrong, a timed mock
                     exam, sticky notes, an Italian/English glossary, and one course-mastery
                     percentage that is three-quarters test score — so it cannot be moved by
@@ -198,7 +206,7 @@ site/               A browsable W3Schools-style tutorial: 51 ordered chapters wi
                     chapter 36: the GDPR line, CEFR levels, bullets that describe a result
                     rather than presence, at least one number, one page.
 
-                    The whole site works offline and installs as an app — all 51 chapters
+                    The whole site works offline and installs as an app — all 53 chapters
                     are precached on first visit. It never caches the accounts API, because
                     a cached "here is your profile" would be a lie with your progress on it.
 
@@ -247,10 +255,10 @@ in six commented files. See
    Reading that a race condition exists is a sentence; watching 600,000 increments disappear is
    the concept.
 6. **Read the module's golden rules** — the card at the end. If you cannot say why a rule is true,
-   that is the paragraph to go back to. All twenty-eight cards are collected in
+   that is the paragraph to go back to. All twenty-nine cards are collected in
    [`course/GOLDEN-RULES.md`](course/GOLDEN-RULES.md), and the same material organised by concept
    is in [`course/LAWS-OF-CSHARP.md`](course/LAWS-OF-CSHARP.md).
-7. **Say them back** — `site/viva.html` turns those same 362 rules into a drill that hides the
+7. **Say them back** — `site/viva.html` turns those same 378 rules into a drill that hides the
    answer until you have written or spoken yours, then schedules the ones you fumbled. Reading a
    card you agree with is the easiest thing in this repository to mistake for knowing it.
 
@@ -308,7 +316,7 @@ dotnet tool install --global dotnet-ef
 ```bash
 dotnet build                                   # whole solution, warnings are errors in src/
 
-dotnet test LogiFlow.slnf                      # every suite except the labs — 234 tests
+dotnet test LogiFlow.slnf                      # every suite except the labs — 264 tests
 dotnet test tests/LogiFlow.Domain.Tests        # fast feedback loop while working on rules
 dotnet test tests/LogiFlow.Academy.Api.Tests   # the accounts service — 83 tests, SQLite in-memory
 dotnet test labs/Labs.Exercises                # YOUR HOMEWORK — 113 tests, deliberately red
@@ -336,7 +344,7 @@ dotnet run --project labs/Labs.LoadTests
 # The whole application in containers - two API instances behind one Redis
 docker compose --profile app up -d --build
 
-cd labs/Labs.Playground && dotnet run          # list the 30 demos
+cd labs/Labs.Playground && dotnet run          # list the 34 demos
 cd labs/Labs.Benchmarks && dotnet run -c Release --filter '*Linq*'
 
 # Migrations

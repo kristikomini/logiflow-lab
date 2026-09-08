@@ -75,7 +75,7 @@ const SHELL = [
   "assets/auth-page.js",
 ];
 
-/* Every chapter, from the manifest. 51 files nobody has to list by hand. */
+/* Every chapter, from the manifest. 53 files nobody has to list by hand. */
 const CHAPTER_FILES = (self.CHAPTERS || []).map((c) => "chapters/" + c.id + ".html");
 
 /* Fetch one URL and store it under the URL WE ASKED FOR, as a fresh response.

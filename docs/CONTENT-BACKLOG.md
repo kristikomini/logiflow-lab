@@ -532,3 +532,19 @@ cluster in three places, and they are the same three every time:
 
 Gap 8 (JavaScript) sits outside those three: it is required by Posting B alone, but at the same
 level as C#.
+
+---
+
+## Postings E–I — industrial, intralogistics and automation, audited 2026-09-08
+
+The standing summary above covers postings A–D only. A fifth audit, of five machine-market
+postings around Modena and Reggio (System Logistics/Krones, E80 Group, Pulsar Industry, Infomotion,
+and one vision role), produced a gap large enough to need its own document rather than a section
+here:
+
+**→ [`INDUSTRIAL-TRACK-PLAN.md`](INDUSTRIAL-TRACK-PLAN.md)**
+
+The one-line version: `site/chapters/32-industrial-and-mes.html` covers the vocabulary well, the
+`course/` tree covers it not at all, and module 17 §3 row 8 says so in writing. It is the only
+topic in the repository a reader can read about but cannot run. The plan closes that with five
+`Labs.Playground` demos, a machine layer for LogiFlow, a new module 28, and site chapters 32b/32c.

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The warehouse control system: the process that talks to the machines.
+
+    It is a WORKER, not a web application, and that is a deliberate architectural decision
+    rather than a preference. A WCS that stops dispatching because IIS recycled an app pool
+    at 03:00 is a stopped line, with product backing up behind it and somebody phoning you.
+    Its lifetime must not be tied to anybody looking at a browser.
+
+        cd src/LogiFlow.Wcs
+        dotnet run
+
+    With no configuration it runs a simulated warehouse — no PLC, no hardware, no licence.
+    Point Automation:Modbus:Host at a real device and the same code drives that instead.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>LogiFlow.Wcs</RootNamespace>
+    <UserSecretsId>logiflow-wcs-dev-secrets</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogiFlow.Infrastructure\LogiFlow.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogiFlow.Infrastructure.Tests" />
+  </ItemGroup>
+
+</Project>

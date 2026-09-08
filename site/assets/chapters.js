@@ -338,6 +338,20 @@ const CHAPTERS = [
     extra: "Ads in Sassuolo, Fiorano Modenese, Bologna, Castel Bolognese and Ravenna ask for C#/.NET for automazione industriale and supervisioni. This is the region's actual economy, and almost no candidate prepares for it.",
   },
   {
+    n: "32b", id: "32b-talking-to-machines", part: PARTS[7],
+    title: "Talking to machines",
+    blurb: "Modbus by hand, what OPC UA buys, why polling loses, and who pays when you cannot keep up.",
+    tags: "modbus tcp register map holding register word order endianness opc ua node browse subscription monitored item sampling publishing deadband certificate mqtt sparkplug telemetry backpressure channel dropoldest source timestamp quality uncertain plc gateway siemens s7 ethernet ip",
+    extra: "System Logistics in Fiorano wants C#/.NET/T-SQL for warehouse supervision and traffic; a Modena SME wants C# with OPC-UA and Siemens PLCs. The stack is one you already have — this is the part that is missing, and it runs on a laptop with no hardware.",
+  },
+  {
+    n: "32c", id: "32c-wcs-traffic-and-commissioning", part: PARTS[7],
+    title: "Traffic, OEE and commissioning",
+    blurb: "Two AGVs and one aisle, the number on the wall, the recall query, and what the job is really like.",
+    tags: "wcs warehouse control system agv lgv traffic management zone allocation deadlock starvation fifo throughput oee availability performance quality teep micro-stop traceability genealogy recall lot batch commissioning collaudo cantiere trasferta fat sat simulation",
+    extra: "E80 Group advertises a .NET engineer for AGV traffic management with testing in simulation environments; System Logistics wants site work through to customer sign-off. This is the product those companies sell, and this repository has a working one.",
+  },
+  {
     n: "33", id: "33-business-central", part: PARTS[7],
     title: "Dynamics 365 Business Central and AL",
     blurb: "The gestionale track: AL objects, events over overrides, extensions, and API pages.",

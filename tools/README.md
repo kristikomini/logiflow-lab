@@ -25,7 +25,7 @@ what you want in a trimmed or AOT application anyway. `viva-deck.cs` shows the s
 
 Turns [`course/GOLDEN-RULES.md`](../course/GOLDEN-RULES.md) into
 [`site/assets/rules.js`](../site/assets/rules.js), the deck behind
-[`site/viva.html`](../site/viva.html) — 362 cards, one per Golden rule.
+[`site/viva.html`](../site/viva.html) — 378 cards, one per Golden rule.
 
 ```bash
 dotnet run tools/viva-deck.cs            # regenerate the deck
@@ -70,12 +70,12 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | `site/quiz-bank` | a `c:` index past the end of `a:` makes a question nobody can answer, and caps that chapter's mastery forever |
 | `site/quiz-ids` | ids are positional **and** are spaced-repetition keys — see below |
 | `viva/deck` | `rules.js` is generated; editing a card without rerunning the generator drills last month's wording |
-| `course/golden-rules` | `GOLDEN-RULES.md` is hand-synced from 28 module cards, and the viva is generated from the page, not the card |
+| `course/golden-rules` | `GOLDEN-RULES.md` is hand-synced from 29 module cards, and the viva is generated from the page, not the card |
 | `course/links` | the course is a hypertext; a dead link reads as a chapter that was never written |
 | `course/sections` | "module 13 section 2" survives a rename and dies on a renumber |
-| `code/covered-in` | 80 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
+| `code/covered-in` | 95 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
 | `labs/demos` | modules say `dotnet run race`; a renamed demo turns an instruction into a wrong one |
-| `docs/counts` | "51 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
+| `docs/counts` | "53 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
 | `site/chapter-count` | the mastery formula is written twice, and the two copies divide by different numbers the moment somebody adds a chapter |
 
 Errors set the exit code. Warnings do not, because a gate people learn to ignore is worse
