@@ -54,3 +54,7 @@ appsettings.*.Local.json
 ## macOS / Windows cruft
 .DS_Store
 Thumbs.db
+
+# Wrangler's local state and build cache. `wrangler deploy` writes here on every
+# run, and none of it belongs to anyone but this machine.
+.wrangler/
