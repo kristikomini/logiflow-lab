@@ -687,8 +687,59 @@
     paint();
   }
 
-  addButton();
-  if (state.status === "signed-in") setTimeout(function () { sync(false); }, 800);
+  /* ────────────────────────────────────────────────────────────────────────
+     SHOW THE ACCOUNT UI ONLY WHERE ACCOUNTS EXIST.
+
+     The site deploys two ways. With the Academy API in front of it, /api/health
+     answers and everything below works. As static assets — Cloudflare, Vercel,
+     Netlify, Pages — there is no API, /api/* is a 404, and the button was still
+     there: you could open the panel, type a password, and get "Request failed
+     (404)", which reads as a broken site rather than as a feature that is not
+     deployed here.
+
+     A button that cannot work is worse than no button, so it is not added until
+     /api/health answers.
+
+     TWO THINGS THIS MUST NOT GET WRONG
+
+     Anyone holding tokens has used accounts on this origin, so their button is
+     shown unconditionally — hiding it would strand them with no way to sign out
+     and no way to see whose progress the browser is holding. That check comes
+     first and never touches the network.
+
+     And the probe is remembered for the session, not forever. localStorage would
+     mean deploying the API later leaves the button hidden until the entry aged
+     out, and a single offline page load would hide it for everyone else.
+     sessionStorage costs one 404 per tab and is always at most one visit stale.
+     ──────────────────────────────────────────────────────────────────────── */
+  var K_PROBE = "logiflow.api.present";
+
+  function remember(v) {
+    try { sessionStorage.setItem(K_PROBE, v); } catch (e) { /* private mode */ }
+  }
+
+  function accountsAvailable() {
+    if (get(K_TOK) || get(K_REF)) return Promise.resolve(true);
+
+    var seen = "";
+    try { seen = sessionStorage.getItem(K_PROBE) || ""; } catch (e) { seen = ""; }
+    if (seen) return Promise.resolve(seen === "1");
+
+    /* A bare fetch, like health() below: /api/health is anonymous, and going
+       through api() would attach a token and try to refresh one that is not
+       there. The service worker passes /api/ straight to the network, so this
+       is never answered from a cache. */
+    return fetch(base() + "/api/health", { method: "GET" })
+      .then(function (res) { return res.ok; })
+      .catch(function () { return false; })
+      .then(function (ok) { remember(ok ? "1" : "0"); return ok; });
+  }
+
+  accountsAvailable().then(function (ok) {
+    if (!ok) return;
+    addButton();
+    if (state.status === "signed-in") setTimeout(function () { sync(false); }, 800);
+  });
 
   window.LFAccount = {
     state: state,

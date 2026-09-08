@@ -956,11 +956,53 @@
     A.sync(false);
   }
 
+  /* ────────────────────────────────────────────────────────────────────────
+     THESE FOUR PAGES ONLY WORK WHERE THE API IS DEPLOYED.
+
+     account.js hides the topbar button when /api/health does not answer, which
+     removes every link into these pages. It does not remove the pages: they are
+     precached by the service worker and somebody can still arrive on a bookmark
+     or by typing the address.
+
+     Arriving to a working-looking sign-in form that answers "Request failed
+     (404)" is the same wart moved one click along, so say plainly what is going
+     on instead. Not an error, because nothing is broken — this deployment
+     simply has no accounts, and the entire course works without them.
+
+     A signed-in visitor is never shown this, on the same reasoning as the button:
+     they need their way to sign out even when the server is unreachable.
+     ──────────────────────────────────────────────────────────────────────── */
+  function unavailableNotice(host) {
+    host.innerHTML =
+      '<div class="box note">' +
+        '<div class="box-title">Accounts are not part of this deployment</div>' +
+        "<p>This copy of the site is static files and nothing else, so there is no " +
+        "server to hold an account. Signing in, syncing to a second device and the " +
+        "leaderboard are the only things that need one.</p>" +
+        "<p><strong>Everything else already works, and is already saving.</strong> " +
+        "Every chapter, test, review session, exam and note is kept in this browser " +
+        "&mdash; you do not need an account to use any of it.</p>" +
+        '<p class="subtle">Running the Academy API yourself puts these pages back with ' +
+        "no change to the site: see " +
+        "<code>src/LogiFlow.Academy.Api</code>.</p>" +
+      "</div>";
+  }
+
+  /** Wrap a mount so it only renders where accounts exist. */
+  function guarded(mount) {
+    return function (host) {
+      if (!host) return;
+      if (A.state && A.state.user) { mount(host); return; }
+
+      A.health().then(function () { mount(host); }, function () { unavailableNotice(host); });
+    };
+  }
+
   window.LFAuthPage = {
-    mountSignIn: mountSignIn,
-    mountRegister: mountRegister,
-    mountReset: mountReset,
-    mountAccount: mountAccount,
+    mountSignIn: guarded(mountSignIn),
+    mountRegister: guarded(mountRegister),
+    mountReset: guarded(mountReset),
+    mountAccount: guarded(mountAccount),
     nextPage: nextPage,
     strength: strength,
     usernameProblem: usernameProblem,
