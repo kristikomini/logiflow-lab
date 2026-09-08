@@ -147,7 +147,7 @@ tests/
 
 tools/
   doctor.cs         Every cross-reference in the repository, checked in one command.
-                    Thirteen checks; the CI gate. `dotnet run tools/doctor.cs`
+                    Fourteen checks; the CI gate. `dotnet run tools/doctor.cs`
   viva-deck.cs      Regenerates the site's viva deck from course/GOLDEN-RULES.md.
                     A .NET 10 file-based app: no .csproj, not in the solution,
                     `dotnet run tools/viva-deck.cs`.

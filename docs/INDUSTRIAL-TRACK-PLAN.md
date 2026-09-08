@@ -143,7 +143,7 @@ New file `labs/Labs.Playground/Demos.Industrial.cs`, five entries appended to th
 Built as planned, and it runs. `dotnet run` in `src/LogiFlow.Wcs` starts a simulated warehouse —
 four vehicles, twelve zones, no hardware — and the heartbeat shows work moving. The full suite is
 green at **264 tests** (was 234), architecture tests included, so the Domain layer stayed
-dependency-free. `dotnet run tools/doctor.cs` is green on all thirteen checks.
+dependency-free. `dotnet run tools/doctor.cs` is green on every check.
 
 | | |
 |---|---|
@@ -220,7 +220,7 @@ failure the chapter is about.
 
 Written as planned: a README and all seven chapters, ~16,000 words, each chapter ending in its own
 rules list and every one of the five wave-1 demos now cited by name. `dotnet run tools/doctor.cs`
-is green on all thirteen checks **with no warnings** — the four `labs/demos` warnings wave 1 left
+is green on every check **with no warnings** — the four `labs/demos` warnings wave 1 left
 as a reminder are gone, which was the point.
 
 **Done alongside it, because wave 3 made the repo wrong without them** — these are wave-5 items
@@ -368,7 +368,7 @@ The steps that are easy to forget, in the order `tools/doctor.cs` will catch the
    `chapters`, `questions`, `modules` or `demos` — is read as a stale claim about the repository
    and fails the build. It is right to. The figures above are targets, not current state; this
    paragraph is the receipt, because the next person will hit it too.)*
-6. **`dotnet run tools/doctor.cs`** green on all thirteen checks. That is the definition of done.
+6. **`dotnet run tools/doctor.cs`** green on every check. That is the definition of done.
 
 ---
 

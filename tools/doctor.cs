@@ -3,7 +3,7 @@
 // doctor.cs — the repository's integrity check, in one command.
 //
 //   dotnet run tools/doctor.cs            run every check, report, exit 1 on error
-//   dotnet run tools/doctor.cs --update   rewrite tools/quiz-ids.lock, then run
+//   dotnet run tools/doctor.cs --update   rewrite the two lock files, then run
 //   dotnet run tools/doctor.cs --quiet    print only failures
 //
 // WHY THIS FILE EXISTS
@@ -62,6 +62,7 @@ bool quiet = args.Contains("--quiet", StringComparer.OrdinalIgnoreCase);
 string Site(params string[] p) => Path.Combine([repo, "site", .. p]);
 string Course(params string[] p) => Path.Combine([repo, "course", .. p]);
 string quizLock = Path.Combine(repo, "tools", "quiz-ids.lock");
+string swLock = Path.Combine(repo, "tools", "sw-cache.lock");
 
 if (!Directory.Exists(Course()) || !Directory.Exists(Site()))
 {
@@ -85,12 +86,16 @@ if (!Directory.Exists(Course()) || !Directory.Exists(Site()))
     ("docs/counts", CheckProseCounts),
     ("site/chapter-count", CheckChapterCount),
     ("site/code-dissection", CheckCodeDissection),
+    ("site/sw-cache", CheckServiceWorkerCache),
 ];
 
 if (update)
 {
     WriteQuizLock();
     Console.WriteLine($"wrote {Rel(quizLock)}");
+
+    WriteSwLock();
+    Console.WriteLine($"wrote {Rel(swLock)}");
 }
 
 Console.WriteLine();
@@ -1427,6 +1432,144 @@ IEnumerable<Issue> CheckCodeDissection()
             "Every code example carries one — inline comments for what a line does, and a " +
             ".dissect box under it for what each line IS");
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  14. The service worker's cache version, against what it actually precaches.
+//
+//      sw.js says, in capitals, BUMP THIS ON EVERY CONTENT CHANGE — and it is
+//      the one instruction in this repository that nothing enforced. It was
+//      forgotten the day chapters 32b and 32c were added, which is what this
+//      check exists because of.
+//
+//      WHAT ACTUALLY BREAKS, precisely, because it is narrower than the comment
+//      in sw.js suggests. The fetch handler is cache-first with a background
+//      refresh, so an EDIT to a file that is already cached self-heals: the
+//      visitor reads one stale copy and the next visit is current. That is
+//      annoying, not wrong, and it is not what this guards.
+//
+//      What never self-heals is the precached SET. CHAPTER_FILES is built at
+//      install time, and install only runs when the browser sees a byte-changed
+//      sw.js. Add a chapter without touching sw.js and the worker is never
+//      reinstalled, so the new page is never precached — the site goes on
+//      claiming every chapter works offline while two of them do not, with no
+//      error anywhere and nothing in CI to notice. The cache name is the
+//      intended signal that the set changed, so that is what is locked here.
+//
+//      A SHELL entry that does not exist is checked at the same time, because
+//      precache() logs a warning and carries on by design: a typo there is a
+//      file that is silently never cached, which is the same broken promise
+//      arriving by a different route.
+// ═════════════════════════════════════════════════════════════════════════════
+IEnumerable<Issue> CheckServiceWorkerCache()
+{
+    string swPath = Site("sw.js");
+    if (!File.Exists(swPath))
+    {
+        yield return Error("site/sw.js is missing");
+        yield break;
+    }
+
+    string sw = File.ReadAllText(swPath);
+
+    Match version = Regex.Match(sw, @"const CACHE = ""([^""]+)"";");
+    if (!version.Success)
+    {
+        yield return Error("could not find `const CACHE = \"...\"` in site/sw.js — this check is now blind");
+        yield break;
+    }
+
+    Match shell = Regex.Match(sw, @"const SHELL = \[(.*?)\];", RegexOptions.Singleline);
+    if (!shell.Success)
+    {
+        yield return Error("could not find the SHELL array in site/sw.js — this check is now blind");
+        yield break;
+    }
+
+    List<string> shellFiles = [.. Regex.Matches(shell.Groups[1].Value, @"""([^""]+)""").Select(m => m.Groups[1].Value)];
+
+    // "./" is the bare origin, which the host serves as index.html. Every other
+    // entry is a real file that must exist, or it is precached into a warning
+    // nobody reads.
+    foreach (string entry in shellFiles.Where(e => e != "./").Order(StringComparer.Ordinal))
+    {
+        if (!File.Exists(Site(entry.Split('/'))))
+        {
+            yield return Error($"site/sw.js precaches '{entry}', which does not exist — it will never be cached, and the offline claim is wrong by that one file");
+        }
+    }
+
+    string fingerprint = SwPrecacheFingerprint(shellFiles);
+
+    if (!File.Exists(swLock))
+    {
+        yield return Warn($"no {Rel(swLock)} yet — run `dotnet run tools/doctor.cs --update` to record today's precache set");
+        yield break;
+    }
+
+    string[] locked = [.. File.ReadAllLines(swLock).Where(l => l.Length > 0 && !l.StartsWith('#'))];
+    if (locked.Length == 0 || locked[0].Split('\t') is not [string lockedVersion, string lockedFingerprint])
+    {
+        yield return Error($"{Rel(swLock)} is not `<cache name>\\t<fingerprint>` — run --update");
+        yield break;
+    }
+
+    if (fingerprint == lockedFingerprint)
+    {
+        yield break;
+    }
+
+    if (version.Groups[1].Value == lockedVersion)
+    {
+        yield return Error(
+            $"the service worker precaches a different set of files than when '{lockedVersion}' was recorded, " +
+            "and CACHE was not bumped. Returning visitors keep the old set: any new page is missing from " +
+            "their offline copy, silently. Bump CACHE in site/sw.js, then run `dotnet run tools/doctor.cs --update`");
+        yield break;
+    }
+
+    yield return Warn(
+        $"the precache set changed and CACHE is now '{version.Groups[1].Value}' — run `dotnet run tools/doctor.cs --update` to record it");
+}
+
+// What the worker will precache: the shell it lists by hand, plus one page per
+// chapter from the manifest. Order-insensitive on purpose — moving a line in
+// SHELL changes nothing a visitor can observe, and a check that fired on it
+// would train people to bump the version for no reason, which is how a real
+// signal becomes noise.
+string SwPrecacheFingerprint(IEnumerable<string> shellFiles) =>
+    Sha12(string.Join(
+        '\n',
+        shellFiles
+            .Concat(ReadManifest().Select(c => $"chapters/{c.Id}.html"))
+            .Order(StringComparer.Ordinal)));
+
+void WriteSwLock()
+{
+    string sw = File.ReadAllText(Site("sw.js"));
+    string version = Regex.Match(sw, @"const CACHE = ""([^""]+)"";").Groups[1].Value;
+    List<string> shellFiles =
+    [
+        .. Regex.Matches(
+            Regex.Match(sw, @"const SHELL = \[(.*?)\];", RegexOptions.Singleline).Groups[1].Value,
+            @"""([^""]+)""").Select(m => m.Groups[1].Value),
+    ];
+
+    StringBuilder sb = new();
+    sb.AppendLine("# sw-cache.lock — what the service worker precached, and under which cache name.");
+    sb.AppendLine("#");
+    sb.AppendLine("# sw.js builds its precache list at INSTALL time, and install only runs when the");
+    sb.AppendLine("# browser sees a byte-changed sw.js. Add a chapter without bumping CACHE and the");
+    sb.AppendLine("# worker is never reinstalled, so returning visitors keep the old set and the");
+    sb.AppendLine("# site's offline claim quietly stops being true. The fingerprint below is the");
+    sb.AppendLine("# precached set; doctor.cs fails if it moves while CACHE stands still.");
+    sb.AppendLine("#");
+    sb.AppendLine("# Regenerate deliberately, after bumping CACHE — never to make a failure go away:");
+    sb.AppendLine("#   dotnet run tools/doctor.cs --update");
+    sb.AppendLine();
+    sb.Append(version).Append('\t').AppendLine(SwPrecacheFingerprint(shellFiles));
+
+    File.WriteAllText(swLock, sb.ToString());
 }
 
 // A link into the repository's own source, as an absolute GitHub URL.

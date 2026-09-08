@@ -957,7 +957,7 @@ weeks ago says nothing at all, to anybody, ever — and the reader who follows i
 repository is sloppy rather than that one line is.
 
 One command (`tools/doctor.cs`, a standalone file-based app deliberately outside the product's
-build graph so it can run on a machine with no database) runs **thirteen checks**:
+build graph so it can run on a machine with no database) runs **fourteen checks**:
 
 | Check | What it couples |
 |---|---|
@@ -1002,7 +1002,7 @@ weekly mutation-testing run.
 | Accounts API | **Rewrite in PHP** | The contract, schema and every decision in §5 transfer unchanged |
 | `course/` | **Rewrite entirely** | Same five-part module shape |
 | `src/` reference system | **Rewrite entirely** | §9.4 |
-| `tools/doctor.*` | **Rewrite in PHP** | Same thirteen checks; it should be a PHP script for the same reason the API is |
+| `tools/doctor.*` | **Rewrite in PHP** | Same fourteen checks; it should be a PHP script for the same reason the API is |
 | CI | **Adapt** | Same six failure modes |
 
 The single most valuable thing here is that **the entire learning engine is framework-free vanilla
@@ -1194,7 +1194,7 @@ Nine phases. Each ends with something that works.
    the test list in §5.6. Point the site at it; verify the two-device merge with two browsers.
 8. **Offline and install.** `sw.js`, `manifest.webmanifest`, and the discipline of bumping the
    cache name.
-9. **The gate.** The thirteen checks, the quiz-id lockfile, and CI. Do this **before** the content is
+9. **The gate.** The fourteen checks, the quiz-id lockfile, and CI. Do this **before** the content is
    finished, not after — its whole value is catching rot as it happens.
 
 The Italian layer, the glossary and the CV builder can be slotted in any time after phase 4.

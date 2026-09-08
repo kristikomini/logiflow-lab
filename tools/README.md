@@ -58,7 +58,7 @@ Academy host serves `site/` only, so `course/` is not reachable over HTTP either
 Every cross-reference in the repository, checked in one command.
 
 ```bash
-dotnet run tools/doctor.cs            # thirteen checks, exit 1 on any error
+dotnet run tools/doctor.cs            # fourteen checks, exit 1 on any error
 dotnet run tools/doctor.cs --quiet    # print only what failed
 dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 ```

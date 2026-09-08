@@ -1,0 +1,12 @@
+# sw-cache.lock — what the service worker precached, and under which cache name.
+#
+# sw.js builds its precache list at INSTALL time, and install only runs when the
+# browser sees a byte-changed sw.js. Add a chapter without bumping CACHE and the
+# worker is never reinstalled, so returning visitors keep the old set and the
+# site's offline claim quietly stops being true. The fingerprint below is the
+# precached set; doctor.cs fails if it moves while CACHE stands still.
+#
+# Regenerate deliberately, after bumping CACHE — never to make a failure go away:
+#   dotnet run tools/doctor.cs --update
+
+logiflow-academy-v9	54673f96287c
