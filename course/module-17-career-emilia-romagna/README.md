@@ -53,7 +53,7 @@ no benefit.
 
 ---
 
-## 2. The five employer archetypes
+## 2. The six employer archetypes
 
 You will be interviewing with one of these. They want different things and pay differently.
 
@@ -87,6 +87,22 @@ and the most realistic entry point if your Italian is weak.
 **5. Product companies and scale-ups.**
 Fewer, mostly Bologna. Fintech and credit data, e-commerce, logistics platforms, health tech.
 Best English, most modern stack, most competitive.
+
+**6. The intralogistics and machine-automation vendor.**
+System Logistics (Krones) in Fiorano Modenese, E80 Group in Viano, Modula in Reggio — and, separately
+from their internal IT, the software departments of the machine builders named in archetype 1. This
+one is easy to fold into 1 or 2 and it hires differently from both: what the company sells is a
+*system*, and your software is **part of the product**, shipping with the conveyors rather than
+supporting the people who bought them. Work is organised by **commessa**, so the calendar is project
+milestones rather than sprints, and the tail is long — a plant installed this year is yours to
+support for a decade. Expect **C#, SQL Server, WPF or WinForms, and a service that never stops**,
+plus genuine **trasferta**: weeks at the customer's **cantiere** through commissioning and sign-off.
+→ *They value:* somebody who writes maintainable C# *and* can stand next to an electrical engineer
+without either of them getting frustrated. Domain vocabulary counts for a lot here, because almost
+nobody applying has any.
+→ [Module 28](../module-28-industrial-and-ot/) is this archetype's technical half, and its
+chapter on [the job itself](../module-28-industrial-and-ot/07-the-job.md) is the working
+conditions — the part people accept without asking about.
 
 > **Verify, do not trust this list.** I am naming well-known companies in the area to show you the
 > *shape* of the market — I have not checked any individual company's current stack or openings.

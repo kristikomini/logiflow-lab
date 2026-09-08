@@ -247,9 +247,11 @@ paragraph refers to "§3's fifth row" by ordinal — so reordering the table sil
 cross-reference that `doctor.cs` does not check. The ranking argument is made in the cell's prose
 instead, which costs nothing and breaks nothing.
 
-**Still outstanding from wave 5:** only the sixth employer archetype in module 17 §2 — the
-intralogistics and machine-automation vendor, which currently hides inside archetypes 1 and 2 and
-hires differently from both. The `italiano.js` entries landed with wave 4, where they belonged.
+**Wave 5 is complete.** The `italiano.js` entries landed with wave 4, where they belonged, and the
+sixth employer archetype — the intralogistics and machine-automation vendor — is now in module 17
+§2. It is **appended as 6 rather than inserted** where it logically belongs, for the same reason
+§3's row 8 stayed at 8: line 274 of that module says *"target archetypes 4 and 5 from §2"*, and
+renumbering would silently break a cross-reference `doctor.cs` does not check.
 
 #### As originally planned
 
