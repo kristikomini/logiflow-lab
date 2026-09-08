@@ -1,0 +1,12 @@
+# ---------------------------------------------------------------------------
+# Language statistics.
+#
+# site/ is the 82-chapter course that ships alongside the platform. It is
+# ~2.9 MB of generated HTML, which outweighs the 1.7 MB of C# under src/ and
+# made GitHub label this repository "HTML" - so the .NET work was invisible in
+# the language bar and in language-filtered search.
+#
+# linguist-documentation keeps the course in the repository and in the diff,
+# but leaves it out of the language stats. src/ then reports as what it is.
+# ---------------------------------------------------------------------------
+site/** linguist-documentation
