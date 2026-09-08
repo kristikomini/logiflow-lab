@@ -174,12 +174,7 @@ their transport orders rather than inventing completions.
   deadlock. The fix and its test were **removed**. Keeping defensive machinery for a failure that
   cannot happen is how a codebase accumulates code nobody dares delete.
 
-**What was deliberately not built, and why:** no persistence. The fleet, the orders and the zone
-table live in memory. That is honest for a demonstration, wrong for a plant — and worth knowing
-that a database is the *easy* half of the restart problem. The hard half is
-`ZoneAllocator.RebuildFromFloor`: after a crash the vehicles are physically where they are, and an
-allocator that comes back from a table it wrote before it died will route a second vehicle into an
-occupied aisle. That method exists and is tested; the storage behind it is wave 2b.
+**What was deliberately not built at the time:** persistence. That became **wave 2b**, below.
 
 #### As originally planned
 
@@ -388,19 +383,20 @@ Worth writing into the module preface, because the restraint is the credibility:
 
 ---
 
-## 6. Decisions I need from you
+## 6. Decisions, and how they were settled
 
 1. ~~**OPC UA — real dependency or simulated?**~~ **Settled by wave 1: real, in a file-based app.**
    The certificate fear was unfounded — it self-signs silently on first run — and nothing it does
    can break `dotnet build`, because it is not in the solution. See the wave-1 note above.
-2. **Does `src/` change, or does this all live in `labs/`?** Wave 2 as written adds a project to the
-   real application. That is what makes it a portfolio piece — and it also means the machine layer
-   has to meet the same bar as the rest of `src/` (every non-obvious decision commented where it was
-   made, tests, no dead code). *Recommendation:* yes, do it, but as `LogiFlow.Wcs` (a worker), not
-   as additions scattered through `LogiFlow.Api`.
-3. **32b only, or 32b + 32c?** 32b alone closes the "can't run it" gap. 32c is what makes an
-   interviewer at System Logistics sit up. *Recommendation:* both, sequenced — 32b in the first
-   pass, 32c after wave 2's code exists to cite.
+2. ~~**Does `src/` change, or does this all live in `labs/`?**~~ **Settled by wave 2: `src/` changed.**
+   The machine layer went in as `LogiFlow.Wcs`, a worker beside the API rather than additions
+   scattered through it, and it met the same bar as the rest of `src/` — 26 tests, and the
+   architecture tests still pass, so the Domain stayed dependency-free.
+3. ~~**32b only, or 32b + 32c?**~~ **Settled by wave 4: both**, in one pass rather than two. The
+   sequencing worry was unfounded because wave 2 landed before wave 4, so 32c had real code to
+   cite by the time it was written.
+
+**Nothing in this document is open.** What remains is listed under §9.
 
 ---
 
@@ -445,6 +441,57 @@ as much as wave 2.
 
 ---
 
+## 9. What remains
+
+All five waves are done and nothing in §4 is outstanding. What is left is follow-up work, in the
+order it is worth doing.
+
+**1. Two adverts that cannot be verified — the only item with a cost outside this repository.**
+See the note at the end of §Sources. Postings B (E80 Group) and E (the vision role) were never
+read: their pages 404 and bot-block respectively, and both were re-checked in a real browser.
+Everything attributed to them is a job-board summary. The prose has been softened to say so, but
+if a live posting turns up, check it against what module 28 and site chapter 32c claim.
+
+**2. ~~Persistence for the WCS — wave 2b.~~ Done 2026-09-08.** Transport orders are stored; the
+fleet and the zone table deliberately are not. Verified against a real SQL Server rather than only
+in tests: the worker wrote 11 pending / 1 assigned / 13 completed, was restarted, and reported
+*"Restored 11 pending order(s); abandoned 1 that were in flight"*.
+
+**The restart rule is the part worth reading.** A pending order resumes; an assigned one is
+**cancelled**. The database knows where a load unit was *going* and only the floor knows where it
+*is*, so resuming an in-flight order is how a system confidently drives to collect a pallet that is
+not there. Same reasoning as `ZoneAllocator.RebuildFromFloor`, which is still the half a database
+does not solve.
+
+**Three things running it caught that the tests could not.**
+
+- `AddInfrastructure` registers `OutboxProcessor` as a hosted service, so a WCS that called it
+  would publish every queued message twice — one outbox, two processes. Infrastructure gained a
+  narrower `AddLogiFlowDatabase` entry point, and the trap is now documented on it.
+- The DbContext is built with the domain-event interceptor, which resolves `IDispatcher` on every
+  `SaveChanges`. The worker started fine and threw on the first write, because a unit test with an
+  in-memory store never touches that path.
+- EF generated `RowVersion` as `varbinary(max)` rather than a real `rowversion`, because every
+  other aggregate declares `IsRowVersion()` in its own configuration and this one had not. Silently
+  no optimistic concurrency, on the one aggregate two overlapping processes write during a deploy.
+
+**And one deliberate weakness, stated rather than hidden:** the persister writes off the dispatch
+loop, so a crash can lose up to a second of order-state changes. Putting the write inside the loop
+would put a network call on the critical path of a warehouse. If that trade ever stops being
+acceptable the answer is to write *ahead* of the command, in the shape of the outbox in module 06 —
+not to move the save into the loop.
+
+**3. ~~Deployment drifts silently.~~ Closed.** `.github/workflows/deploy-site.yml` now deploys on
+any push to `main` that touches `site/`, and runs `doctor.cs` first so a forgotten cache bump
+cannot ship. It **skips rather than fails** while `CLOUDFLARE_API_TOKEN` is unset, because a red
+cross on every push trains people to ignore red crosses. Add that secret to turn it on; until then
+`npx wrangler deploy` is still the way it ships, and site/README.md says so.
+
+**4. Nothing else.** §6 is closed, wave 5 is complete, and `dotnet run tools/doctor.cs` is green
+on every check.
+
+---
+
 ## Sources
 
 Job-market evidence gathered 2026-09-08. Aggregator pages change; re-check before relying on any
@@ -464,6 +511,16 @@ individual figure or advert.
 - [Warehouse control system (Wikipedia)](https://en.wikipedia.org/wiki/Warehouse_control_system)
 - [OPC Unified Architecture (Wikipedia)](https://en.wikipedia.org/wiki/OPC_Unified_Architecture)
 
-**Two sources I could not open.** The two ELETTRIC80 advert pages and the ModenaToday advert return
-403 to an automated fetch; their content above comes from search-result extracts, not from the pages
-themselves. Open them in a browser before treating any detail as verbatim.
+**Three sources that could not be verified, re-checked 2026-09-08 in a real browser.** The outcome
+is worse than "403 to an automated fetch", which is what this note said before:
+
+- Both **ELETTRIC80** advert URLs now return **404** — the postings are gone, or the ATS rotated
+  the links. [E80's own careers page](https://www.e80group.com/en/careers) carries no listings.
+- The **ModenaToday** advert **403s a browser too**, not just a fetch — it is bot-protected.
+
+So everything attributed to postings B and E comes from **job-board search extracts**, and no
+page was ever read. Posting A (System Logistics, via cercolavoro) *was* fetched and its Italian is
+verbatim; postings C and D are aggregator summaries. The wording in module 28 and site chapter 32c
+has been softened accordingly: the E80 material is now presented as the shape of the role rather
+than as their words. **Do not quote B or E in an interview or a cover letter** without finding a
+live posting first.

@@ -593,7 +593,7 @@ IEnumerable<Issue> CheckSectionReferences()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  9. `Covered in: course/module-.../file.md` — 95 of them at the last count.
+//  9. `Covered in: course/module-.../file.md` — 100 of them at the last count.
 //     These are the reason reading a class and reading its chapter is one
 //     gesture, and a dead one costs exactly that.
 // ═════════════════════════════════════════════════════════════════════════════

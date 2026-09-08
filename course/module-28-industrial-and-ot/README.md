@@ -149,7 +149,8 @@ twice. Write for that reader.
 line, it is making product, and you may have it for four hours on a Sunday. This is why
 *simulation* is a first-class engineering activity here rather than a nice-to-have — a simulator
 you can run a thousand times is the only way to be confident before the four hours start. It is
-also, conveniently, exactly what an interviewer means by "testing in simulation environments".
+also, conveniently, what an intralogistics interviewer means when they ask about testing against
+a simulation rather than against the plant.
 
 **Nobody times out.** In a web system a stuck request eventually fails and something retries. Two
 AGVs nose to nose in an aisle will still be there in the morning. Deadlock is not an exception to

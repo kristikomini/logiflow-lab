@@ -73,7 +73,7 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | `course/golden-rules` | `GOLDEN-RULES.md` is hand-synced from 29 module cards, and the viva is generated from the page, not the card |
 | `course/links` | the course is a hypertext; a dead link reads as a chapter that was never written |
 | `course/sections` | "module 13 section 2" survives a rename and dies on a renumber |
-| `code/covered-in` | 95 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
+| `code/covered-in` | 100 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
 | `labs/demos` | modules say `dotnet run race`; a renamed demo turns an instruction into a wrong one |
 | `docs/counts` | "53 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
 | `site/chapter-count` | the mastery formula is written twice, and the two copies divide by different numbers the moment somebody adds a chapter |

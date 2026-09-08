@@ -1,3 +1,5 @@
+using LogiFlow.Application;
+using LogiFlow.Infrastructure;
 using LogiFlow.Infrastructure.Automation;
 using LogiFlow.Wcs;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,10 +30,26 @@ using Microsoft.Extensions.Hosting;
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddAutomation(builder.Configuration);
+// The database, and ONLY the database. AddInfrastructure would also start the outbox
+// processor here, and two processes draining one outbox publishes everything twice.
+builder.Services.AddLogiFlowDatabase(builder.Configuration);
 
-// Order matters only for readability; both are hosted services and start concurrently. The
-// dispatcher subscribes before the driver ticks, so nothing is missed either way.
-builder.Services.AddHostedService<TransportDispatcher>();
+// The Application layer comes with it, and not for tidiness: the DbContext is built with the
+// domain-event interceptor, which resolves IDispatcher on every SaveChanges. Without this the
+// worker starts, dispatches happily, and then throws on the first write — which is exactly what
+// it did, because a unit test with an in-memory store never touches that path. Registers no
+// hosted services of its own, so nothing here runs twice.
+builder.Services.AddApplication();
+
+// The dispatcher is registered as a singleton AND as a hosted service, deliberately: the
+// persister needs the same instance, and AddHostedService<T>() on its own would construct a
+// second one that shares nothing.
+builder.Services.AddSingleton<TransportDispatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TransportDispatcher>());
+
+// Order matters only for readability; all three start concurrently. The dispatcher subscribes
+// before the driver ticks, so nothing is missed either way.
+builder.Services.AddHostedService<TransportOrderPersister>();
 builder.Services.AddHostedService<SimulationDriver>();
 
 await builder.Build().RunAsync();

@@ -370,6 +370,35 @@ in `ProfileSummary.From` and `ProfileSummaryTests` is what notices:
 dotnet test tests/LogiFlow.Academy.Api.Tests
 ```
 
+## Publishing it
+
+The site is Cloudflare Workers static assets, configured in
+[`wrangler.jsonc`](../wrangler.jsonc) at the repository root, and served at
+<https://csharp.testdemo.it> with <https://csharp-academy.krsiti-komini.workers.dev> as a
+fallback.
+
+```bash
+npx wrangler deploy
+```
+
+**Merging to `main` used to publish nothing**, and that is worth stating plainly because it
+caught this repository out: a merge is the moment everybody assumes a static site has
+shipped, so `main` sat ahead of the live site and nothing said so. It was noticed only
+because somebody opened the URL and counted the chapters.
+
+[`.github/workflows/deploy-site.yml`](../.github/workflows/deploy-site.yml) now runs the
+deploy on any push to `main` that touches `site/`. It needs a `CLOUDFLARE_API_TOKEN` repository
+secret, and **skips rather than fails when that secret is absent** — a red cross on every push
+would train people to ignore red crosses, which is worse than the problem it solves. Until the
+secret exists the command above is still the way it ships, and the workflow summary says so on
+every run.
+
+**Bump `CACHE` in [`sw.js`](sw.js) whenever the set of precached files changes.** The service
+worker builds its precache list at install time, and install only runs when the browser sees a
+byte-changed `sw.js` — so adding a chapter without bumping it leaves returning visitors with the
+old set and an offline claim that is quietly false. `dotnet run tools/doctor.cs` checks this
+(`site/sw-cache`), and `tools/sw-cache.lock` records the set it was last bumped for.
+
 ## Relationship to the rest of the repository
 
 This site is the **tutorial** layer: it explains a topic well enough to hold a

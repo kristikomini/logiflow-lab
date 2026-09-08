@@ -26,19 +26,26 @@ namespace LogiFlow.Wcs;
 /// That is what keeps the whole state machine single-threaded without making the gateway wait.
 /// </para>
 /// <para>
-/// <b>What this deliberately does not do.</b> Nothing here is persisted: the fleet, the orders and
-/// the zone table live in memory for the life of the process. That is honest for a demonstration
-/// and wrong for a plant — though note that a database is the easy half of the restart problem.
-/// See <see cref="ZoneAllocator.RebuildFromFloor"/> for the hard half, which no amount of
-/// persistence solves.
+/// <b>What survives a restart, and what deliberately does not.</b> Transport orders are stored,
+/// because somebody asked for them and is waiting for the answer. The fleet is not — it comes from
+/// the gateway's commissioning data. Zone occupancy is not, and must not be: after a crash the
+/// vehicles are physically where they are, so the allocator rebuilds from what the floor reports
+/// rather than from anything this process last wrote. See
+/// <see cref="ZoneAllocator.RebuildFromFloor"/>, which is the half a database does not solve.
+/// </para>
+/// <para>
+/// <b>And an order that was in flight does not survive either</b> — see <see cref="Restore"/>. It
+/// is the one restart rule worth reading twice.
 /// </para>
 /// Covered in: <c>course/module-28-industrial-and-ot/04-traffic-and-deadlock.md</c>
 /// </remarks>
 /// <param name="gateway">The machine layer.</param>
+/// <param name="store">Durable storage for the orders. Scope-per-call; see ScopedTransportOrderStore.</param>
 /// <param name="timeProvider">The clock.</param>
 /// <param name="logger">Logger.</param>
 public sealed class TransportDispatcher(
     IEquipmentGateway gateway,
+    ITransportOrderStore store,
     TimeProvider timeProvider,
     ILogger<TransportDispatcher> logger) : BackgroundService
 {
@@ -58,6 +65,12 @@ public sealed class TransportDispatcher(
 
     private readonly ConcurrentQueue<TelemetrySample> _inbox = new();
     private readonly ConcurrentQueue<EquipmentId> _refused = new();
+
+    /* Orders whose state has moved since the last save. A set rather than a queue: an order can
+       change twice in one pass — created, then assigned — and writing it twice would be two round
+       trips for one row. Guarded by its own lock because the persister drains it off the loop. */
+    private readonly HashSet<TransportOrder> _dirty = [];
+    private readonly Lock _dirtyLock = new();
     private readonly Dictionary<EquipmentId, Equipment> _fleet = [];
     private readonly Dictionary<EquipmentId, TransportOrder> _inFlight = [];
     private readonly Dictionary<EquipmentId, TransportOrder> _awaitingRoute = [];
@@ -95,6 +108,19 @@ public sealed class TransportDispatcher(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Start();
+
+        try
+        {
+            Restore(await store.LoadOpenAsync(stoppingToken).ConfigureAwait(false), timeProvider.GetUtcNow());
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            /* A WCS that will not start because a database is unreachable is a warehouse that
+               cannot move a pallet, and the pallets are the point. Losing the backlog is bad;
+               refusing to dispatch anything at all is worse, so this degrades to an empty queue
+               and says so loudly rather than taking the host down with it. */
+            logger.LogError(e, "Could not restore transport orders; starting with an empty queue");
+        }
 
         Task reader = Task.Run(() => ReadTelemetryAsync(stoppingToken), stoppingToken);
 
@@ -146,6 +172,80 @@ public sealed class TransportDispatcher(
             : [.. Enumerable.Range(1, 12).Select(i => $"Z{i:00}")];
 
         logger.LogInformation("WCS ready: {Vehicles} vehicles across {Zones} zones", _fleet.Count, _zones.Length);
+    }
+
+    /// <summary>
+    /// Takes back the orders that were open when this process last stopped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A pending order resumes; an assigned one is cancelled.</b> That asymmetry is the whole
+    /// rule, and it is not pessimism. An order that was <see cref="TransportOrderStatus.Assigned"/>
+    /// was being executed by a vehicle that has since stopped wherever it stopped — mid-aisle, at
+    /// a station, or somewhere a person has already moved the pallet from. The database knows
+    /// where the load unit was <i>going</i>; only the floor knows where it <i>is</i>. Resuming on
+    /// the strength of the first is how a system confidently drives to collect a pallet that is
+    /// not there.
+    /// </para>
+    /// <para>
+    /// So the honest outcome is a cancellation, which is a visible fact somebody can act on, and a
+    /// new order raised from the load unit's actual position once it is known. The same reasoning
+    /// as <see cref="TransportOrder.Cancel"/>: cancelling is not an undo.
+    /// </para>
+    /// </remarks>
+    /// <param name="open">Orders that had not finished, oldest first.</param>
+    /// <param name="nowUtc">The current instant.</param>
+    public void Restore(IReadOnlyList<TransportOrder> open, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+
+        int resumed = 0, abandoned = 0;
+
+        foreach (TransportOrder order in open)
+        {
+            if (order.Status == TransportOrderStatus.Pending)
+            {
+                _pending.Enqueue(order);
+                resumed++;
+                continue;
+            }
+
+            if (order.Cancel(nowUtc).IsSuccess)
+            {
+                MarkDirty(order);
+                _cancelled++;
+                abandoned++;
+            }
+        }
+
+        logger.LogInformation(
+            "Restored {Resumed} pending order(s); abandoned {Abandoned} that were in flight when the process stopped",
+            resumed,
+            abandoned);
+    }
+
+    /// <summary>Takes the orders that have changed since the last call, for the persister.</summary>
+    public IReadOnlyCollection<TransportOrder> DrainDirty()
+    {
+        lock (_dirtyLock)
+        {
+            if (_dirty.Count == 0)
+            {
+                return [];
+            }
+
+            TransportOrder[] batch = [.. _dirty];
+            _dirty.Clear();
+            return batch;
+        }
+    }
+
+    private void MarkDirty(TransportOrder order)
+    {
+        lock (_dirtyLock)
+        {
+            _dirty.Add(order);
+        }
     }
 
     /// <summary>
@@ -240,6 +340,7 @@ public sealed class TransportDispatcher(
                 // or busy, so the load unit is not where the order assumed — the same reasoning as
                 // RecoverFaults. A new order has to be raised from the pallet's actual position.
                 order.Cancel(now);
+                MarkDirty(order);
                 _cancelled++;
             }
 
@@ -315,6 +416,7 @@ public sealed class TransportDispatcher(
 
         if (order.Complete(atUtc).IsSuccess)
         {
+            MarkDirty(order);
             _completed++;
         }
 
@@ -343,6 +445,7 @@ public sealed class TransportDispatcher(
                 || _awaitingRoute.Remove(id, out interrupted))
             {
                 interrupted.Cancel(now);
+                MarkDirty(interrupted);
                 _cancelled++;
             }
 
@@ -367,6 +470,7 @@ public sealed class TransportDispatcher(
                 .TryGetValue(out TransportOrder? order))
             {
                 _pending.Enqueue(order);
+                MarkDirty(order);
             }
         }
     }
@@ -430,6 +534,7 @@ public sealed class TransportDispatcher(
         }
 
         _inFlight[id] = order;
+        MarkDirty(order);
 
         // Fire and forget is correct here and nowhere else: the acknowledgement means "I have the
         // instruction", and the outcome arrives on the telemetry stream. Awaiting it would block

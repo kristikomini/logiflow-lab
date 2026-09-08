@@ -1,0 +1,106 @@
+# =============================================================================
+# deploy-site.yml — publish site/ to Cloudflare Workers static assets.
+#
+# WHY THIS EXISTS
+# The study site went out by hand, with `npx wrangler deploy`, and nothing
+# anywhere said so. The consequence is the one you would predict: main moved
+# ahead of the deployed site and stayed there, silently, because a merge is the
+# moment everybody assumes a static site has shipped. It was noticed only
+# because somebody went and looked at the live URL.
+#
+# WHAT IT DEPLOYS
+# The study site ONLY. LogiFlow.Academy.Api is not part of this and is not
+# reachable from it, so sign-in and the leaderboard stay unavailable there —
+# see the note at the top of wrangler.jsonc. Everything else works, because
+# store.js keeps the whole profile in localStorage.
+#
+# THE SECRET, AND WHY THE JOB IS GUARDED
+# Deploying needs CLOUDFLARE_API_TOKEN, and until somebody adds it this
+# workflow would put a red cross on every push to main — which trains people to
+# ignore red crosses, which is worse than the problem it was solving. So the
+# job is skipped when the secret is absent rather than failed, and the summary
+# below says which of the two happened.
+#
+# Covered in: course/module-13-deployment/README.md
+# =============================================================================
+
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    # The service worker precaches from the manifest, so a chapter change is a
+    # site change even when no file under site/chapters/ moved.
+    paths:
+      - "site/**"
+      - "wrangler.jsonc"
+      - ".github/workflows/deploy-site.yml"
+  workflow_dispatch:
+
+# One deploy at a time, and never cancel one halfway: a partial upload to the
+# assets store is a site serving a mix of two versions.
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the deploy credential exists
+        id: guard
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Site not deployed"
+              echo
+              echo 'No `CLOUDFLARE_API_TOKEN` secret is set, so this run skipped the deploy'
+              echo 'rather than failing. The site is still published by hand:'
+              echo
+              echo '```bash'
+              echo 'npx wrangler deploy'
+              echo '```'
+              echo
+              echo 'Add the secret in Settings → Secrets and variables → Actions to turn this on.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A stale service worker is the failure mode this repository has already
+      # had once: chapters were added, CACHE was not bumped, and returning
+      # visitors would have kept the old set with no error anywhere. doctor.cs
+      # checks it now, and it runs here too, because the deploy is the last
+      # moment it can be caught.
+      - uses: actions/setup-dotnet@v4
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Cross-references and the service-worker cache
+        if: steps.guard.outputs.ready == 'true'
+        run: dotnet run tools/doctor.cs
+
+      - name: Deploy
+        if: steps.guard.outputs.ready == 'true'
+        run: npx --yes wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Say what is live
+        if: steps.guard.outputs.ready == 'true'
+        run: |
+          {
+            echo "### Site deployed"
+            echo
+            echo "- <https://csharp.testdemo.it>"
+            echo "- <https://csharp-academy.krsiti-komini.workers.dev>"
+          } >> "$GITHUB_STEP_SUMMARY"

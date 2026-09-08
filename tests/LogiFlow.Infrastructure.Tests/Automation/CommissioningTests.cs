@@ -1,3 +1,4 @@
+using LogiFlow.Application.Abstractions.Automation;
 using LogiFlow.Domain.Automation;
 using LogiFlow.Infrastructure.Automation;
 using LogiFlow.Wcs;
@@ -112,6 +113,81 @@ public sealed class CommissioningTests
         dispatcher.AllocationJournal.ShouldContain(entry => entry.Action == "released");
     }
 
+    [Fact]
+    public void Restore_ResumesPendingOrdersAndAbandonsInFlightOnes()
+    {
+        // The asymmetry is the whole restart rule. A pending order is a request nobody has acted
+        // on, so it resumes untouched. An assigned one was being carried by a vehicle that has
+        // since stopped wherever it stopped — the database knows where the load unit was GOING,
+        // and only the floor knows where it IS. Resuming on the strength of the first is how a
+        // system confidently drives to collect a pallet that is not there.
+        (TransportDispatcher dispatcher, _, ManualClock clock) = Warehouse();
+
+        TransportOrder waiting = TransportOrder.Create("UDC-1", "Z01", "Z05", clock.GetUtcNow()).Value;
+
+        TransportOrder inFlight = TransportOrder.Create("UDC-2", "Z02", "Z09", clock.GetUtcNow()).Value;
+        Equipment vehicle = Equipment.Register("LGV-01", EquipmentKind.Agv, clock.GetUtcNow()).Value;
+        inFlight.AssignTo(vehicle, clock.GetUtcNow()).IsSuccess.ShouldBeTrue();
+
+        int cancelledBefore = dispatcher.Cancelled;
+
+        dispatcher.Restore([waiting, inFlight], clock.GetUtcNow());
+
+        waiting.Status.ShouldBe(TransportOrderStatus.Pending);
+        inFlight.Status.ShouldBe(TransportOrderStatus.Cancelled);
+        dispatcher.Cancelled.ShouldBe(cancelledBefore + 1);
+    }
+
+    [Fact]
+    public void Restore_QueuesTheResumedWorkRatherThanDroppingIt()
+    {
+        // Cancelling the in-flight one is only defensible if the pending one really does come
+        // back — otherwise a restart quietly loses the backlog, which is the failure a store
+        // exists to prevent in the first place.
+        (TransportDispatcher dispatcher, SimulatedPlcGateway floor, ManualClock clock) = Warehouse();
+
+        TransportOrder waiting = TransportOrder.Create("UDC-3", "Z01", "Z05", clock.GetUtcNow()).Value;
+        dispatcher.Restore([waiting], clock.GetUtcNow());
+
+        for (int pass = 0; pass < 200; pass++)
+        {
+            RunOnePass(dispatcher, floor, clock);
+        }
+
+        waiting.Status.ShouldNotBe(TransportOrderStatus.Pending);
+    }
+
+    [Fact]
+    public void DrainDirty_ReportsEachChangedOrderOnce()
+    {
+        // The persister writes what this returns, so an order that changed twice in one pass must
+        // not become two round trips for one row — and one that changed must not be missed.
+        (TransportDispatcher dispatcher, SimulatedPlcGateway floor, ManualClock clock) = Warehouse();
+
+        for (int pass = 0; pass < 50; pass++)
+        {
+            RunOnePass(dispatcher, floor, clock);
+        }
+
+        IReadOnlyCollection<TransportOrder> batch = dispatcher.DrainDirty();
+
+        batch.ShouldNotBeEmpty();
+        batch.Select(o => o.Id).Distinct().Count().ShouldBe(batch.Count);
+
+        // Drained means drained: a second call must not rewrite the same rows.
+        dispatcher.DrainDirty().ShouldBeEmpty();
+    }
+
+    /// <summary>A store that keeps nothing, for the tests that are not about storage.</summary>
+    private sealed class InMemoryTransportOrderStore : ITransportOrderStore
+    {
+        public Task<IReadOnlyList<TransportOrder>> LoadOpenAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<TransportOrder>>([]);
+
+        public Task SaveAsync(IReadOnlyCollection<TransportOrder> orders, CancellationToken ct) =>
+            Task.CompletedTask;
+    }
+
     private static (TransportDispatcher Dispatcher, SimulatedPlcGateway Floor, ManualClock Clock) Warehouse()
     {
         ManualClock clock = new(new DateTimeOffset(2026, 9, 8, 6, 0, 0, TimeSpan.Zero));
@@ -121,7 +197,8 @@ public sealed class CommissioningTests
             clock,
             NullLogger<SimulatedPlcGateway>.Instance);
 
-        TransportDispatcher dispatcher = new(floor, clock, NullLogger<TransportDispatcher>.Instance);
+        TransportDispatcher dispatcher = new(
+            floor, new InMemoryTransportOrderStore(), clock, NullLogger<TransportDispatcher>.Instance);
         dispatcher.Start();
 
         return (dispatcher, floor, clock);

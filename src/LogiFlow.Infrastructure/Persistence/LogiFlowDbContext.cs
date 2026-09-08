@@ -1,4 +1,5 @@
 using System.Reflection;
+using LogiFlow.Domain.Automation;
 using LogiFlow.Domain.Catalog;
 using LogiFlow.Domain.Customers;
 using LogiFlow.Domain.Inventory;
@@ -53,6 +54,17 @@ public sealed class LogiFlowDbContext(DbContextOptions<LogiFlowDbContext> option
 
     /// <summary>Shipments.</summary>
     public DbSet<Shipment> Shipments => Set<Shipment>();
+
+    /// <summary>
+    /// Work for the warehouse control system: move this load unit from A to B.
+    /// </summary>
+    /// <remarks>
+    /// The only thing the machine layer persists. Equipment is commissioning data owned by the
+    /// gateway, machine state is telemetry on a cheaper path, and zone occupancy must be rebuilt
+    /// from the floor after a restart rather than read back from here — see
+    /// <c>ZoneAllocator.RebuildFromFloor</c> for why that one is not a storage problem.
+    /// </remarks>
+    public DbSet<TransportOrder> TransportOrders => Set<TransportOrder>();
 
     /// <summary>Messages awaiting publication. See <see cref="OutboxMessage"/>.</summary>
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();

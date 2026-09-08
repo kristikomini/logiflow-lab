@@ -44,6 +44,42 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// Registers the database and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>For a process that needs the data but is not the application</b> — the warehouse control
+    /// system in <c>LogiFlow.Wcs</c>. It deliberately does not call
+    /// <see cref="AddInfrastructure"/>, because that also registers
+    /// <c>OutboxProcessor</c> as a hosted service: a second process running it would publish every
+    /// queued message twice, which is the "a nightly job in a service that now runs three
+    /// replicas" problem with the replicas being different applications.
+    /// </para>
+    /// <para>
+    /// Adding a hosted service inside a general-purpose <c>AddX</c> is what makes this a trap in
+    /// the first place. It is worth knowing that a container registration can start a background
+    /// worker you did not ask for.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The container.</param>
+    /// <param name="configuration">Application configuration; supplies the SqlServer connection string.</param>
+    public static IServiceCollection AddLogiFlowDatabase(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        string connectionString = configuration.GetConnectionString("SqlServer")
+            ?? throw new InvalidOperationException(
+                "Connection string 'SqlServer' is missing. Set it in appsettings.json, an "
+                + "environment variable (ConnectionStrings__SqlServer), or user-secrets.");
+
+        AddPersistence(services, connectionString);
+        return services;
+    }
+
     private static void AddPersistence(IServiceCollection services, string connectionString)
     {
         // Interceptors are resolved from DI (the domain-event one needs IDispatcher), so they

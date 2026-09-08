@@ -16,7 +16,7 @@ You need the .NET 10 SDK and SQL Server. Nothing else — no Docker, no Redis, n
 ```bash
 # 1. Build, and run the application's own test suites
 dotnet build
-dotnet test LogiFlow.slnf      # 264 tests, all green
+dotnet test LogiFlow.slnf      # 267 tests, all green
 
 # 2. Run the API (it creates, migrates and seeds its database on first start)
 cd src/LogiFlow.Api
@@ -130,7 +130,9 @@ src/
   LogiFlow.Web              Blazor Web App (InteractiveServer). A CLIENT of the API, over HTTP.
   LogiFlow.Wcs              The warehouse control system: the process that talks to the machines.
                             A WORKER, not a web app — a WCS that dies when an app pool recycles
-                            is a stopped line. Runs a SIMULATED floor with no hardware at all.
+                            is a stopped line. Runs a SIMULATED floor with no hardware at all,
+                            and survives a restart: pending transport orders resume, in-flight
+                            ones are cancelled, and zone occupancy is rebuilt from the floor.
   LogiFlow.Academy.Api      Accounts for the tutorial site, and its static host. Standalone:
                             references none of the layers above. SQLite by default, so it runs
                             with no database server and no configuration at all.
@@ -141,7 +143,7 @@ tests/
   LogiFlow.Api.IntegrationTests Real HTTP against a real SQL Server, in a throwaway database.
                                 Also the versioning, SignalR and gRPC surfaces, end to end.
   LogiFlow.ArchitectureTests    Tests over the dependency graph. These keep the design honest.
-  LogiFlow.Infrastructure.Tests 45 tests. Retry policy, redirect guard, options validation, MIME,
+  LogiFlow.Infrastructure.Tests 48 tests. Retry policy, redirect guard, options validation, MIME,
                                 and the commissioning run: an hour of simulated warehouse.
   LogiFlow.Academy.Api.Tests    83 tests over the accounts service, on SQLite :memory:.
 
@@ -316,7 +318,7 @@ dotnet tool install --global dotnet-ef
 ```bash
 dotnet build                                   # whole solution, warnings are errors in src/
 
-dotnet test LogiFlow.slnf                      # every suite except the labs — 264 tests
+dotnet test LogiFlow.slnf                      # every suite except the labs — 267 tests
 dotnet test tests/LogiFlow.Domain.Tests        # fast feedback loop while working on rules
 dotnet test tests/LogiFlow.Academy.Api.Tests   # the accounts service — 83 tests, SQLite in-memory
 dotnet test labs/Labs.Exercises                # YOUR HOMEWORK — 113 tests, deliberately red

@@ -44,6 +44,11 @@ public static class AutomationServiceCollectionExtensions
 
         services.TryAddSingletonTimeProvider();
 
+        // Scoped: it holds a DbContext. The singleton-safe wrapper below is what a
+        // BackgroundService is allowed to depend on.
+        services.AddScoped<EfTransportOrderStore>();
+        services.AddSingleton<ITransportOrderStore, ScopedTransportOrderStore>();
+
         services.AddSingleton<IEquipmentGateway>(provider =>
         {
             AutomationOptions options = provider.GetRequiredService<IOptions<AutomationOptions>>().Value;
