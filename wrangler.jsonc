@@ -13,6 +13,24 @@
   "name": "csharp-academy",
   "compatibility_date": "2026-09-06",
   "workers_dev": true,
+
+  // The public name.
+  //
+  // A SUBDOMAIN, deliberately. The apex and www already have DNS records that
+  // are in use for something else, and a Workers custom domain has to OWN its
+  // record: Cloudflare creates it and issues the certificate. Pointing this at
+  // testdemo.it would have meant deleting those records first, which is why the
+  // first attempt failed with code 100117 and why it stays a subdomain.
+  //
+  // Nothing else in the zone is touched. csharp.testdemo.it had no record of
+  // its own and there is no wildcard, so this adds one name and changes none.
+  //
+  // workers_dev stays on above, so csharp-academy.krsiti-komini.workers.dev
+  // keeps working as a fallback and as somewhere to check a deploy without
+  // touching the public name.
+  "routes": [
+    { "pattern": "csharp.testdemo.it", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./site",
     // Serves / as index.html, which is the reason not to use "none": that
