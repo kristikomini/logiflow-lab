@@ -33,7 +33,7 @@ importScripts("assets/chapters.js");
    mechanism — there is no partial invalidation and you do not want one. Forget
    to bump it and returning visitors keep last month's chapters, with no error
    anywhere, which is the single most common service-worker bug. */
-const CACHE = "logiflow-academy-v6";
+const CACHE = "logiflow-academy-v7";
 
 const SHELL = [
   "./",
@@ -78,6 +78,46 @@ const SHELL = [
 /* Every chapter, from the manifest. 51 files nobody has to list by hand. */
 const CHAPTER_FILES = (self.CHAPTERS || []).map((c) => "chapters/" + c.id + ".html");
 
+/* Fetch one URL and store it under the URL WE ASKED FOR, as a fresh response.
+   cache.add() would be shorter and is subtly wrong on any host that redirects.
+
+   Cloudflare's html_handling: "auto-trailing-slash" answers /chapters/x.html
+   with a 307 to /chapters/x. cache.add() follows it and stores the result with
+   `redirected: true` and `url` pointing at the redirected address. The browser
+   then REFUSES to use that response for a navigation — "a redirected response
+   was used for a request whose redirect mode is not follow" — so the first
+   visit registers this worker and every chapter link breaks from then on.
+
+   It is invisible to curl, which has no service worker, and invisible locally,
+   where python's http.server redirects nothing. It only appears on the
+   deployed site, on the second visit.
+
+   Rebuilding the Response drops the redirect flag and pins the entry to the
+   requested URL, so the site is correct on a host that redirects, one that does
+   not, and from disk. Deliberately not "detect a redirect and handle it": the
+   normalisation is unconditional so there is no path where it is skipped. */
+async function precache(cache, url) {
+  try {
+    const response = await fetch(url, { redirect: "follow" });
+
+    if (!response.ok) {
+      throw new Error("HTTP " + response.status);
+    }
+
+    await cache.put(
+      url,
+      new Response(await response.blob(), {
+        status: 200,
+        statusText: "OK",
+        headers: response.headers,
+      })
+    );
+  } catch (err) {
+    /* One bad entry must not fail the whole install — see the note below. */
+    console.warn("[sw] could not precache", url, err);
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
@@ -87,13 +127,7 @@ self.addEventListener("install", (event) => {
          upgrading. Each file is added individually here anyway, because a
          single typo in the list above should not make the site un-upgradeable;
          the failures are logged and the install still completes. */
-      Promise.all(
-        SHELL.concat(CHAPTER_FILES).map((url) =>
-          cache.add(url).catch((err) => {
-            console.warn("[sw] could not precache", url, err);
-          })
-        )
-      )
+      Promise.all(SHELL.concat(CHAPTER_FILES).map((url) => precache(cache, url)))
     )
   );
 

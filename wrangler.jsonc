@@ -15,8 +15,16 @@
   "workers_dev": true,
   "assets": {
     "directory": "./site",
-    // The site links to real .html files (dashboard.html, viva.html, ...), so
-    // this only affects extensionless URLs typed by hand.
+    // Serves / as index.html, which is the reason not to use "none": that
+    // setting removes the redirect below but 404s the bare domain, and the bare
+    // domain is what people type.
+    //
+    // The trade is that it 307s /chapters/x.html to /chapters/x, and .html is
+    // what the whole site links to. That redirect is harmless to a browser on
+    // its own, and was NOT harmless to the service worker: cache.add() followed
+    // it and stored responses with redirected: true, which a browser refuses to
+    // use for a navigation. Fixed in sw.js, which now rebuilds each response
+    // rather than trusting the host not to redirect. See the note there.
     "html_handling": "auto-trailing-slash",
     // "none" rather than "404-page": there is no site/404.html yet. Add one and
     // switch this to "404-page" if you want a branded miss.
