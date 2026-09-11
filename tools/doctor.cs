@@ -23,7 +23,7 @@
 //   4. course/GOLDEN-RULES.md   <->  site/assets/rules.js      generated
 //   5. course/**.md + src/**.cs <->  course headings and files cross-refs
 //   6. course/**.md             <->  Labs.Playground's demos   cited by name
-//   7. every README and page    <->  the counts they state     "53 chapters"
+//   7. every README and page    <->  the counts they state     "56 chapters"
 //      (patterns for the sentences that state one, then a scan of the rest)
 //   8. site/assets/store.js     <->  the Academy API's copy    one formula, twice
 //
@@ -87,6 +87,7 @@ if (!Directory.Exists(Course()) || !Directory.Exists(Site()))
     ("site/chapter-count", CheckChapterCount),
     ("site/code-dissection", CheckCodeDissection),
     ("site/sw-cache", CheckServiceWorkerCache),
+    ("site/theme-boot", CheckThemeBoot),
 ];
 
 if (update)
@@ -680,7 +681,7 @@ IEnumerable<Issue> CheckDemoCitations()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 11. Counts written into prose: "53 chapters", "464 questions", "362 Golden
+// 11. Counts written into prose: "56 chapters", "464 questions", "362 Golden
 //     rules". Every other check in this file compares two things that both
 //     move, so drift shows up as a mismatch. A number in a sentence has no
 //     other end to compare against — it is simply true on the day it is typed
@@ -738,8 +739,18 @@ IEnumerable<Issue> CheckProseCounts()
             n + " chapters, in order, covering",
             n + " chapters, one file each",
             "of the " + n + " chapters",
-            "\"" + n + " chapters covering every line",
             @"from the manifest\. " + n + " files nobody",
+
+            // GONE, deliberately: this guarded the count in
+            // site/manifest.webmanifest's "description", which used to open
+            // "Fifty-three chapters covering every line of a real .NET
+            // developer advert". That sentence was rewritten to say what the
+            // site is without counting anything, which is strictly better —
+            // the store listing is the last place anybody would think to
+            // update. Removed rather than repointed: there is no sentence left
+            // for it to guard. The remaining "read N chapters covering every
+            // line" below is a different claim, in chapter 38, about the
+            // advert-coverage count.
 
             // Added after all three of these had drifted to 39 and stayed there:
             // the site grew from 39 chapters to 47 and nothing here was looking
@@ -924,7 +935,7 @@ IEnumerable<Issue> CheckProseCounts()
                     // Remember where this pattern matched. The scan below skips
                     // any number inside one of these spans: a specific pattern
                     // has already checked it, quite possibly against a different
-                    // quantity — "these thirty chapters are not in it" is a
+                    // quantity — "these thirty-three chapters are not in it" is a
                     // claim about the advert-gap count, not about the site's 47.
                     owned.Add((path, m.Index, m.Index + m.Length));
 
@@ -1660,6 +1671,78 @@ static Issue Warn(string message) => new(Severity.Warning, message);
 //  an entry that matches nothing is an error, so this list cannot quietly
 //  accumulate exemptions for sentences that no longer exist.
 // ═════════════════════════════════════════════════════════════════════════════
+// ── 15. The theme, applied before the browser's first paint ─────────────────
+//
+//     site.js reads the saved theme, and site.js is loaded at the BOTTOM of every
+//     page — it finished around 360ms on the deployed site. So a visitor whose
+//     saved choice disagrees with their operating system saw the wrong theme
+//     painted first and then corrected: a visible flash on every navigation.
+//
+//     The fix is a one-line inline script in each page's <head>, which runs during
+//     parse and therefore before the first paint. Inline rather than a file,
+//     because a <script src> in <head> is a render-blocking request and a round
+//     trip before the first paint costs more than the flash it would prevent.
+//
+//     Two ways for this to rot, and both are silent, which is why it is gated:
+//     a new page added without the snippet simply flashes, and a snippet carrying
+//     the WRONG storage key reads a value nobody ever set — no error, no effect,
+//     and it looks correct in the source. So the key is checked against the one
+//     site.js actually writes, rather than assumed.
+//
+//     Regenerate with the Academy's tool, which is shared across the academies:
+//       php ../Academy/tools/head-theme.php site --key=logiflow-theme
+IEnumerable<Issue> CheckThemeBoot()
+{
+    string siteJs = Site("assets", "site.js");
+    if (!File.Exists(siteJs))
+    {
+        yield return Error($"{Rel(siteJs)} is missing, so the theme key cannot be checked");
+        yield break;
+    }
+
+    // The key site.js persists the choice under. Whatever that is, the snippet in
+    // <head> must read the same one or it silently reads nothing.
+    //
+    // Anchored on the preference helpers rather than "any quoted string containing
+    // theme": the topbar markup names an element "themeToggle", and a looser
+    // pattern matches that first and then reports all 67 pages as wrong.
+    Match key = Regex.Match(
+        File.ReadAllText(siteJs), @"(?:savePref|pref)\(\s*""(?<k>[^""]*theme[^""]*)""");
+    if (!key.Success)
+    {
+        yield return Error("site.js no longer names a theme storage key, so the boot snippet is unverifiable");
+        yield break;
+    }
+
+    string want = $"localStorage.getItem(\"{key.Groups["k"].Value}\")";
+    IEnumerable<string> pages =
+    [
+        .. Directory.EnumerateFiles(Site(), "*.html"),
+        .. Directory.EnumerateFiles(Site("chapters"), "*.html"),
+    ];
+
+    foreach (string page in pages.Order(StringComparer.Ordinal))
+    {
+        string html = File.ReadAllText(page);
+        int head = html.IndexOf("</head>", StringComparison.Ordinal);
+        int boot = html.IndexOf("<script data-theme-boot>", StringComparison.Ordinal);
+
+        if (boot < 0)
+        {
+            yield return Error($"{Rel(page)} has no theme-boot snippet, so it flashes the wrong theme");
+        }
+        else if (head < 0 || boot > head)
+        {
+            // Outside <head> it still runs, just too late to be worth anything.
+            yield return Error($"{Rel(page)} has the theme-boot snippet after </head>, which defeats it");
+        }
+        else if (!html.Contains(want, StringComparison.Ordinal))
+        {
+            yield return Error($"{Rel(page)} boots a different storage key than site.js writes — expected {want}");
+        }
+    }
+}
+
 internal sealed class Excuse(string file, string phrase, string why)
 {
     /// <summary>Path suffix the sentence lives in.</summary>

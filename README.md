@@ -149,7 +149,7 @@ tests/
 
 tools/
   doctor.cs         Every cross-reference in the repository, checked in one command.
-                    Fourteen checks; the CI gate. `dotnet run tools/doctor.cs`
+                    Fifteen checks; the CI gate. `dotnet run tools/doctor.cs`
   viva-deck.cs      Regenerates the site's viva deck from course/GOLDEN-RULES.md.
                     A .NET 10 file-based app: no .csproj, not in the solution,
                     `dotnet run tools/viva-deck.cs`.
@@ -176,14 +176,14 @@ course/             The guided path through all of it. Start at course/README.md
                     course/LAWS-OF-CSHARP.md the same knowledge by concept, in twelve books.
                     course/SOLUTIONS.md      worked answers to the labs, with the reasoning.
 
-site/               A browsable W3Schools-style tutorial: 53 ordered chapters with a
-                    sidebar, built around one real .NET job advert — thirty of them the advert
+site/               A browsable W3Schools-style tutorial: 56 ordered chapters with a
+                    sidebar, built around one real .NET job advert — thirty-three of them the advert
                     never mentions but the Modena/Bologna/Milano market keeps asking for,
                     including WinForms/WPF, industrial/MES, Business Central and the screening
                     test. Every idea explained twice — once simply, once the way you would
                     answer it in an interview. Open site/index.html. No build step.
 
-                    It also grades you: 498 questions, a test at the end of every chapter, a
+                    It also grades you: 536 questions, a test at the end of every chapter, a
                     spaced-repetition deck built from whatever you got wrong, a timed mock
                     exam, sticky notes, an Italian/English glossary, and one course-mastery
                     percentage that is three-quarters test score — so it cannot be moved by
@@ -199,6 +199,13 @@ site/               A browsable W3Schools-style tutorial: 53 ordered chapters wi
                     closing with "ha domande per noi?". It gives you a transcript, never a
                     score, because a self-marked percentage is a number about your generosity.
 
+                    Every professional word in a chapter is also explained in plain
+                    English where it stands: the first use of each one is underlined,
+                    and clicking it shows a one-sentence definition beside the word
+                    rather than on another page. A reader who does not know what
+                    "idempotent" means does not leave the paragraph to find out, which
+                    is the only version of that they would actually do.
+
                     site/italiano.html is the sentences rather than the words. The glossary
                     covers vocabulary; this covers what you actually say when someone asks
                     "spiegami perché" and you have ninety seconds — including the one line
@@ -208,7 +215,7 @@ site/               A browsable W3Schools-style tutorial: 53 ordered chapters wi
                     chapter 36: the GDPR line, CEFR levels, bullets that describe a result
                     rather than presence, at least one number, one page.
 
-                    The whole site works offline and installs as an app — all 53 chapters
+                    The whole site works offline and installs as an app — all 56 chapters
                     are precached on first visit. It never caches the accounts API, because
                     a cached "here is your profile" would be a lie with your progress on it.
 

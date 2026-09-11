@@ -1,9 +1,9 @@
 # LogiFlow Academy
 
 A W3Schools-style tutorial site built around one real job advert: a **.NET developer**
-position in Emilia-Romagna. Fifty-three chapters, in dependency order: twenty-three cover
-every line of that posting, and thirty are not in it at all, because the wider Modena /
-Bologna / Reggio Emilia / Milano market asks for them anyway. Three of those thirty (WinForms/WPF,
+position in Emilia-Romagna. Fifty-six chapters, in dependency order: twenty-three cover
+every line of that posting, and thirty-three are not in it at all, because the wider Modena /
+Bologna / Reggio Emilia / Milano market asks for them anyway. Three of those thirty-three (WinForms/WPF,
 industrial/MES and Business Central) are separate regional job markets in their own right.
 
 ## Opening it
@@ -62,12 +62,14 @@ site/
   register.html         create an account
   reset.html            forgotten password, in two steps
   account.html          the area riservata — the account, its sync, and your data
-  chapters/*.html       53 chapters, one file each
+  chapters/*.html       56 chapters, one file each
   assets/
     chapters.js         THE MANIFEST — the chapter list, single source of truth
-    quizzes-1/2/3.js    THE QUESTION BANK — 498 questions, keyed by chapter id
+    quizzes-1/2/3.js    THE QUESTION BANK — 536 questions, keyed by chapter id
     rules.js            THE VIVA DECK — 378 Golden rules. GENERATED, do not edit
     glossary.js         133 Italian/English terms
+    jargon.js           THE PLAIN-ENGLISH DICTIONARY — one sentence per professional word
+    jargon-marks.js     marks the first use of each one in a chapter and shows it in a popover
     site.js             topbar, sidebar, TOC, pager, search, copy buttons
     store.js            the learner's profile: XP, mastery, streak, SRS schedule, notes
     quiz.js             one renderer for the chapter test, the review and the exam
@@ -116,6 +118,7 @@ it with a script, not by hand, and re-run the integrity check below afterwards.
 | `<div class="tryit">` | something to type, not read |
 | `<div class="rules">` | the golden-rules card |
 | `<div class="qa">` | one interview question with a sketched answer |
+| `<button class="jargon">` | **generated.** A professional word, with its plain-English one-liner |
 | `<nav id="toc">` | filled in automatically from the `<h2>`s |
 | `<div id="pager">` | filled in automatically from the manifest |
 
@@ -135,7 +138,7 @@ remember it longest when the tests are **spaced out**.
 
 ### One honest percentage
 
-`dashboard.html`. A chapter is worth `1/53` of the course, and within a chapter:
+`dashboard.html`. A chapter is worth `1/56` of the course, and within a chapter:
 
 ```
 25%   for having read it
@@ -152,7 +155,7 @@ comment saying so, and `ProfileSummaryTests` is what catches them drifting apart
 
 ### Tests at the end of every chapter
 
-498 questions in `assets/quizzes-*.js`, 8 to 17 per chapter, written to be probed the way an
+536 questions in `assets/quizzes-*.js`, 8 to 17 per chapter, written to be probed the way an
 interviewer probes. The explanation appears **whether you were right or wrong** — feedback
 that only shows up on failure teaches people to guess and check.
 
@@ -216,7 +219,7 @@ from both the Golden rules and the question bank, and the next question arriving
 still annoyed about the last one.
 
 Two things make it different from the viva rather than a longer version of it. The **bank
-questions are asked without their options**, which turns 498 recognition items into recall
+questions are asked without their options**, which turns 536 recognition items into recall
 items at no content cost. And it opens with *"mi parli di lei"* and closes with *"ha domande
 per noi?"* — the two questions asked in every interview and prepared for in almost none,
 because they do not feel like knowledge.
@@ -225,9 +228,36 @@ It produces a **transcript, not a score**. A self-marked percentage is a number 
 generosity; what you said next to what the course says, with the time you took, is not. Grades
 feed the same SM-2 schedules as everywhere else.
 
+### In plain English
+
+`assets/jargon.js` and `assets/jargon-marks.js`. No page of its own: it lives inside the
+chapters.
+
+A chapter can be perfectly correct and still unreadable, because one word in the sentence is a
+word the reader has never been told the meaning of — and nobody stops mid-paragraph to look it
+up. They keep reading with a hole in the sentence, and by the third hole the paragraph means
+nothing. So the definition comes to the word: the **first** appearance of each known term in a
+chapter is underlined, and clicking it shows one sentence beside it, without leaving the page.
+Everything marked is then collected into a *Plain English* box before the pager, which doubles
+as a revision list and carries the switch that turns the underlines off.
+
+To add a term, add an entry to `JARGON` in `assets/jargon.js`. The house rules for writing one
+are at the top of that file and the first two matter most: **one sentence**, and **no jargon
+inside the definition** — if a word in the definition is itself in the list, rewrite it.
+
+**Ordinary English words with a technical second meaning are deliberately absent** — *state*,
+*index*, *claim*, *branch*, *commit*, *view*, *layer*. The marker cannot tell which sense a
+sentence means, and a confident wrong definition is worse than none; where the technical sense
+matters it is listed as an unambiguous phrase instead (*clustered index*, *code smell*,
+*container image*). Acronyms match case-sensitively for the same reason: without that, `CI`
+marks the Italian *ci*, `MES` marks *mes* and `REST` marks the English word *rest*.
+
+This is a different problem from the glossary. That one is about a word you cannot *translate*;
+this one is about a word you cannot *decode*.
+
 ### In italiano
 
-`italiano.html`, plus a panel on 34 of the 53 chapters.
+`italiano.html`, plus a panel on 34 of the 56 chapters.
 
 The glossary gives you the words. This gives you the **sentences** — because what goes wrong in
 a colloquio is not vocabulary. It is knowing the answer, knowing the words, and still not being
@@ -254,7 +284,7 @@ bullets are *true*, and whether they are the right three.
 
 ### Offline
 
-The site installs as an app and works with the network unplugged: `sw.js` precaches all 53
+The site installs as an app and works with the network unplugged: `sw.js` precaches all 56
 chapters and every asset on first visit, and serves them cache-first afterwards.
 
 **It never caches `/api/`.** Sign-in, sync and the leaderboard need the network and fail

@@ -1,7 +1,7 @@
 {
   "name": "LogiFlow Academy — .NET, Emilia-Romagna",
-  "short_name": "Academy",
-  "description": "Fifty-three chapters covering every line of a real .NET developer advert from Emilia-Romagna, with tests, spaced repetition and a spoken viva.",
+  "short_name": "LogiFlow",
+  "description": "The .NET stack from the language up, written from real developer adverts in Emilia-Romagna, with tests, spaced repetition and a spoken viva.",
   "start_url": "index.html",
   "scope": "./",
   "display": "standalone",

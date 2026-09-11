@@ -1,9 +1,9 @@
 {
   // C# / .NET academy — static site on Cloudflare Workers static assets.
   //
-  // Assets-only: there is no "main", so no Worker script runs and every request
-  // is served straight from ./site. Deploy with `npx wrangler deploy` from this
-  // directory.
+  // Almost assets-only: every request that matches a file is served straight from
+  // ./site, and worker.mjs runs only for the handful that match nothing — really
+  // just "/". Deploy with `npx wrangler deploy` from this directory.
   //
   // NOTE: this deploys the STUDY SITE only. The account API (LogiFlow.Academy.Api,
   // SQLite in App_Data) is not part of this and is not reachable from here, so
@@ -12,6 +12,9 @@
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "csharp-academy",
   "compatibility_date": "2026-09-06",
+  // The smallest possible Worker, so that "/" serves index.html while
+  // html_handling stays "none". worker.mjs explains why both are needed.
+  "main": "worker.mjs",
   "workers_dev": true,
 
   // The public name.
@@ -33,19 +36,32 @@
   ],
   "assets": {
     "directory": "./site",
-    // Serves / as index.html, which is the reason not to use "none": that
-    // setting removes the redirect below but 404s the bare domain, and the bare
-    // domain is what people type.
+    // The Worker reaches the asset server through this binding.
+    "binding": "ASSETS",
+    // "none" — every path maps 1:1 to a file, and nothing is redirected.
     //
-    // The trade is that it 307s /chapters/x.html to /chapters/x, and .html is
-    // what the whole site links to. That redirect is harmless to a browser on
-    // its own, and was NOT harmless to the service worker: cache.add() followed
-    // it and stored responses with redirected: true, which a browser refuses to
-    // use for a navigation. Fixed in sw.js, which now rebuilds each response
-    // rather than trusting the host not to redirect. See the note there.
-    "html_handling": "auto-trailing-slash",
-    // "none" rather than "404-page": there is no site/404.html yet. Add one and
-    // switch this to "404-page" if you want a branded miss.
+    // NOT "auto-trailing-slash", which was here and was wrong. It 307s /notes.html
+    // to /notes, and this site has a service worker. A redirected response cannot be
+    // stored in a Cache, so cache.add("notes.html") rejects and the page is never
+    // precached; the navigation then falls through to a fetch whose redirected
+    // response the browser refuses for a navigation, and the user gets a bare
+    // ERR_FAILED with nothing in the console.
+    //
+    // It never shows up locally: python -m http.server serves /notes.html as 200.
+    // Every internal link in this site is an explicit .html, because the site must
+    // also open from file:// — so there is nothing for the prettifier to gain here
+    // and a whole class of failure for it to cause.
+    "html_handling": "none",
+    // "none", NOT "404-page", even though site/404.html now exists.
+    //
+    // The two are not interchangeable. With "404-page" the asset layer answers a
+    // NAVIGATION miss by itself and the Worker is never invoked — which also means
+    // "/" never reaches worker.mjs's index.html rewrite, so the home page breaks
+    // while curl and fetch() (which are not navigations) keep looking healthy.
+    // "none" lets every miss fall through to worker.mjs, which serves site/404.html
+    // itself and keeps a truthful 404 status: a branded page returned as 200 is a
+    // soft 404, which search engines index and which hides broken links from
+    // anyone testing with curl.
     "not_found_handling": "none"
   }
 }

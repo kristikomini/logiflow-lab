@@ -126,6 +126,23 @@ a:hover { text-decoration: underline; }
    the max() is what keeps the ordinary 18px in that case, since env() would
    otherwise resolve to 0 and pull the controls to the very edge. Needs
    `viewport-fit=cover` in the page's viewport meta to be anything but 0. */
+/* THE TOP BAR'S SPACE, HELD OPEN BEFORE THE BAR EXISTS.
+
+   .topbar is in no page's HTML: site.js builds it and prepends it to <body>,
+   and site.js loads at the bottom of the document. So the browser can paint a
+   whole page and then have 58px inserted above it, and the page jumps down.
+
+   Whether it shows depends on whether the paint beats site.js, which is a race
+   the network decides — it reproduced reliably on the Java academy, which has
+   this identical code, and not here, which makes it latent rather than absent.
+   The fix costs one rule either way.
+
+   site.js adds .chrome-ready in the SAME synchronous block as the insert, so
+   the reserved space and the real bar trade places with no paint between them.
+   The two media queries below touch .topbar's padding and gap only, never its
+   height, which is what makes one fixed number safe here. */
+body:not(.chrome-ready)::before { content: ""; display: block; height: 58px; }
+
 .topbar {
   position: sticky; top: 0; z-index: 50; height: 58px;
   display: flex; align-items: center; gap: 14px;
@@ -431,6 +448,88 @@ pre .out { color: #ffd479; }                      /* console output */
 .tryit > :last-child { margin-bottom: 0; }
 
 /* ==========================================================================
+   Plain English — the jargon marks and their popover
+   --------------------------------------------------------------------------
+   jargon-marks.js turns the first appearance of a professional word into a
+   <button>. That is the correct element — it opens something, with the mouse
+   and with the keyboard — and it is also an element every browser styles like
+   a grey 3D lozenge, so the whole first block exists to put it back into the
+   sentence it came out of.
+
+   `font: inherit` is the load-bearing line. Without it the word renders in the
+   browser's default form-control font at 13.333px, which in the middle of a
+   17px paragraph is not a subtle hint, it is a typo.
+   ========================================================================== */
+.jargon {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  text-align: inherit; line-height: inherit;
+  border-bottom: 1px dashed var(--brand);
+  cursor: help;
+}
+.jargon:hover { color: var(--brand-ink); border-bottom-color: var(--brand-ink); background: var(--brand-soft); }
+.jargon:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 2px; }
+.jargon[aria-expanded="true"] { background: var(--brand-soft); color: var(--brand-ink); }
+
+/* Switched off: the word goes back to being a word. Still in the DOM, because
+   turning them on again must not need a reload — and jargon-marks.js takes it
+   out of the tab order at the same time, which CSS cannot do. */
+body[data-jargon="off"] .jargon { border-bottom: 0; cursor: inherit; pointer-events: none; }
+body[data-jargon="off"] .jargon:hover { background: none; color: inherit; }
+
+.jargon-pop {
+  position: absolute; z-index: 60; width: 320px; max-width: calc(100vw - 24px);
+  background: var(--panel); border: 1px solid var(--line-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 13px 34px 13px 15px;
+}
+.jargon-pop:focus { outline: none; }
+.jargon-pop-term {
+  margin: 0 0 .3em; font-weight: 700; font-size: 14px; color: var(--brand);
+  text-transform: lowercase;
+}
+.jargon-pop-plain { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink); }
+.jargon-pop-note {
+  margin: .6em 0 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft);
+  border-left: 2px solid var(--line-strong); padding-left: 9px;
+}
+.jargon-pop-where { margin: .7em 0 0; font-size: 13px; }
+.jargon-pop-close {
+  position: absolute; top: 6px; right: 8px;
+  background: none; border: 0; padding: 2px 5px; cursor: pointer;
+  font-size: 17px; line-height: 1; color: var(--ink-faint);
+}
+.jargon-pop-close:hover { color: var(--ink); }
+
+/* Phone: a 320px card anchored to a word on a 360px screen has nowhere to go,
+   so it stops being anchored and becomes a sheet across the bottom. Fixed, not
+   absolute — a sheet that scrolls away with the paragraph is just a popover
+   with a worse position. */
+.jargon-pop.as-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; top: auto;
+  width: auto; max-width: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-left: 0; border-right: 0; border-bottom: 0;
+  padding: 16px max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+}
+.jargon-pop.as-sheet .jargon-pop-close { top: 10px; right: 12px; font-size: 21px; padding: 4px 8px; }
+
+/* The end-of-chapter list. Same words, same sentences, in one place — which is
+   what makes turning the underlines off a real choice rather than a loss. */
+.jargon-box { border-color: var(--brand-soft); background: var(--bg-alt); }
+.jargon-box .box-title { color: var(--brand); }
+.jargon-lede { font-size: 14.5px; color: var(--ink-soft); margin: 0 0 .9em; }
+.jargon-demo { border-bottom: 1px dashed var(--brand); }
+.jargon-list { margin: 0; display: grid; grid-template-columns: minmax(120px, 210px) 1fr; gap: 4px 16px; }
+.jargon-list dt { font-weight: 700; font-size: 14.5px; color: var(--ink); }
+.jargon-list dd { margin: 0; font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; }
+.jargon-switch { margin: 1.1em 0 0; font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 620px) {
+  .jargon-list { grid-template-columns: 1fr; gap: 0; }
+  .jargon-list dt { margin-top: .7em; }
+  .jargon-list dd { margin-bottom: .1em; }
+}
+
+/* ==========================================================================
    Tables & diagrams
    ========================================================================== */
 .table-wrap { overflow-x: auto; margin: 1.3em 0; }
@@ -698,7 +797,10 @@ body[data-mode="pro"] .kid { display: none; }
 }
 
 @media print {
-  .topbar, .sidebar, .pager, .copy, .nav-scrim { display: none !important; }
+  .topbar, .sidebar, .pager, .copy, .nav-scrim, .jargon-pop { display: none !important; }
   .main { max-width: none; padding: 0; }
   body[data-mode] .kid, body[data-mode] .pro { display: block !important; }
+  /* On paper a dashed underline is an invitation to click that goes nowhere,
+     and the definitions are all in the box at the end anyway. */
+  .jargon { border-bottom: 0 !important; }
 }

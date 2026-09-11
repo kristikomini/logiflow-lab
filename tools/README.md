@@ -58,7 +58,7 @@ Academy host serves `site/` only, so `course/` is not reachable over HTTP either
 Every cross-reference in the repository, checked in one command.
 
 ```bash
-dotnet run tools/doctor.cs            # fourteen checks, exit 1 on any error
+dotnet run tools/doctor.cs            # fifteen checks, exit 1 on any error
 dotnet run tools/doctor.cs --quiet    # print only what failed
 dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 ```
@@ -75,7 +75,7 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | `course/sections` | "module 13 section 2" survives a rename and dies on a renumber |
 | `code/covered-in` | 100 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
 | `labs/demos` | modules say `dotnet run race`; a renamed demo turns an instruction into a wrong one |
-| `docs/counts` | "53 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
+| `docs/counts` | "56 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
 | `site/chapter-count` | the mastery formula is written twice, and the two copies divide by different numbers the moment somebody adds a chapter |
 
 Errors set the exit code. Warnings do not, because a gate people learn to ignore is worse

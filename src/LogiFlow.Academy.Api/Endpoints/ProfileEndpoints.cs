@@ -13,7 +13,7 @@ public static class ProfileEndpoints
     /// Refuse a document larger than this.
     /// </summary>
     /// <remarks>
-    /// A real profile is a few tens of kilobytes: 498 scheduled cards, a few hundred notes and
+    /// A real profile is a few tens of kilobytes: 536 scheduled cards, a few hundred notes and
     /// a year of daily history. One megabyte is generous. Without a cap, an authenticated user
     /// can fill the disk one PUT at a time — the least glamorous denial of service there is,
     /// and one that costs a single length check to close.
@@ -37,7 +37,7 @@ public static class ProfileEndpoints
     /// any of the three drifts — because "remember to update the API when you add a chapter"
     /// is exactly the kind of instruction that works until the day it matters.
     /// </remarks>
-    private const int DefaultChapterCount = 53;
+    private const int DefaultChapterCount = 56;
 
     /// <summary>Registers the profile and leaderboard endpoints.</summary>
     /// <param name="app">The route builder.</param>

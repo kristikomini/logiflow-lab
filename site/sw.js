@@ -33,11 +33,12 @@ importScripts("assets/chapters.js");
    mechanism — there is no partial invalidation and you do not want one. Forget
    to bump it and returning visitors keep last month's chapters, with no error
    anywhere, which is the single most common service-worker bug. */
-const CACHE = "logiflow-academy-v9";
+const CACHE = "logiflow-academy-v12";
 
 const SHELL = [
   "./",
   "index.html",
+  "404.html",
   "dashboard.html",
   "review.html",
   "viva.html",
@@ -61,6 +62,8 @@ const SHELL = [
   "assets/quizzes-3.js",
   "assets/rules.js",
   "assets/glossary.js",
+  "assets/jargon.js",
+  "assets/jargon-marks.js",
   "assets/italiano.js",
   "assets/italiano-panel.js",
   "assets/store.js",
@@ -75,7 +78,7 @@ const SHELL = [
   "assets/auth-page.js",
 ];
 
-/* Every chapter, from the manifest. 53 files nobody has to list by hand. */
+/* Every chapter, from the manifest. 56 files nobody has to list by hand. */
 const CHAPTER_FILES = (self.CHAPTERS || []).map((c) => "chapters/" + c.id + ".html");
 
 /* Fetch one URL and store it under the URL WE ASKED FOR, as a fresh response.
@@ -112,29 +115,55 @@ async function precache(cache, url) {
         headers: response.headers,
       })
     );
+    return true;
   } catch (err) {
-    /* One bad entry must not fail the whole install — see the note below. */
+    /* Reported, not swallowed. The caller decides what a failure means: fatal
+       for the shell, survivable for one chapter — see install() below. */
     console.warn("[sw] could not precache", url, err);
+    return false;
   }
 }
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) =>
-      /* addAll is atomic: one 404 rejects the whole install and the old worker
-         stays in charge. That is the behaviour you want — a half-populated
-         cache serving some pages and failing others is worse than not
-         upgrading. Each file is added individually here anyway, because a
-         single typo in the list above should not make the site un-upgradeable;
-         the failures are logged and the install still completes. */
-      Promise.all(SHELL.concat(CHAPTER_FILES).map((url) => precache(cache, url)))
-    )
-  );
+    (async () => {
+      const cache = await caches.open(CACHE);
 
-  /* Take over as soon as the install finishes rather than waiting for every
-     tab to close. Safe here because the cache is versioned wholesale: there is
-     no state in an old page that a new worker could corrupt. */
-  self.skipWaiting();
+      /* THE SHELL IS REQUIRED, AND A FAILURE HERE MUST FAIL THE INSTALL.
+         activate() below deletes every other cache wholesale, so a worker that
+         activates over a half-filled cache has just thrown away the complete
+         copy and put a worse one in its place. Rejecting instead leaves the OLD
+         worker in charge of the OLD, complete cache, and the upgrade is simply
+         retried on the next visit. Nothing is lost by refusing to upgrade; a
+         great deal is lost by upgrading badly.
+
+         The previous version logged every failure and carried on, so install
+         always reported success — one flaky response out of ninety simultaneous
+         requests was enough to activate a worker over an emptied cache, and
+         from then on every page change fell through to the network. */
+      const failed = [];
+      await Promise.all(
+        SHELL.map(async (url) => {
+          if (!(await precache(cache, url))) failed.push(url);
+        })
+      );
+      if (failed.length) {
+        throw new Error("[sw] shell incomplete, install aborted: " + failed.join(", "));
+      }
+
+      /* Chapters are best-effort, by contrast. One chapter missing from the
+         offline copy is a gap; the fetch handler falls through to the network
+         for it and the visitor never notices unless they are on a train. That
+         is not worth refusing an upgrade over. */
+      await Promise.all(CHAPTER_FILES.map((url) => precache(cache, url)));
+
+      /* Take over as soon as the install finishes rather than waiting for every
+         tab to close — and only now, with the shell verified present. Safe here
+         because the cache is versioned wholesale: there is no state in an old
+         page that a new worker could corrupt. */
+      await self.skipWaiting();
+    })()
+  );
 });
 
 self.addEventListener("activate", (event) => {

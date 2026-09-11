@@ -54,6 +54,12 @@
       '<button class="btn" id="themeToggle" aria-label="Toggle dark mode">&#9789;</button>';
     body.insertBefore(bar, body.firstChild);
 
+    /* Same synchronous block as the line above, deliberately. style.css holds
+       58px open with body:not(.chrome-ready)::before; releasing it here means
+       the browser never paints the gap without the bar, nor the bar on top of
+       the gap. Separate these two statements and the page jumps again. */
+    body.classList.add("chrome-ready");
+
     /* The skip link needs somewhere to land, and every page already has the
        element — it just has no id, and <main> is not focusable on its own.
        Without tabindex the browser scrolls but leaves focus where it was, so

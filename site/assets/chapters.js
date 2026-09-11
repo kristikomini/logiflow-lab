@@ -100,6 +100,13 @@ const CHAPTERS = [
     extra: "Italian adverts name “principi SOLID” and “design pattern” directly, and interviewers ask you to name one you have used.",
   },
   {
+    n: "05b", id: "05b-readable-code", part: PARTS[1],
+    title: "Code other people can read",
+    blurb: "Names, methods, comments, invariants and errors — the decisions you make forty times an hour.",
+    tags: "clean code readable naming convention pascalcase camelcase magic number boolean parameter guard clause early return nesting arrow code cyclomatic complexity comment why xml doc commented-out code invariant constructor validation immutable record sealed exception throw rethrow stack trace dry wet abstraction coupling yagni kiss simple clever premature optimisation technical debt boy scout rule refactor code review principles",
+    extra: "Chapter 05 covers the class-level principles an advert names. This is the level below, which no advert names and every code review is about — and it is where a first pull request decides how much supervision a junior needs.",
+  },
+  {
     n: "06", id: "06-collections-and-linq", part: PARTS[1],
     title: "Collections and LINQ",
     blurb: "List, Dictionary, IEnumerable, deferred execution, and IQueryable vs IEnumerable.",
@@ -119,6 +126,20 @@ const CHAPTERS = [
     blurb: "IDisposable and using, what the GC does, boxing, and making code safe under two threads.",
     tags: "idisposable dispose using idisposable pattern iasyncdisposable finalizer destructor garbage collection gc generation gen0 large object heap boxing unboxing memory leak race condition lock monitor deadlock interlocked concurrentdictionary semaphoreslim immutable thread safe",
     extra: "“Explain IDisposable”, “what does the garbage collector do” and “how would you make this thread-safe” are standard junior questions, and the answers are also where real production bugs come from.",
+  },
+  {
+    n: "08b", id: "08b-looks-simple-isnt", part: PARTS[1],
+    title: "Looks simple, isn’t",
+    blurb: "Eleven short programs that a reasonable person reads, understands, and gets wrong.",
+    tags: "puzzle trap gotcha integer division floating point double decimal precision string interning reference equality object equals gethashcode dictionary struct copy value type mutable struct deferred execution multiple enumeration yield return iterator closure captured variable loop foreach for deadlock result wait async void datetime kind utc dst timezone collection modified invalidoperationexception removeat what does this print",
+    extra: "Every one of these has cost somebody a real afternoon, and most are asked in interviews for exactly that reason. None of them are fixed by knowing more syntax — they are wrong mental models, which is why reading about them is not enough.",
+  },
+  {
+    n: "08c", id: "08c-beginner-mistakes", part: PARTS[1],
+    title: "The mistakes beginners make",
+    blurb: "The habits a junior writes, what each one actually costs, and the smallest change that fixes it.",
+    tags: "beginner mistake junior common error empty catch swallow exception control flow tryparse return null empty collection nullable reference types string immutable stringbuilder concatenation sql injection parameterised query decimal money culture parse idisposable using httpclient async result task.run static shared state singleton dbcontext magic number enum yagni warning treatwarningsaserrors testing mock coverage works on my machine commit git asking for help",
+    extra: "A junior is separated from a mid-level developer by habits, almost all of which are normally learned by being burned once in front of a customer. This is the same list with the burn described rather than experienced.",
   },
   {
     n: "09", id: "09-databases-and-sql-server", part: PARTS[2],
