@@ -796,6 +796,51 @@ window.JARGON = [
 
   { t: "downtime", where: "32",
     plain: "Time when the line is not producing — which is what the whole factory is measured on." },
+
+  { t: "UART", where: "32d",
+    plain: "The small piece of hardware that turns bytes into electrical pulses on a serial wire, and back." },
+
+  { t: "baud", where: "32d",
+    plain: "How fast a serial line signals — 9600 baud is roughly 960 characters a second, which is slow enough to feel." },
+
+  { t: "framing", where: "32d",
+    plain: "The rule that says where one message stops and the next begins in a stream that has no natural gaps." },
+
+  { t: "RS-232", where: "32d",
+    plain: "The old serial connection between exactly two devices, where both can talk at once." },
+
+  { t: "RS-485", where: "32d",
+    plain: "A serial wiring standard where many devices share one pair of wires, and only one may speak at a time.",
+    note: "This is why Modbus RTU has one master asking and everyone else silent." },
+
+  { t: "half duplex", where: "32d",
+    plain: "A link where both directions exist but only one of them may be in use at any moment." },
+
+  { t: "LRC", where: "32d",
+    plain: "A one-byte check value, made by XOR-ing the message together, that catches most accidental corruption." },
+
+  { t: "CAN", where: "32d",
+    plain: "A vehicle and machinery bus where every device hears every message and nobody is in charge.",
+    also: ["CAN bus"] },
+
+  { t: "DBC", where: "32d",
+    plain: "The file that says where each value sits inside a CAN message, because the message itself does not say." },
+
+  { t: "RTOS", where: "32d",
+    plain: "An operating system that can promise a task will run within a fixed time, which ordinary Windows and Linux cannot." },
+
+  { t: "firmware", where: "32d",
+    plain: "The program that lives inside a device and runs on its own chip, usually written in C.",
+    note: "Writing it is a different job from writing the software that talks to it." },
+
+  { t: "microcontroller", where: "32d",
+    plain: "A whole small computer on one cheap chip, with no operating system and very little memory." },
+
+  { t: "JTAG", where: "32d",
+    plain: "A hardware connection used to program and step through code running on a chip." },
+
+  { t: "GPIO", where: "32d",
+    plain: "Individual pins on a board that software can read or switch on and off directly." },
 ];
 
 /* The marker and the service worker both load this file with a plain <script>

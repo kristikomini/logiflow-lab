@@ -23,7 +23,7 @@
 //   4. course/GOLDEN-RULES.md   <->  site/assets/rules.js      generated
 //   5. course/**.md + src/**.cs <->  course headings and files cross-refs
 //   6. course/**.md             <->  Labs.Playground's demos   cited by name
-//   7. every README and page    <->  the counts they state     "56 chapters"
+//   7. every README and page    <->  the counts they state     "57 chapters"
 //      (patterns for the sentences that state one, then a scan of the rest)
 //   8. site/assets/store.js     <->  the Academy API's copy    one formula, twice
 //
@@ -681,7 +681,7 @@ IEnumerable<Issue> CheckDemoCitations()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 11. Counts written into prose: "56 chapters", "464 questions", "362 Golden
+// 11. Counts written into prose: "57 chapters", "464 questions", "362 Golden
 //     rules". Every other check in this file compares two things that both
 //     move, so drift shows up as a mismatch. A number in a sentence has no
 //     other end to compare against — it is simply true on the day it is typed
@@ -935,7 +935,7 @@ IEnumerable<Issue> CheckProseCounts()
                     // Remember where this pattern matched. The scan below skips
                     // any number inside one of these spans: a specific pattern
                     // has already checked it, quite possibly against a different
-                    // quantity — "these thirty-three chapters are not in it" is a
+                    // quantity — "these thirty-four chapters are not in it" is a
                     // claim about the advert-gap count, not about the site's 47.
                     owned.Add((path, m.Index, m.Index + m.Length));
 

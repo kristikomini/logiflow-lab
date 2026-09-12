@@ -84,6 +84,8 @@ public static partial class Program
         new("tags",       "industrial",  "Polling loses events, and the machine will not wait for you", Async(TagsAsync)),
         new("oee",        "industrial",  "OEE from the event stream, and the argument underneath it", Oee),
         new("traffic",    "industrial",  "Two AGVs, one aisle: the deadlock and the one-line fix", Async(TrafficAsync)),
+        new("serial",     "industrial",  "A byte stream has no messages: framing, and the RS-485 party line", Async(SerialAsync)),
+        new("can",        "industrial",  "CAN: arbitration by identifier, and bits packed at an offset", Can),
     ];
 
     /// <summary>Entry point.</summary>

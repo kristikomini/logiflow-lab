@@ -162,7 +162,7 @@ follow directly from modules 01 and 04.
 
 ```bash
 cd labs/Labs.Playground
-dotnet run list          # 34 demos, grouped by topic
+dotnet run list          # 36 demos, grouped by topic
 dotnet run deferred      # run one
 dotnet run all           # run every one, in order
 ```

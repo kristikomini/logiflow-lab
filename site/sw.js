@@ -33,7 +33,7 @@ importScripts("assets/chapters.js");
    mechanism — there is no partial invalidation and you do not want one. Forget
    to bump it and returning visitors keep last month's chapters, with no error
    anywhere, which is the single most common service-worker bug. */
-const CACHE = "logiflow-academy-v12";
+const CACHE = "logiflow-academy-v13";
 
 const SHELL = [
   "./",
@@ -78,7 +78,7 @@ const SHELL = [
   "assets/auth-page.js",
 ];
 
-/* Every chapter, from the manifest. 56 files nobody has to list by hand. */
+/* Every chapter, from the manifest. 57 files nobody has to list by hand. */
 const CHAPTER_FILES = (self.CHAPTERS || []).map((c) => "chapters/" + c.id + ".html");
 
 /* Fetch one URL and store it under the URL WE ASKED FOR, as a fresh response.

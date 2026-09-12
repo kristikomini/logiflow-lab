@@ -221,4 +221,4 @@ commesse?"**, because the honest answer is often mostly the latter and you shoul
 
 ---
 
-[← OT security](06-ot-security.md) · [Module 28](README.md)
+[← OT security](06-ot-security.md) · [Module 28](README.md) · [The edge, and reading the advert →](08-the-edge-and-the-advert.md)

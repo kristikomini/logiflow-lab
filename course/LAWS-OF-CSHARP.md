@@ -15,7 +15,7 @@ sentences. That is your revision list. Most laws end with a way to *observe* the
 a sentence and knowing a thing.
 
 ```bash
-cd labs/Labs.Playground && dotnet run list    # 34 runnable demos
+cd labs/Labs.Playground && dotnet run list    # 36 runnable demos
 ```
 
 ---

@@ -156,7 +156,7 @@ tools/
 
 labs/
   Labs.Exercises    Graded exercises. 113 tests, currently RED. Make them green.
-  Labs.Playground   34 runnable demos — watch deferred execution, a lost update, a
+  Labs.Playground   36 runnable demos — watch deferred execution, a lost update, a
                     memory leak and the async deadlock actually happen.
   Labs.Benchmarks   BenchmarkDotNet. Every performance claim in the course is checkable.
   Labs.LoadTests    NBomber. The other half: what the SYSTEM does under concurrent load,
@@ -168,7 +168,7 @@ labs/
                     `dotnet run labs/opc-ua.cs`.
 
 course/             The guided path through all of it. Start at course/README.md.
-                    29 modules, and 57 deeper chapters sitting beside them — one per topic,
+                    29 modules, and 58 deeper chapters sitting beside them — one per topic,
                     linked from a contents table at the top of each module. The `Covered in:`
                     comments throughout src/ and tests/ point straight at them, so reading a
                     class and reading its chapter are one gesture.
@@ -176,14 +176,14 @@ course/             The guided path through all of it. Start at course/README.md
                     course/LAWS-OF-CSHARP.md the same knowledge by concept, in twelve books.
                     course/SOLUTIONS.md      worked answers to the labs, with the reasoning.
 
-site/               A browsable W3Schools-style tutorial: 56 ordered chapters with a
-                    sidebar, built around one real .NET job advert — thirty-three of them the advert
+site/               A browsable W3Schools-style tutorial: 57 ordered chapters with a
+                    sidebar, built around one real .NET job advert — thirty-four of them the advert
                     never mentions but the Modena/Bologna/Milano market keeps asking for,
                     including WinForms/WPF, industrial/MES, Business Central and the screening
                     test. Every idea explained twice — once simply, once the way you would
                     answer it in an interview. Open site/index.html. No build step.
 
-                    It also grades you: 536 questions, a test at the end of every chapter, a
+                    It also grades you: 549 questions, a test at the end of every chapter, a
                     spaced-repetition deck built from whatever you got wrong, a timed mock
                     exam, sticky notes, an Italian/English glossary, and one course-mastery
                     percentage that is three-quarters test score — so it cannot be moved by
@@ -215,7 +215,7 @@ site/               A browsable W3Schools-style tutorial: 56 ordered chapters wi
                     chapter 36: the GDPR line, CEFR levels, bullets that describe a result
                     rather than presence, at least one number, one page.
 
-                    The whole site works offline and installs as an app — all 56 chapters
+                    The whole site works offline and installs as an app — all 57 chapters
                     are precached on first visit. It never caches the accounts API, because
                     a cached "here is your profile" would be a lie with your progress on it.
 
@@ -267,7 +267,7 @@ in six commented files. See
    that is the paragraph to go back to. All twenty-nine cards are collected in
    [`course/GOLDEN-RULES.md`](course/GOLDEN-RULES.md), and the same material organised by concept
    is in [`course/LAWS-OF-CSHARP.md`](course/LAWS-OF-CSHARP.md).
-7. **Say them back** — `site/viva.html` turns those same 378 rules into a drill that hides the
+7. **Say them back** — `site/viva.html` turns those same 384 rules into a drill that hides the
    answer until you have written or spoken yours, then schedules the ones you fumbled. Reading a
    card you agree with is the easiest thing in this repository to mistake for knowing it.
 
@@ -353,7 +353,7 @@ dotnet run --project labs/Labs.LoadTests
 # The whole application in containers - two API instances behind one Redis
 docker compose --profile app up -d --build
 
-cd labs/Labs.Playground && dotnet run          # list the 34 demos
+cd labs/Labs.Playground && dotnet run          # list the 36 demos
 cd labs/Labs.Benchmarks && dotnet run -c Release --filter '*Linq*'
 
 # Migrations

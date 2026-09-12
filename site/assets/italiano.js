@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 56 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 57 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -414,6 +414,17 @@ self.IT_CHAPTERS = {
     ],
     keep: ["WCS", "AGV", "LGV", "deadlock", "throughput", "OEE", "FAT", "SAT", "commissioning"],
   },
+  "32d-the-edge-and-the-advert": {
+    say: [
+      "Un flusso seriale non ha messaggi: la Read restituisce i byte arrivati, non una trama. Accumulo in un buffer che vive tra una lettura e l'altra, cerco le trame complete e tengo il resto.",
+      "RS-232 è punto-punto; RS-485 è un bus multi-drop half duplex, quindi parla uno alla volta e il silenzio dopo la richiesta fa parte del protocollo. È per questo che Modbus RTU è fatto così.",
+      "Sul CAN non ci sono indirizzi: l'identificatore dà il nome al messaggio e ne stabilisce la priorità, e vince sempre quello più basso. Una trama a bassa priorità non ha un tempo di consegna garantito.",
+      "Windows non è un sistema real-time: i tempi duri stanno nel PLC o nel microcontrollore. Io lavoro sopra, e progetto perché il mio caso peggiore non fermi la linea.",
+      "Non ho mai scritto firmware su microcontrollore in C: scrivo il software che ci parla — seriale, Modbus, CAN, OPC UA. Preferisco dirlo subito, così il resto di quello che dico vale.",
+    ],
+    keep: ["seriale", "RS-232", "RS-485", "Modbus RTU", "CAN", "firmware", "real-time", "PLC"],
+  },
+
   "33b-ai-in-dotnet": {
     say: [
       "Per me una chiamata a un modello è una dipendenza esterna inaffidabile: timeout, retry con jitter, circuit breaker e un comportamento definito per quando non risponde. Vale esattamente quello che vale per una qualsiasi integrazione.",

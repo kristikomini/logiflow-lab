@@ -55,6 +55,7 @@ with one unusual edge. Everything below is that edge.
 | 5 | [OEE and traceability](05-oee-and-traceability.md) | the number on the wall, the argument underneath it, and the recall query you must be able to answer |
 | 6 | [OT security](06-ot-security.md) | the isolated network, the Purdue model, the HMI you may not patch, and how data actually leaves |
 | 7 | [The job itself](07-the-job.md) | commissioning, `cantiere`, `trasferta`, FAT and SAT, and the 03:00 call |
+| 8 | [The edge, and reading the advert](08-the-edge-and-the-advert.md) | serial framing, RS-485, CAN arbitration — and telling a .NET advert from a firmware one |
 
 ---
 
@@ -107,7 +108,7 @@ slightly out of date, some of which are wrong, and none of which will be repeate
 | A schema describes the payload | A register is a number at an address. The meaning is in a spreadsheet |
 | Time is one clock | There are two, and the gap between them is the thing worth alarming on |
 
-Run the demos rather than taking that table on trust — it is four commands:
+Run the demos rather than taking that table on trust:
 
 ```bash
 cd labs/Labs.Playground
@@ -115,9 +116,11 @@ dotnet run modbus        # a real Modbus TCP server and client: the wire has no 
 dotnet run tags          # polling misses a 60 ms fault; then who pays when you fall behind
 dotnet run oee           # one shift, two definitions of "planned", eight points of difference
 dotnet run traffic       # two AGVs, one aisle, and the one-line fix
+dotnet run serial        # a byte stream has no messages, and the RS-485 party line
+dotnet run can           # arbitration by identifier, and bits packed at an offset
 ```
 
-And the fifth, which needs the OPC Foundation stack and so lives outside the solution as a
+And the last one, which needs the OPC Foundation stack and so lives outside the solution as a
 file-based app:
 
 ```bash
@@ -160,7 +163,7 @@ handle; it is a class of bug you must make impossible.
 
 ## 4. Do this
 
-1. **Run the five demos.** Then re-read the table in section 2 and check that each row is now a
+1. **Run the demos.** Then re-read the table in section 2 and check that each row is now a
    thing you have watched rather than a thing you have read.
 2. **Read the register map argument in [chapter 2](02-protocols-on-the-wire.md)** and be able to
    say, out loud, what could go wrong with a 32-bit counter split across two 16-bit registers.
@@ -210,6 +213,18 @@ handle; it is a class of bug you must make impossible.
     you to touch it is normal; you compensate around it rather than fixing it.
 16. **Commissioning is the job, not the end of it.** Half of this work happens on site, with the
     line stopped and people waiting, and the candidate who knows that is the one who lasts.
+17. **A read is not a message.** `SerialPort.Read` returns whatever arrived — buffer across
+    reads, scan for frames, and carry the remainder into the next read.
+18. **RS-232 is point to point; RS-485 is a party line.** *Seriale* in an advert does not say
+    which, and on RS-485 the silence after a request is part of the protocol.
+19. **A CAN frame has no addresses, and the lower identifier always wins.** The id names the
+    message and sets its priority, so a low-priority frame has no guaranteed delivery time.
+20. **Bit order is not in the frame.** Intel or Motorola lives in a `.dbc` file, and choosing
+    wrong yields a plausible number rather than an error — the split Modbus counter again.
+21. **Windows is not an RTOS.** Hard deadlines belong in the PLC or the microcontroller, and
+    saying so is the correct architectural answer rather than an admission.
+22. **Classify the advert before you apply.** *Embedded* beside C#, Modbus and supervisione is
+    your job; *embedded* beside C, FreeRTOS and STM32 is somebody else's.
 
 ---
 

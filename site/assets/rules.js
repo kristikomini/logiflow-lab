@@ -4941,5 +4941,81 @@ window.RULES = [
     "claim": "Commissioning is the job, not the end of it.",
     "why": "Half of this work happens on site, with the line stopped and people waiting, and the candidate who knows that is the one who lasts.",
     "continues": false
+  },
+  {
+    "id": "m28-a-read-is-not-a-message",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "A read is not a message.",
+    "why": "`SerialPort.Read` returns whatever arrived — buffer across reads, scan for frames, and carry the remainder into the next read.",
+    "continues": false,
+    "checkpoints": [
+      "SerialPort.Read"
+    ]
+  },
+  {
+    "id": "m28-rs-232-is-point-to-point-rs-485-is-a-party",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "RS-232 is point to point; RS-485 is a party line.",
+    "why": "*Seriale* in an advert does not say which, and on RS-485 the silence after a request is part of the protocol.",
+    "continues": false,
+    "checkpoints": [
+      "232",
+      "485"
+    ]
+  },
+  {
+    "id": "m28-a-can-frame-has-no-addresses-and-the-lower",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "A CAN frame has no addresses, and the lower identifier always wins.",
+    "why": "The id names the message and sets its priority, so a low-priority frame has no guaranteed delivery time.",
+    "continues": false
+  },
+  {
+    "id": "m28-bit-order-is-not-in-the-frame",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Bit order is not in the frame.",
+    "why": "Intel or Motorola lives in a `.dbc` file, and choosing wrong yields a plausible number rather than an error — the split Modbus counter again.",
+    "continues": false,
+    "checkpoints": [
+      ".dbc"
+    ]
+  },
+  {
+    "id": "m28-windows-is-not-an-rtos",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Windows is not an RTOS.",
+    "why": "Hard deadlines belong in the PLC or the microcontroller, and saying so is the correct architectural answer rather than an admission.",
+    "continues": false
+  },
+  {
+    "id": "m28-classify-the-advert-before-you-apply",
+    "kind": "explain",
+    "tier": "module",
+    "module": "28",
+    "part": "Module 28 — Industrial software and the IT/OT boundary",
+    "href": "course/module-28-industrial-and-ot/",
+    "claim": "Classify the advert before you apply.",
+    "why": "*Embedded* beside C#, Modbus and supervisione is your job; *embedded* beside C, FreeRTOS and STM32 is somebody else's.",
+    "continues": false
   }
 ];

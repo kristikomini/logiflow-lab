@@ -373,6 +373,13 @@ const CHAPTERS = [
     extra: "E80 Group advertises a .NET engineer for AGV traffic management with testing in simulation environments; System Logistics wants site work through to customer sign-off. This is the product those companies sell, and this repository has a working one.",
   },
   {
+    n: "32d", id: "32d-the-edge-and-the-advert", part: PARTS[7],
+    title: "The edge, and reading the advert",
+    blurb: "Serial framing, the RS-485 party line, CAN arbitration — and telling a .NET advert from a firmware one.",
+    tags: "serial seriale rs-232 rs-485 rs232 rs485 half duplex turnaround framing stx etx lrc checksum partial read byte stream serialport can bus canbus arbitration identifier priority dbc intel motorola bit order embedded firmware microcontroller stm32 freertos rtos real-time windows iot nanoframework gpio edge gateway arm advert triage",
+    extra: "Embedded appears in two completely different adverts in this province, and they need opposite answers. This chapter teaches the wire — framing, RS-485, CAN — and the thirty-second test that tells a C#/.NET machine-interfacing job from a C/C++ firmware one.",
+  },
+  {
     n: "33", id: "33-business-central", part: PARTS[7],
     title: "Dynamics 365 Business Central and AL",
     blurb: "The gestionale track: AL objects, events over overrides, extensions, and API pages.",

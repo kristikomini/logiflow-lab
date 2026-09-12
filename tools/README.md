@@ -25,7 +25,7 @@ what you want in a trimmed or AOT application anyway. `viva-deck.cs` shows the s
 
 Turns [`course/GOLDEN-RULES.md`](../course/GOLDEN-RULES.md) into
 [`site/assets/rules.js`](../site/assets/rules.js), the deck behind
-[`site/viva.html`](../site/viva.html) — 378 cards, one per Golden rule.
+[`site/viva.html`](../site/viva.html) — 384 cards, one per Golden rule.
 
 ```bash
 dotnet run tools/viva-deck.cs            # regenerate the deck
@@ -75,7 +75,7 @@ dotnet run tools/doctor.cs --update   # rewrite tools/quiz-ids.lock, then check
 | `course/sections` | "module 13 section 2" survives a rename and dies on a renumber |
 | `code/covered-in` | 100 `Covered in:` comments — the reason reading a class and reading its chapter is one gesture |
 | `labs/demos` | modules say `dotnet run race`; a renamed demo turns an instruction into a wrong one |
-| `docs/counts` | "56 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
+| `docs/counts` | "57 chapters", "464 questions" — a number in a sentence has no other end to compare against, so it just quietly stops being true |
 | `site/chapter-count` | the mastery formula is written twice, and the two copies divide by different numbers the moment somebody adds a chapter |
 
 Errors set the exit code. Warnings do not, because a gate people learn to ignore is worse

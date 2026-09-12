@@ -20,7 +20,7 @@ LogiFlow is **two systems sharing a repository**. The first is a production-shap
 application (logistics/order fulfilment: Clean Architecture, CQRS, EF Core, SQL Server) written to
 be *read* — every non-obvious decision commented in the file where it was made. The second is a
 **tutorial platform** built around one real job advert: a static, framework-free, offline-capable
-site of 56 chapters with a full learning engine (464 quiz questions, spaced repetition, a free
+site of 57 chapters with a full learning engine (464 quiz questions, spaced repetition, a free
 recall drill, a timed mock interview, an Italian language layer, a CV linter) plus a small
 accounts API that carries a learner's progress between devices. The two are joined by a course of
 28 markdown modules and by an integrity tool that turns every cross-reference between them into a
@@ -46,7 +46,7 @@ ordinary tutorial site.
    turns the page into a self-test: read the simple one, produce the professional one from memory.
 
 3. **Progress is measured by retrieval, never by scrolling.** A chapter is worth 25% for reading
-   and 75% for the test score. Reading 56 chapters and answering nothing caps you at 25%.
+   and 75% for the test score. Reading 57 chapters and answering nothing caps you at 25%.
 
 4. **Recognition and recall are different skills, and both are drilled separately.** Multiple
    choice measures recognition; interviews measure recall. So there is a viva page that hides the
@@ -261,7 +261,7 @@ Rules that are not negotiable:
 - **Every stem must stand alone two weeks later, out of context.** Each question doubles as a
   flashcard. "Which of these is true?" is a bad stem for that reason; name the subject.
 
-Current volume: **536 questions across 56 chapters**, 8–17 per chapter.
+Current volume: **549 questions across 57 chapters**, 8–17 per chapter.
 
 ### 3.4 The viva deck — a generated file
 
@@ -294,7 +294,7 @@ literally against what the learner wrote and shown as hit or missed. It cannot t
 were right, but "you never mentioned `rowversion`" is a fact, and facts are harder to mark
 generously than feelings.
 
-Current volume: **378 rules**.
+Current volume: **384 rules**.
 
 ### 3.5 The language layer, the glossary and the CV builder
 
@@ -310,7 +310,7 @@ Three smaller banks, all plain arrays in JS files:
   politely, asking about the work, salary) plus `IT_CHAPTERS` keyed by chapter id, with one or two
   `say` lines and the terms that `keep` their English. Rendered by `italiano-panel.js` both as a
   per-chapter panel and as the whole phrasebook on `italiano.html`.
-  **Coverage is deliberately partial** (31 of 56 chapters) and the panel simply does not appear
+  **Coverage is deliberately partial** (31 of 57 chapters) and the panel simply does not appear
   where there is no entry — a half-written translation teaches a sentence you would not want to
   say.
   The English technical nouns stay English on purpose (*la query*, *il deploy*, *fare il merge*):
@@ -425,7 +425,7 @@ This is the exact object stored locally *and* the exact JSON body sent to the AP
 ```
 
 **Why `viva` is a separate map from `cards`.** The review page counts `cards` against the size of
-the question bank and says "N of 536 questions are in your schedule". Mixing 378 rules into that
+the question bank and says "N of 549 questions are in your schedule". Mixing 384 rules into that
 map makes every one of those sentences a lie. The *scheduler* is shared; the *piles* are not.
 
 **A study day is local, not UTC.** `today()` formats the local calendar day as `YYYY-MM-DD`, and
@@ -571,7 +571,7 @@ are the same thing with different question sources.
 | **Chapter test** | any chapter | that chapter's bank | yes | no | `recordTest()` → chapter best, XP, badges |
 | **Review** | `review.html` | today's due cards, all chapters | yes | no | `LF.review()` per card |
 | **Mock exam** | `exam.html` | random mixed | yes | yes | `examBest`, `examCount`, 2 XP/correct |
-| **Viva** | `viva.html` | the 378 rules | **no** | no | `LF.vivaReview()` |
+| **Viva** | `viva.html` | the 384 rules | **no** | no | `LF.vivaReview()` |
 | **Simulator** | `simulate.html` | rules **and** bank, options stripped | yes, hard | transcript only |
 
 **Quiz interaction is three clicks or fewer per question:** pick an option → feedback appears

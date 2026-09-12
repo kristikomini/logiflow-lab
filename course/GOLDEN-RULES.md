@@ -956,3 +956,15 @@ them up.
     you to touch it is normal; you compensate around it rather than fixing it.
 16. **Commissioning is the job, not the end of it.** Half of this work happens on site, with the
     line stopped and people waiting, and the candidate who knows that is the one who lasts.
+17. **A read is not a message.** `SerialPort.Read` returns whatever arrived — buffer across
+    reads, scan for frames, and carry the remainder into the next read.
+18. **RS-232 is point to point; RS-485 is a party line.** *Seriale* in an advert does not say
+    which, and on RS-485 the silence after a request is part of the protocol.
+19. **A CAN frame has no addresses, and the lower identifier always wins.** The id names the
+    message and sets its priority, so a low-priority frame has no guaranteed delivery time.
+20. **Bit order is not in the frame.** Intel or Motorola lives in a `.dbc` file, and choosing
+    wrong yields a plausible number rather than an error — the split Modbus counter again.
+21. **Windows is not an RTOS.** Hard deadlines belong in the PLC or the microcontroller, and
+    saying so is the correct architectural answer rather than an admission.
+22. **Classify the advert before you apply.** *Embedded* beside C#, Modbus and supervisione is
+    your job; *embedded* beside C, FreeRTOS and STM32 is somebody else's.
