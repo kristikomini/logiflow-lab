@@ -240,6 +240,13 @@ const CHAPTERS = [
     extra: "Bologna ads pair “.NET” with “Angular” or “React” more often than with Razor. Even a backend role is usually expected to fix the screen its own API feeds.",
   },
   {
+    n: "18b", id: "18b-angular", part: PARTS[3],
+    title: "Angular, concretely",
+    blurb: "Components, services, DI, HttpClient and RxJS — and the four places the contract with your API breaks.",
+    tags: "angular typescript component template standalone ngmodule signal decorator selector interpolation binding pipe trackby track ngfor ngif service injectable providedin dependency injection httpclient httpparams interceptor observable rxjs subscribe async pipe takeuntildestroyed router guard lazy loading reactive forms formgroup formcontrol validator cors proxy.conf ng serve ng build camelcase openapi client generation",
+    extra: "Chapter 18 explains what an SPA is; this is the framework itself, because “Angular o Blazor” is how the region's adverts write the front-end line and chapter 19 only answered half of it.",
+  },
+  {
     n: "19", id: "19-blazor", part: PARTS[3],
     title: "Blazor",
     blurb: "C# in the browser: Server vs WebAssembly, render modes, and why the region cares.",
@@ -392,6 +399,13 @@ const CHAPTERS = [
     blurb: "An LLM is an unreliable external dependency. Calling one, grounding it, costing it, and testing it.",
     tags: "ai intelligenza artificiale llm microsoft.extensions.ai ichatclient azure openai ollama structured output prompt injection rag retrieval augmented generation embedding vector sql server vector_distance azure ai search token cost golden set hallucination gdpr eu ai act denial of wallet",
     extra: "One advert names AI twice — in the duties and again as an interest requirement — and it appears nowhere else in this repository. It is an interest requirement, not a competence one, so the goal is a credible twenty-minute conversation and the architectural judgement to be trusted near it.",
+  },
+  {
+    n: "33c", id: "33c-crm-and-odata", part: PARTS[7],
+    title: "CRM integration, OData and the two owners of a customer",
+    blurb: "Salesforce and Dynamics 365 CE: OData query options, alternate keys, upsert, delta sync and the ownership decisions that come first.",
+    tags: "crm salesforce dynamics 365 customer engagement dataverse odata $filter $select $expand $top $skiptoken nextlink $metadata $batch enablequery aspnetcore.odata serviceclient alternate key upsert external id sobject soql apex governor limit bulk api composite jwt bearer connected app instance_url retry-after 429 service protection watermark delta sync systemmodstamp modifiedon change tracking webhook platform events change data capture soap wsdl svcutil outbound messaging integrazione integrazioni",
+    req: "integrazione di sistemi CRM, in particolare Salesforce e Microsoft Dynamics 365 — and the OData and Web Services line beside it",
   },
   {
     n: "34", id: "34-agile-and-scrum", part: PARTS[8],

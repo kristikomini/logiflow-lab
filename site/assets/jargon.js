@@ -841,6 +841,79 @@ window.JARGON = [
 
   { t: "GPIO", where: "32d",
     plain: "Individual pins on a board that software can read or switch on and off directly." },
+
+  /* ══════════════════════════════════════════ CRM integration and OData */
+
+  { t: "CRM", where: "33c",
+    plain: "The system the sales side lives in: companies, contacts, deals and who spoke to whom.",
+    note: "Not the same as an ERP, which holds the orders, stock and invoices." },
+
+  { t: "OData", where: "33c",
+    plain: "An agreed set of words a caller can add to a web address to filter, sort, page and pick fields, instead of every service inventing its own." },
+
+  { t: "Dataverse", where: "33c",
+    plain: "The database underneath Microsoft's CRM products, which you reach over the web rather than with SQL." },
+
+  { t: "sObject", where: "33c",
+    plain: "Salesforce's word for one of its tables, such as Account or Contact." },
+
+  { t: "SOQL", where: "33c",
+    plain: "Salesforce's own query language: it looks like SQL and can only read from one Salesforce org." },
+
+  { t: "alternate key", where: "33c",
+    plain: "A second identifier a system will accept for a record, so you can address it by your own code instead of theirs." },
+
+  { t: "External Id", where: "33c",
+    plain: "A Salesforce field marked as holding somebody else's identifier, which then lets you address the record by that value." },
+
+  { t: "watermark", where: "33c",
+    plain: "The timestamp you saved last time, so the next run asks only for what changed after it." },
+
+  { t: "governor limit", where: "33c",
+    plain: "A Salesforce ceiling that ends a running transaction outright rather than just slowing it down." },
+
+  { t: "SOAP", where: "33c",
+    plain: "An older way of calling a remote service, using XML envelopes and a contract file instead of plain web addresses." },
+
+  { t: "WSDL", where: "33c",
+    plain: "The file describing a SOAP service, from which a tool generates the client code for you." },
+
+  { t: "Angular", where: "18b",
+    plain: "A framework for building the part of a web page the user clicks on, made of small reusable pieces written in TypeScript.",
+    note: "It is opinionated on purpose: it ships its own router, HTTP client and dependency injection rather than leaving you to choose." },
+
+  { t: "RxJS", where: "18b",
+    plain: "The library Angular uses for values that arrive later, or repeatedly, as a stream you can listen to and cancel." },
+
+  { t: "Observable", where: "18b",
+    plain: "A source of values you have to ask to start, which may hand you several over time and which you can call off." },
+
+  { t: "standalone component", where: "18b",
+    plain: "An Angular piece that declares its own dependencies instead of being listed inside a bigger container." },
+
+  { t: "NgModule", where: "18b",
+    plain: "The older Angular container that a group of pieces had to be listed inside before each one could declare its own." },
+
+  { t: "change detection", where: "18b",
+    plain: "The framework's work of noticing which displayed values changed and redrawing only those parts of the page." },
+
+  { t: "route guard", where: "18b",
+    plain: "A check that runs before a screen is opened and can refuse to open it.",
+    note: "It decides what to show, never what is allowed — the server still has to enforce that." },
+
+  { t: "HTTP interceptor", where: "18b",
+    plain: "A step every outgoing web request passes through, so things like the login token get attached in one place.",
+    note: "Not the same as an Entity Framework interceptor, which sits on database commands instead." },
+
+  { t: "reactive form", where: "18b",
+    plain: "A form described as an object in code, with its rules attached there, rather than written into the page's markup." },
+
+  { t: "subscription leak", where: "18b",
+    plain: "A listener that keeps running after the screen that created it is gone, quietly holding memory." },
+
+  { t: "camelCase", where: "18b",
+    plain: "Writing a name with no spaces and each later word capitalised, like shipmentReference.",
+    note: "The same name with the first letter capitalised too is PascalCase, which is what C# uses — and the mismatch between the two is a real source of empty screens." },
 ];
 
 /* The marker and the service worker both load this file with a plain <script>

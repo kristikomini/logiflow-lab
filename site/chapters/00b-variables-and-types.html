@@ -128,7 +128,7 @@ count = <span class="nu">0</span>;                      <span class="cm">// now 
 <h2 id="var">Writing <code>var</code> instead of the type</h2>
 
 <pre><code><span class="kw">var</span> total = <span class="nu">10</span>;              <span class="cm">// compiler reads the right side: this is an int</span>
-<span class="kw">var</span> name  = <span class="st">"Kristi"</span>;        <span class="cm">// …and this is a string</span>
+<span class="kw">var</span> name  = <span class="st">"Mario"</span>;        <span class="cm">// …and this is a string</span>
 
 total = <span class="nu">20</span>;                   <span class="cm">// fine — still an int</span>
 total = <span class="st">"twenty"</span>;             <span class="cm">// ERROR CS0029: cannot convert string to int</span></code></pre>
@@ -352,13 +352,13 @@ score++;                        <span class="cm">// 16 — add exactly one</span
 
 <h2 id="strings">Strings behave unlike everything else</h2>
 
-<pre><code><span class="kw">string</span> first = <span class="st">"Kristi"</span>;
-<span class="kw">string</span> greeting = <span class="st">$"Ciao, {first}!"</span>;      <span class="cm">// "Ciao, Kristi!"</span>
+<pre><code><span class="kw">string</span> first = <span class="st">"Mario"</span>;
+<span class="kw">string</span> greeting = <span class="st">$"Ciao, {first}!"</span>;      <span class="cm">// "Ciao, Mario!"</span>
 
-<span class="kw">int</span> len = first.Length;                    <span class="cm">// 6 — a property, so no parentheses</span>
-<span class="kw">string</span> up = first.ToUpper();               <span class="cm">// "KRISTI" — a method, so parentheses</span>
+<span class="kw">int</span> len = first.Length;                    <span class="cm">// 5 — a property, so no parentheses</span>
+<span class="kw">string</span> up = first.ToUpper();               <span class="cm">// "MARIO" — a method, so parentheses</span>
 
-<span class="ty">Console</span>.WriteLine(first);                  <span class="cm">// still "Kristi" — up is a NEW string</span></code></pre>
+<span class="ty">Console</span>.WriteLine(first);                  <span class="cm">// still "Mario" — up is a NEW string</span></code></pre>
 
 <div class="dissect">
   <div class="dissect-title">Line by line</div>

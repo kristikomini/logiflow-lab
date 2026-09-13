@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 57 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 59 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -304,6 +304,14 @@ self.IT_CHAPTERS = {
     ],
     keep: ["event loop", "microtask", "macrotask", "Promise", "async", "await", "closure", "let", "var", "arrow function", "event delegation"],
   },
+  "18b-angular": {
+    say: [
+      "Un componente Angular è una classe TypeScript più un template: la classe tiene lo stato, il template si lega ai suoi valori e Angular ridisegna solo quello che è cambiato.",
+      "I servizi si iniettano come in ASP.NET Core, e HttpClient restituisce un Observable: finché nessuno fa la subscribe, la richiesta non parte.",
+      "Non sono uno specialista frontend: so leggere un componente, seguire i dati fino al mio endpoint e sistemare la schermata che alimenta la mia API.",
+    ],
+    keep: ["component", "template", "service", "dependency injection", "HttpClient", "Observable", "subscribe", "binding", "interceptor", "guard", "CORS"],
+  },
   "19-blazor": {
     say: [
       "Blazor Server tiene lo stato sul server e comunica con il browser tramite un circuito SignalR: il primo caricamento è veloce ma serve una connessione stabile.",
@@ -432,6 +440,18 @@ self.IT_CHAPTERS = {
     ],
     keep: ["LLM", "prompt", "token", "embedding", "RAG", "retry", "circuit breaker", "hallucination", "prompt injection", "GDPR"],
   },
+  "33c-crm-and-odata": {
+    say: [
+      "Un'integrazione con un CRM non è un problema di trasporto, è un problema di proprietà del dato: prima si decide chi è il sistema di riferimento campo per campo, qual è la chiave che dice che è la stessa azienda, e cosa vuol dire una cancellazione da una parte e dall'altra.",
+      "In genere il CRM è padrone del dato commerciale e il gestionale del dato fiscale — partita IVA, fido, indirizzo di fatturazione. Dire soltanto «il CRM è il master» non è una decisione, è rimandarla.",
+      "Scrivo sempre con un upsert sulla mia chiave — chiave alternativa su Dataverse, campo External Id su Salesforce — così la chiamata è idempotente e rilanciare il batch dopo un errore non crea duplicati.",
+      "Sull'OData metto sempre il $select e seguo l'@odata.nextLink finché c'è: Dataverse taglia la pagina a cinquemila righe comunque, quindi chi non lo segue sincronizza una parte dei dati e dice che è andato tutto bene.",
+      "Il 429 con Retry-After non è un errore, è controllo di flusso: aspetto esattamente quel tempo e poi raggruppo le scritture, invece di fare una chiamata per riga.",
+      "Preferisco il polling se non c'è una persona che aspetta il risultato. Con il webhook la politica di retry del loro sistema diventa un mio requisito di disponibilità, e comunque l'evento lo tratto come un campanello: rileggo il record aggiornato, non applico il payload.",
+    ],
+    keep: ["CRM", "Salesforce", "Dynamics 365", "Dataverse", "OData", "upsert", "External Id", "chiave alternativa", "delta", "webhook", "polling", "idempotente"],
+  },
+
   "34-agile-and-scrum": {
     say: [
       "Nello Scrum lavoriamo per sprint; nel daily dico cosa ho chiuso, cosa faccio oggi e se sono bloccato — non un resoconto minuto per minuto.",

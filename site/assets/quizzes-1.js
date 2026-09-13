@@ -205,9 +205,9 @@ window.QUIZZES = Object.assign(window.QUIZZES || {}, {
       c: 1,
       why: "var total = 10; makes an int, and total = \"twenty\"; is then a compile error. The keyword that actually defers typing to run time is dynamic, which is a different feature." },
 
-    { q: "first is a string holding \"Kristi\". After calling first.ToUpper(); on a line by itself, what does first contain?",
-      code: "string first = \"Kristi\";\nfirst.ToUpper();\nConsole.WriteLine(first);",
-      a: ["\"KRISTI\"", "\"Kristi\" — strings are immutable, so ToUpper returns a new string that was discarded",
+    { q: "first is a string holding \"Mario\". After calling first.ToUpper(); on a line by itself, what does first contain?",
+      code: "string first = \"Mario\";\nfirst.ToUpper();\nConsole.WriteLine(first);",
+      a: ["\"MARIO\"", "\"Mario\" — strings are immutable, so ToUpper returns a new string that was discarded",
           "An empty string", "It does not compile"],
       c: 1,
       why: "Nothing can modify a string once it exists. Every method that appears to change one actually returns a new one, so ignoring the return value accomplishes precisely nothing — and the compiler will not stop you." },

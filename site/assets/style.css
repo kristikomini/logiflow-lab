@@ -804,3 +804,39 @@ body[data-mode="pro"] .kid { display: none; }
      and the definitions are all in the box at the end anyway. */
   .jargon { border-bottom: 0 !important; }
 }
+
+/* ---------------------------------------------------------------- free-course framing
+   Landing page only. The same four assurances the hub makes, repeated here because most
+   visitors arrive from a search engine straight into a course and never see the hub.
+
+   Every colour is a token this stylesheet already defines, so each subject keeps its own
+   brand. The two-level fallbacks are for the SQL course, whose palette names the accent
+   --accent rather than --brand; var(--brand, var(--accent)) resolves correctly in both
+   without a second copy of this block.
+   ------------------------------------------------------------------------------------ */
+.free-strip {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  margin: 18px 0 24px; padding: 13px 16px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.free-badge {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--brand-soft, var(--accent-soft));
+  color: var(--brand-ink, var(--accent-ink));
+  border: 1px solid var(--brand, var(--accent));
+}
+.free-item {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 14px; color: var(--ink-soft);
+}
+.free-item svg { color: var(--pro); flex: none; }
+.free-hub {
+  margin-left: auto; font-size: 13.5px; font-weight: 600; white-space: nowrap;
+  color: var(--brand-ink, var(--accent-ink)); text-decoration: none;
+}
+.free-hub:hover { text-decoration: underline; }
+@media (max-width: 680px) {
+  .free-hub { margin-left: 0; }
+}
