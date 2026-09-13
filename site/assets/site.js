@@ -51,6 +51,7 @@
         '<button data-mode="kid"  title="Only the simple explanation">Simple</button>' +
         '<button data-mode="pro"  title="Only the professional explanation">Pro</button>' +
       "</div>" +
+      '<a class="btn hub-link" href="https://hub.testdemo.it" title="All five free courses">Hub</a>' +
       '<button class="btn" id="themeToggle" aria-label="Toggle dark mode">&#9789;</button>';
     body.insertBefore(bar, body.firstChild);
 
