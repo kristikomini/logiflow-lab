@@ -250,6 +250,67 @@ window.JARGON = [
   { t: "boxing", where: "02",
     plain: "Wrapping a value type in an object so it can be treated like one — which costs an allocation every time." },
 
+  /* ── the vocabulary of 02b / 02c / 02e ─────────────────────────────────── */
+
+  { t: "aliasing", where: "02b",
+    plain: "Two variables holding the address of the same object, so changing it through one is visible through the other.",
+    note: "A feature until it is a bug. It is what makes 'my object changed by itself' possible." },
+
+  { t: "shallow copy", where: "02b",
+    plain: "A copy of a container that duplicates the container and not the things inside it.",
+    note: "So the copy and the original still point at the same objects. The opposite is a deep copy." },
+
+  { t: "interning", where: "02b",
+    plain: "The runtime keeping one shared copy of identical text literals instead of several.",
+    note: "An optimisation, never a guarantee: the same text built at run time is a different object." },
+
+  { t: "state machine", where: "02e",
+    plain: "A generated class that remembers where a paused method stopped, so it can carry on from there.",
+    note: "What the compiler turns an iterator or an async method into. You never see it in your own code." },
+
+  { t: "wildcard", where: "02c",
+    plain: "A character in a pattern that stands for something unspecified rather than for itself." },
+
+  { t: "discard pattern", where: "02c",
+    plain: "A lone underscore, meaning 'something matches here and I will not be using it'." },
+
+  { t: "list pattern", where: "02c",
+    plain: "A pattern that matches a sequence by its shape — how many items there are and what some of them look like." },
+
+  { t: "slice pattern", where: "02c",
+    plain: "The two dots inside a list pattern, standing for any number of elements including none.",
+    note: "Only one is allowed per pattern, or the match would be ambiguous." },
+
+  { t: "verbatim", where: "02c",
+    plain: "A string written so that backslashes and line breaks mean themselves instead of starting an escape." },
+
+  { t: "null-coalescing", where: "02b",
+    plain: "The two question marks: use the left-hand value, unless it is null, in which case use the right.",
+    note: "An empty string and a zero are not null, so they pass straight through it." },
+
+  { t: "null-conditional", where: "02b",
+    plain: "The question mark before a dot: do this, unless the thing is null, in which case the whole expression is null." },
+
+  { t: "null-forgiving", where: "02c",
+    plain: "The exclamation mark that tells the compiler to stop warning about a possible null.",
+    note: "It does nothing at all when the program runs — it is a claim, not a check." },
+
+  { t: "expression-bodied", where: "02e",
+    plain: "A member written as a single arrow and one expression, instead of braces and a return." },
+
+  { t: "local function", where: "02e",
+    plain: "A method declared inside another method, visible only there." },
+
+  { t: "named argument", where: "02e",
+    plain: "Writing the parameter's name at the call site, so the reader can tell what the value means." },
+
+  { t: "optional parameter", where: "02e",
+    plain: "A parameter with a default, which callers may leave out.",
+    note: "The default is copied into each caller when they are compiled, so changing it in a library does not reach code already built." },
+
+  { t: "tuple", where: "02e",
+    plain: "Several values travelling together as one, without declaring a class for them." },
+
   { t: "heap", where: "01",
     plain: "The memory where objects live, looked after for you by the garbage collector." },
 
@@ -1015,6 +1076,92 @@ window.JARGON = [
 
   { t: "degraded mode", where: "22c",
     plain: "Carrying on deliberately with less than the whole system working, in a way that was designed rather than improvised." },
+
+  /* ---------------------------------------------------- 00e, 02f — 02l, 03b, 03c */
+
+  { t: "exit code", where: "00e",
+    plain: "The number a program hands back when it finishes: zero means it worked, anything else means it did not.",
+    note: "The only thing a script or a build server looks at, so a program that prints an error and returns zero is treated as having succeeded." },
+
+  { t: "composite formatting", where: "00e",
+    plain: "Writing a message as a template with numbered holes, passing the values separately.",
+    note: "Older than interpolation and still correct for logging, where the template and the values are wanted apart so the fields can be searched." },
+
+  { t: "alignment width", where: "00e",
+    plain: "A number after the comma inside a formatting hole that pads the value out to at least that many characters.",
+    note: "Negative pads on the right, positive on the left. It is a minimum, so a longer value pushes the rest of the row across." },
+
+  { t: "banker's rounding", where: "02f",
+    plain: "Rounding an exact half to whichever neighbour is even, so 2.5 goes to 2 and 3.5 goes to 4.",
+    note: "The default in .NET, because over a long column the ups and downs cancel and the rounded total still matches. An invoice usually wants the school rule instead, and you have to ask for it." },
+
+  { t: "digit separator", where: "02f",
+    plain: "An underscore written inside a number to make its size readable, which the compiler ignores entirely." },
+
+  { t: "truthiness", where: "02h",
+    plain: "The idea, borrowed from other languages, that a non-zero number or a non-empty string counts as true.",
+    note: "C# has none of it: only a bool can go in an if, which is why the habits from JavaScript do not compile here." },
+
+  { t: "short-circuiting", where: "02h", also: ["short-circuit"],
+    plain: "Stopping as soon as the answer is known, so the right-hand side of a condition is never evaluated.",
+    note: "A guarantee in the language rather than an optimisation, which is what makes a null check placed before a dereference actually safe." },
+
+  { t: "three-valued logic", where: "02h",
+    plain: "Logic where a value can be true, false, or unknown, and unknown combined with anything is usually still unknown.",
+    note: "What a nullable bool and a SQL NULL both follow. It is why testing against the state you do not want quietly includes the unknown one." },
+
+  { t: "rectangular array", where: "02i",
+    plain: "A grid stored as one block, where every row has exactly the same number of slots.",
+    note: "Its Length is the total number of cells, not the number of rows — that is GetLength of zero." },
+
+  { t: "jagged array", where: "02i",
+    plain: "An array whose elements are themselves arrays, so every row can be a different length.",
+    note: "The rows start out as nothing at all and each has to be created before it can be used." },
+
+  { t: "deep copy", where: "02i",
+    plain: "A copy where the things inside are copied too, so changing one copy cannot affect the other.",
+    note: "Nothing in .NET does this for you. Every built-in copy is shallow, and a deep one has to be written or made unnecessary by immutability." },
+
+  { t: "sentinel value", where: "02i",
+    plain: "A deliberately impossible value used to mean \"no answer yet\", so it cannot be mistaken for a real one.",
+    note: "Needed whenever the natural default is also a legitimate answer — zero meaning both \"counted none\" and \"not counted\"." },
+
+  { t: "flags enum", where: "02j",
+    plain: "A set of named yes-or-no options packed into one number, one bit each, so several can be held at once.",
+    note: "Only works because the values are powers of two. The attribute that marks it changes how it prints and checks nothing." },
+
+  { t: "byte order mark", where: "02k", also: ["BOM"],
+    plain: "A few bytes at the very start of a text file that announce which encoding it is written in.",
+    note: ".NET writes UTF-8 without one by default, and Excel usually needs one to open a UTF-8 file correctly." },
+
+  { t: "path traversal", where: "02k",
+    plain: "Using dot-dot segments in a supplied file name to climb out of the folder that was meant to contain it.",
+    note: "The reason a file name from a user is reduced to its last segment before being joined to anything." },
+
+  { t: "exception filter", where: "02l",
+    plain: "A condition attached to a catch block that decides whether to handle the failure at all.",
+    note: "It is checked before the stack is unwound, so declining to handle keeps information that catching and rethrowing would destroy." },
+
+  { t: "primary constructor", where: "03b",
+    plain: "Constructor parameters written on the class declaration itself and usable anywhere in its body.",
+    note: "Shorter, and it leaves no natural place to validate the arguments." },
+
+  { t: "static factory", where: "03b",
+    plain: "A named method that creates and returns an instance, used instead of calling the constructor directly.",
+    note: "Worth it when the name says something the constructor cannot, or when the same parameter types would mean two different things." },
+
+  { t: "template method", where: "03c",
+    plain: "A base class that fixes the order of the steps and leaves one of them for subclasses to fill in.",
+    note: "The one shape where inheriting genuinely earns its place, because the shared part is written exactly once." },
+
+  { t: "substitution principle", where: "03c",
+    plain: "The rule that any subclass must be usable wherever its base class is, without the caller knowing which it got.",
+    note: "An override that throws because it cannot do what the base promised is the usual sign it has been broken." },
+
+  { t: "method table", where: "03c",
+    plain: "The per-type list the runtime consults to find which version of a replaceable method to run.",
+    note: "Why an override follows the object itself, while a hidden or non-replaceable method follows the variable it is held in." },
+
 ];
 
 /* The marker and the service worker both load this file with a plain <script>

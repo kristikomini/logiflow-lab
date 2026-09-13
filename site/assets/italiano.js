@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 62 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 76 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -185,12 +185,152 @@ self.IT_PHRASES = [
 /* ------------------------------------------------------- per-chapter lines */
 
 self.IT_CHAPTERS = {
+  "00e-console-output-and-input": {
+    say: [
+      "Quello che l'utente digita è sempre una stringa: convertirla è compito mio, e lo è anche decidere cosa succede quando non è convertibile.",
+      "Per un valore digitato da una persona uso sempre TryParse, non Parse: un errore di battitura è la normalità, e le eccezioni servono per l'eccezionale. La cosa importante è non ignorare mai il valore di ritorno, perché in caso di fallimento il parametro out resta a zero, che a valle sembra una risposta legittima.",
+      "ReadLine restituisce null a fine input, non stringa vuota: la stringa vuota vuol dire che l'utente ha premuto Invio, null vuol dire che input non ne arriverà più. Se controllo solo la stringa vuota, con l'input rediretto da file il ciclo del prompt gira all'infinito.",
+      "Gli errori li scrivo su Console.Error e i risultati su Console.Out, così chi redirige l'output su file continua a vedere i messaggi di errore.",
+      "Il valore restituito dal programma è l'exit code: zero vuol dire successo, ed è l'unica cosa che uno script o un server di build guarda. Un programma che stampa ERRORE e restituisce zero, per la pipeline è andato bene.",
+    ],
+    keep: ["console", "prompt", "exit code", "stdout", "stderr", "redirect", "TryParse", "Parse", "out", "args", "command line", "culture", "invariant", "trim"],
+  },
   "02-csharp-fundamentals": {
     say: [
       "In C# i tipi valore stanno normalmente sullo stack e i tipi riferimento sull'heap, ma la cosa importante è la semantica: assegnando una struct ne copio il contenuto, assegnando una classe copio solo il riferimento.",
       "Il boxing è quando un tipo valore viene incapsulato in un oggetto sull'heap: costa un'allocazione, ed è la fonte di allocazioni nascoste che si vede nei profiler.",
     ],
     keep: ["struct", "class", "boxing", "stack", "heap", "nullable reference types"],
+  },
+  "02b-the-properties-of-data": {
+    say: [
+      "Di ogni valore ci sono otto cose vere: il tipo, il range, dove sta, che valore ha prima che qualcuno lo assegni, se è modificabile, se può essere null, cosa vuol dire \"uguale\", e quando smette di esistere. Il tipo lo scelgo io, le altre sette me le trovo, ed è lì che arrivano le sorprese.",
+      "Assegnando un tipo valore copio il valore, assegnando un tipo riferimento copio l'indirizzo: l'oggetto resta uno solo, e modificarlo da un nome si vede dall'altro. Questo si chiama aliasing.",
+      "Il default è pericoloso proprio perché è plausibile: uno zero sembra una quantità vera e un false sembra una decisione che qualcuno ha preso. Se \"non lo so\" è uno stato reale del dominio, il tipo deve essere nullable.",
+      "Su una classe l'operatore == confronta i riferimenti, quindi due oggetti con gli stessi valori non sono uguali. Se mi serve l'uguaglianza per contenuto uso un record, che genera sia Equals sia GetHashCode — e se ne riscrivo uno devo riscrivere anche l'altro, altrimenti il Dictionary cerca nel bucket sbagliato.",
+      "Il garbage collector non si chiede se un oggetto ti serve ancora, solo se è raggiungibile. Un handler a cui non hai fatto il -= è raggiungibile, ed è per questo che un memory leak in .NET non è memoria persa: è memoria che qualcosa riesce ancora a raggiungere.",
+    ],
+    keep: ["value type", "reference type", "aliasing", "boxing", "overflow", "checked", "default", "immutable", "nullable", "null", "equality", "Equals", "GetHashCode", "record", "garbage collector", "dispose", "memory leak", "StringBuilder"],
+  },
+  "02c-wildcards-and-wordplay": {
+    say: [
+      "L'underscore in C# dipende da dove sta: come discard vuol dire \"qui ci va qualcosa che non mi interessa\", in uno switch è il pattern che prende tutto il resto e va per ultimo, mentre un nome che comincia con underscore è solo la convenzione per i campi privati e per il compilatore non significa niente.",
+      "Il punto interrogativo fa quattro lavori diversi: dopo un tipo lo rende nullable, come ?. salta la chiamata se l'oggetto è null, come ?? dà un valore di ripiego, e nel ternario non c'entra niente con null.",
+      "Il punto esclamativo davanti a un accesso, il null-forgiving, a runtime non fa assolutamente niente: dice solo al compilatore di smettere di avvisarti. Se il valore era null prendi la stessa NullReferenceException di prima, senza più il warning che te l'aveva predetta.",
+      "Attenzione ai wildcard di LIKE: % e _ nel testo scritto dall'utente allargano la ricerca, e questo non lo risolve la parametrizzazione, che serve contro la SQL injection. Sono due difese diverse e servono entrambe.",
+      "const viene risolto a compile time e copiato dentro chi lo usa, quindi se cambio una const in una libreria chi era già compilato continua a usare il valore vecchio. readonly invece è assegnato a runtime nel costruttore. Per questo const lo tengo solo per le cose vere per definizione.",
+    ],
+    keep: ["discard", "wildcard", "pattern matching", "switch expression", "nullable", "null-conditional", "null-coalescing", "ternary", "null-forgiving", "required", "LIKE", "escape", "SQL injection", "const", "readonly", "ref", "out", "override", "rethrow", "stack trace"],
+  },
+  "02d-predict-the-output": {
+    say: [
+      "La divisione fra due int è una divisione intera: 5 / 2 fa 2, e la parte decimale non viene arrotondata, viene buttata via. E un cast sul risultato non recupera niente, perché la perdita è già avvenuta dentro l'espressione.",
+      "Le stringhe sono immutabili, quindi una riga come s.ToUpper(); da sola non fa niente: il metodo costruisce una stringa nuova e quella riga la butta. Il compilatore non lo considera un errore.",
+      "Se rimuovo un elemento dentro un foreach sulla stessa lista prendo una InvalidOperationException, e la prendo all'iterazione successiva, non sulla Remove: per questo togliere l'ultimo elemento a volte sembra funzionare.",
+      "Una query LINQ non è un risultato, è una ricetta: se chiamo Count() due volte la esegue due volte. Con EF Core dietro sono due round trip al database. Faccio ToList() una volta e poi riuso.",
+      "Le lambda catturano la variabile, non il valore, e un ciclo for ha una sola variabile per tutte le iterazioni: per questo stampano tutte l'ultimo valore. Con foreach non succede, perché la variabile di iterazione è nuova a ogni giro.",
+    ],
+    keep: ["integer division", "overflow", "immutable", "interning", "StringBuilder", "aliasing", "shallow copy", "deferred execution", "LINQ", "struct", "pass by value", "ref", "record", "with", "closure", "short-circuit", "finally"],
+  },
+  "02e-functions-and-the-rest-of-the-syntax": {
+    say: [
+      "Una firma di metodo risponde sempre alle stesse cinque domande, in quest'ordine: chi può chiamarlo, se appartiene al tipo o all'oggetto, cosa restituisce, come si chiama e cosa deve entrare.",
+      "async non fa parte della firma che vede chi chiama: quello che vede è il Task. È solo il permesso di usare await nel corpo, e posso toglierlo restituendo direttamente il task senza rompere niente.",
+      "Un extension method è un metodo static in una classe static con il primo parametro marcato this: il compilatore riscrive la chiamata nella normale chiamata statica. Non aggiunge niente al tipo originale, ed è esattamente così che funziona LINQ — per questo senza il using giusto quei metodi \"non esistono\".",
+      "Un metodo con yield return diventa una state machine: chiamarlo non esegue niente del corpo, che parte solo quando qualcuno chiede il primo elemento. Per questo un'eccezione lanciata in cima salta fuori al foreach e non alla chiamata, e la validazione dei parametri va messa in un metodo wrapper non-iterator.",
+      "Gli overload si scelgono a compile time dal tipo dichiarato, gli override a runtime dal tipo reale. Questa singola frase spiega anche virtual contro new e l'uguaglianza fra due int boxati.",
+    ],
+    keep: ["signature", "static", "async", "Task", "await", "overload", "out", "ref", "params", "named argument", "tuple", "deconstruction", "local function", "lambda", "Func", "Action", "extension method", "iterator", "yield return", "deferred execution", "init", "required", "indexer", "attribute", "nameof"],
+  },
+  "02f-numbers-and-math": {
+    say: [
+      "I soldi vanno in decimal, mai in double: double è in virgola mobile binaria, quindi un decimo non è rappresentabile esattamente e l'errore si accumula su una somma. decimal è in base dieci, quindi 0.1 è esatto e lo è anche il totale di una colonna.",
+      "Math.Round di default fa il banker's rounding: le metà esatte vanno al pari più vicino, quindi 2.5 diventa 2 e 3.5 diventa 4. Per una fattura passo esplicitamente MidpointRounding.AwayFromZero, e lo passo dappertutto, perché il problema peggiore è lo stesso importo arrotondato in due modi diversi in due punti del sistema.",
+      "L'IVA dentro un lordo si tira fuori con una divisione, non con una moltiplicazione: il netto è lordo diviso 1,22 e l'imposta è la differenza. Moltiplicare il lordo per 0,22 sovrastima l'imposta del 22% dell'imposta stessa.",
+      "Se divido un totale in tre e arrotondo ogni quota, perdo un centesimo e nessuna modalità di arrotondamento lo risolve. Calcolo n-1 quote e faccio l'ultima uguale al totale meno la somma delle altre: a chi va il resto è una decisione di business, non tecnica.",
+      "L'overflow di un int è silenzioso: int.MaxValue più uno diventa un grande numero negativo senza nessun errore. Nei progetti che gestiscono numeri seri attivo CheckForOverflowUnderflow nel csproj.",
+    ],
+    keep: ["decimal", "double", "float", "overflow", "checked", "banker's rounding", "MidpointRounding", "arrotondamento", "IVA", "netto", "lordo", "invariant culture", "NaN", "Random", "seed"],
+  },
+  "02g-strings": {
+    say: [
+      "Le stringhe sono immutabili: ogni metodo restituisce una nuova stringa e nessuno modifica l'originale, quindi una riga come s.Trim(); da sola non fa assolutamente niente e il compilatore non avvisa.",
+      "Quando confronto due stringhe passo sempre una StringComparison: Ordinal per identificatori, SKU, path e chiavi, OrdinalIgnoreCase quando il maiuscolo non conta, e la cultura solo per ordinare del testo che legge una persona.",
+      "Non scrivo mai a.ToLower() == b: alloca una stringa inutile e applica le regole di cultura a quello che in realtà è un identificatore — in turco la minuscola di I non è i, e il confronto smette di funzionare su quella macchina senza nessun errore.",
+      "IndexOf restituisce -1 quando non trova niente, non un'eccezione: e -1 più 1 fa 0, quindi passarlo a Substring trasforma \"non trovato\" in \"tutta la stringa\".",
+      "Uso StringBuilder quando la concatenazione è dentro un ciclo, non quando la stringa è lunga: ogni += ricopia tutto quello accumulato fino a lì, quindi un export da ottantamila righe diventa miliardi di caratteri copiati — e di solito viene scambiato per un problema di database.",
+    ],
+    keep: ["immutabile", "interning", "StringComparison", "Ordinal", "OrdinalIgnoreCase", "StringBuilder", "Split", "Join", "Substring", "range", "IndexOf", "Trim", "invariant culture", "CSV"],
+  },
+  "02h-booleans-and-conditions": {
+    say: [
+      "In C# non esiste la truthiness: if di un intero o di una stringa non compila, e questo toglie di mezzo un'intera famiglia di bug.",
+      "&& fa short-circuit, & no: e lo short-circuit è una garanzia del linguaggio, non un'ottimizzazione, quindi mettere il controllo del null prima di quello che protegge è codice corretto. Con una sola e commerciale la guardia non protegge più niente e parte una NullReferenceException.",
+      "&& lega più stretto di ||, quindi a || b && c si legge a || (b && c). Nel dubbio metto le parentesi: a runtime non costano niente.",
+      "Un bool? ha tre stati, non due: testo sempre lo stato che voglio con == true, perché != false è vero anche per null — ed è così che un ordine che nessuno ha ancora approvato finisce nel ramo degli approvati.",
+      "Una condizione con più di due clausole le do un nome, meglio ancora come proprietà del tipo a cui la domanda si riferisce: così un lettore capisce a cosa servivano quelle clausole e non possono divergere fra i vari punti di chiamata.",
+    ],
+    keep: ["bool", "truthiness", "short-circuit", "precedenza", "nullable", "bool?", "logica a tre valori", "guard clause", "pattern matching", "switch expression", "enum"],
+  },
+  "02i-arrays-and-shapes": {
+    say: [
+      "La lunghezza di un array è fissata alla creazione: Array.Resize non ridimensiona niente, alloca un nuovo array e ricopia tutto — se lo sto chiamando dentro un ciclo, volevo una List.",
+      "Su un array rettangolare, .Length è il numero totale di celle, non di righe: righe e colonne sono GetLength(0) e GetLength(1). È l'errore più comune con gli array a due dimensioni.",
+      "Un array jagged è un array di riferimenti ad altri array, quindi le righe partono a null e ognuna ha la sua lunghezza. Nel codice gestionale è quasi sempre la forma giusta, perché i dati veri sono irregolari: ogni ordine ha un numero diverso di righe.",
+      "Tutte le copie predefinite in .NET sono shallow: Clone, ToArray, ToList e Array.Copy duplicano le caselle e condividono gli oggetti dentro. Per una copia profonda me la scrivo io, oppure rendo immutabili gli elementi.",
+      "Contains su un array o su una List è una scansione lineare: dentro un ciclo diventa un O(n²) accidentale, invisibile con cento elementi e fatale con cinquantamila. Costruisco un HashSet una volta sola fuori dal ciclo.",
+    ],
+    keep: ["array", "Length", "GetLength", "rettangolare", "jagged", "shallow copy", "deep copy", "HashSet", "IReadOnlyList", "Span", "foreach", "RemoveAll"],
+  },
+  "02j-enums": {
+    say: [
+      "Un enum è un value type con sotto un intero e i nomi attaccati a compile time: per questo il cast funziona in entrambi i sensi e non costa niente a runtime.",
+      "I valori li assegno sempre esplicitamente: con la numerazione implicita, inserire un membro in mezzo rinumera tutti quelli dopo, e le righe già salvate nel database non si spostano — quindi un ordine che era \"Picked\" diventa un altro stato senza che niente fallisca.",
+      "Una variabile enum non è limitata ai suoi nomi: un cast da int non è controllato, quindi valido con Enum.IsDefined qualunque valore arrivi da fuori e metto sempre un ramo default che lancia, perché il C# non sa verificare l'esaustività.",
+      "L'attributo Flags non fa quasi niente: cambia solo come stampa ToString. Quello che fa funzionare un enum di flag è che i valori siano potenze di due — e nessuno lo controlla per te.",
+      "Su un'API serializzo sempre il nome e non il numero, altrimenti la mia numerazione interna diventa parte del contratto di qualcun altro e un refactoring interno diventa un breaking change silenzioso.",
+    ],
+    keep: ["enum", "underlying type", "IsDefined", "TryParse", "switch expression", "default", "Flags", "HasFlag", "potenze di due", "breaking change", "serializzazione"],
+  },
+  "02k-files-and-folders": {
+    say: [
+      "I path li costruisco sempre con Path.Combine: un backslash scritto a mano è il motivo più comune per cui del codice che funziona sul portatile muore appena viene messo in un container Linux.",
+      "ReadLines e non ReadAllLines, a meno che non sappia che il file è piccolo: il primo è lazy e legge a memoria costante, il secondo carica tutto. È una lettera di differenza e la differenza fra funzionare sul file di test e reggere un export da quattro milioni di righe.",
+      "Ogni stream vuole un using, altrimenti l'handle del sistema operativo resta aperto e il file resta bloccato finché non passa il garbage collector — e chi scrive dopo di me fallisce con \"il file è in uso\".",
+      "Per scrivere un file che nessuno possa leggere a metà, scrivo su un nome temporaneo nella stessa cartella e poi rinomino: il rename dentro lo stesso volume è atomico, quindi il file appare completo o non appare.",
+      "Numeri e date su file sempre con InvariantCulture, in scrittura e in lettura: 18.40 scritto in italiano diventa 18,40 e riletto in inglese diventa 1840, senza nessuna eccezione e con tutto quello che sta a valle sbagliato.",
+    ],
+    keep: ["Path.Combine", "ReadLines", "stream", "using", "handle", "FileShare", "IOException", "atomico", "rename", "encoding", "UTF-8", "BOM", "InvariantCulture", "round-trip"],
+  },
+  "02l-exceptions": {
+    say: [
+      "Le eccezioni sono per l'eccezionale: se chi chiama poteva ragionevolmente aspettarsi quell'esito — non trovato, password sbagliata, file non ancora arrivato — è un valore di ritorno, non un throw.",
+      "throw; e mai throw ex;: il secondo resetta lo stack trace alla riga in cui è scritto, quindi il log punta al mio blocco catch invece che al punto in cui il problema è successo davvero. Ed è l'unica informazione che avevo.",
+      "Un catch vuoto è peggio di un crash: non toglie il fallimento, toglie la segnalazione — l'API risponde 200 per un ordine che non è mai stato salvato, e il problema salta fuori giorni dopo senza niente nei log.",
+      "Catturo il tipo più specifico possibile, e catch (Exception) sta in cima all'applicazione e quasi da nessun'altra parte: più in basso si porta via anche la OperationCanceledException, che è un utente che ha cambiato pagina e non un errore.",
+      "Un'eccezione personalizzata la scrivo solo se qualcuno la catturerebbe davvero in modo specifico; la derivo dalla base più vicina, le do i dati come proprietà, e prevedo sempre l'overload con inner, perché quando traduco un errore la causa vera deve restare attaccata.",
+    ],
+    keep: ["eccezione", "throw", "rethrow", "stack trace", "inner exception", "exception filter", "finally", "using", "TryParse", "InvalidOperationException", "OperationCanceledException", "middleware", "ProblemDetails"],
+  },
+  "03b-classes-objects-members": {
+    say: [
+      "I campi sono sempre privati e lo stato si espone con le proprietà: una proprietà è una coppia di metodi travestita da dato, quindi può validare, calcolare, essere virtuale o stare su un'interfaccia — e trasformare un campo pubblico in proprietà è un breaking change binario.",
+      "Il costruttore è il punto in cui l'oggetto diventa valido, ed è l'unico che possa garantirlo: se valido lì nessuna istanza può esistere rotta, se valido nel chiamante mi sto fidando di tutti i chiamanti, anche quelli non ancora scritti.",
+      "Non chiamo mai un metodo virtual dentro un costruttore: il costruttore base gira prima che i campi della classe derivata siano inizializzati, quindi l'override trova tutto a null.",
+      "Una collezione non la espongo mai come List: anche con la sola get il chiamante non può sostituirla ma può fare Add, quindi scavalca il metodo che contiene le regole. Campo privato readonly e IReadOnlyList in uscita.",
+      "Parto da private e giustifico ogni passo verso l'alto: nelle applicazioni la maggior parte delle classi dovrebbe essere internal, perché è dettaglio implementativo, e InternalsVisibleTo dà comunque accesso ai test.",
+    ],
+    keep: ["campo", "proprietà", "auto-property", "init", "required", "const", "static readonly", "costruttore", "chaining", "primary constructor", "access modifier", "internal", "incapsulamento", "record", "struct"],
+  },
+  "03c-inheritance-and-interfaces": {
+    say: [
+      "Il polimorfismo è una chiamata risolta a runtime dal tipo reale dell'oggetto: l'overload invece si risolve a compile time dal tipo dichiarato, ed è la confusione più comune su questo argomento.",
+      "override sostituisce, new nasconde: un membro nascosto segue la variabile e non l'oggetto, quindi la stessa istanza risponde in modo diverso a seconda di come la tengo — e non è praticamente mai quello che si voleva.",
+      "L'ereditarietà vuol dire \"è un\", non \"usa\": se sto derivando per arrivare a un metodo, quello che volevo era una dipendenza nel costruttore. Derivare da un helper lo salda addosso al servizio, ne espone i membri e brucia l'unica classe base che ho.",
+      "Un override che lancia NotSupportedException è un errore di design: la sottoclasse non può mantenere la promessa della base, quindi non è davvero un sottotipo — di solito sta modellando una fase e non un tipo di cosa.",
+      "L'interfaccia è la giuntura che rende testabile l'applicazione: il servizio dipende da IOrderRepository, quindi il test gli passa l'implementazione in memoria e non tocca nessun database. La classe astratta la introduco solo quando c'è comportamento davvero condiviso da scrivere una volta sola.",
+    ],
+    keep: ["ereditarietà", "polimorfismo", "astrazione", "interfaccia", "classe astratta", "virtual", "override", "new", "sealed", "base", "template method", "Liskov", "sostituibilità", "composizione", "dependency injection"],
   },
   "04-generics-delegates-events": {
     say: [
