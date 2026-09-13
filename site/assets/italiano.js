@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 59 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 62 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -312,6 +312,24 @@ self.IT_CHAPTERS = {
     ],
     keep: ["component", "template", "service", "dependency injection", "HttpClient", "Observable", "subscribe", "binding", "interceptor", "guard", "CORS"],
   },
+  "18c-react": {
+    say: [
+      "Un componente React è una funzione: riceve le props e restituisce quello che va disegnato. Quando lo stato o le props cambiano, React la richiama, confronta il risultato con quello precedente e aggiorna solo le parti diverse.",
+      "La funzione deve essere pura: stessi dati in ingresso, stesso risultato, nessun effetto collaterale. Tutto quello che tocca il mondo esterno — una chiamata HTTP, un timer, una subscription — va dentro una useEffect, con la sua cleanup.",
+      "I dati che arrivano dal server non sono stato dell'applicazione: sono una copia in cache di qualcosa che possiede l'API. Li tengo in una query cache, che si occupa di staleness, refetch e cancellazione.",
+      "Ogni riga di una lista ha bisogno di una key stabile: con l'indice dell'array, se cancelli una riga, tutte quelle sotto cambiano identità.",
+    ],
+    keep: ["component", "props", "state", "hook", "useState", "useEffect", "dependency array", "cleanup", "stale closure", "key", "render", "query cache", "context"],
+  },
+  "19b-realtime": {
+    say: [
+      "Con il polling è il client che chiede a intervalli: semplice, ma la latenza è in media metà dell'intervallo e le richieste si pagano anche quando non è cambiato niente. Con un WebSocket la connessione resta aperta e il server può parlare per primo.",
+      "SignalR non è un protocollo diverso: è una libreria sopra WebSocket, Server-Sent Events e long polling, che aggiunge i gruppi, la riconnessione automatica e il backplane.",
+      "Appena metti due istanze dietro un load balancer serve un backplane, altrimenti chi è connesso alla seconda istanza non riceve niente — senza nessun errore.",
+      "Un hub non è una coda: quello che è stato inviato mentre eri disconnesso è perso. Alla riconnessione si rilegge lo stato, non si chiede il replay, e si rientra nei gruppi perché il connection id è nuovo.",
+    ],
+    keep: ["polling", "WebSocket", "Server-Sent Events", "long polling", "SignalR", "hub", "group", "connection id", "backplane", "sticky session", "reconnect", "keep-alive", "snapshot"],
+  },
   "19-blazor": {
     say: [
       "Blazor Server tiene lo stato sul server e comunica con il browser tramite un circuito SignalR: il primo caricamento è veloce ma serve una connessione stabile.",
@@ -339,6 +357,16 @@ self.IT_CHAPTERS = {
       "Il default che propongo è il monolite modulare: confini interni veri e imposti dai test di architettura, un solo deploy e una sola transazione. Se poi i team crescono, i confini per dividere ci sono già.",
     ],
     keep: ["bounded context", "deploy", "outbox", "saga", "eventual consistency", "API gateway", "distributed monolith", "BackgroundService"],
+  },
+  "22c-distributed-state": {
+    say: [
+      "La consistenza eventuale garantisce che, se le scritture si fermano, tutte le copie convergono sullo stesso valore. Non garantisce niente su un istante preciso: due utenti possono legittimamente vedere risposte diverse nello stesso momento, e il lavoro è decidere cosa mostrare a ciascuno nel frattempo.",
+      "Il default giusto resta un solo nodo che scrive con delle repliche in lettura: c'è un solo ordine degli eventi e i conflitti non esistono. Il prezzo è il ritardo di replica, per cui un utente può rileggere quello che ha appena scritto e non vederlo.",
+      "Il conflitto migliore è quello che non può succedere: assegno la proprietà delle righe a un sito solo, e gli altri le hanno in sola lettura. Il last write wins lo uso solo dove perdere una modifica non fa danno, perché gli orologi di due macchine non coincidono.",
+      "Per il lavoro offline ogni dispositivo scrive in locale più un outbox, con gli id generati dal client. Alla riconnessione la coda si svuota in ordine, ogni modifica porta una chiave di idempotenza e la versione su cui è stata fatta, e la risposta del server sovrascrive la copia locale.",
+      "Alta disponibilità vuol dire prima di tutto due numeri: RTO, quanto tempo posso restare fermo, e RPO, quanti dati posso perdere. Sono quelli che decidono se la replica è sincrona o asincrona.",
+    ],
+    keep: ["replica", "replication lag", "multi-master", "conflict", "last write wins", "version vector", "CRDT", "eventual consistency", "CAP", "idempotente", "outbox", "offline", "failover", "split-brain", "quorum", "RTO", "RPO"],
   },
   "23-architecture-and-cqrs": {
     say: [

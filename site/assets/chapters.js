@@ -247,11 +247,25 @@ const CHAPTERS = [
     extra: "Chapter 18 explains what an SPA is; this is the framework itself, because “Angular o Blazor” is how the region's adverts write the front-end line and chapter 19 only answered half of it.",
   },
   {
+    n: "18c", id: "18c-react", part: PARTS[3],
+    title: "React, concretely",
+    blurb: "Components, hooks, the dependency array and the server cache — and why a list needs a stable key.",
+    tags: "react jsx tsx vite component props hook usestate useeffect usememo usecallback useref dependency array stale closure cleanup abortcontroller key index render pure virtual dom strictmode fragment classname context redux zustand tanstack query usequery usemutation invalidatequeries staletime fetch response.ok proxy cors lifting state derived state next.js",
+    extra: "The advert that names React never offers Angular as an alternative — product companies write the front-end line that way, and chapter 18 only covers React architecturally.",
+  },
+  {
     n: "19", id: "19-blazor", part: PARTS[3],
     title: "Blazor",
     blurb: "C# in the browser: Server vs WebAssembly, render modes, and why the region cares.",
     tags: "blazor webassembly wasm interactive server render mode component signalr circuit winforms wpf migration desktop",
     extra: "Blazor is how the region's WinForms and WPF shops move to the web without hiring a JavaScript team — and Bologna adverts now name it directly.",
+  },
+  {
+    n: "19b", id: "19b-realtime", part: PARTS[3],
+    title: "Real-time: WebSocket and SignalR",
+    blurb: "The server speaking first: transports, hubs, groups, reconnect — and everything the second instance breaks.",
+    tags: "real time realtime websocket ws upgrade 101 switching protocols server-sent events sse long polling signalr hub hubcontext iclient strongly typed groups connectionid useridentifier hubexception withautomaticreconnect accesstokenfactory backplane redis azure signalr service sticky sessions negotiate keep-alive idle timeout reverse proxy backpressure throttle coalesce snapshot live dashboard push notifications tracking dispatch",
+    extra: "“Visualizzazioni real-time” and WebSocket are named outright in tracking and dispatching adverts, and until now the only WebSocket on this site was the pipe under a Blazor circuit — a special case, and a misleading one to generalise from.",
   },
   {
     n: "20", id: "20-redis-caching", part: PARTS[4],
@@ -280,6 +294,13 @@ const CHAPTERS = [
     blurb: "What the architecture buys, what it costs, how to cut it — and why the answer here is usually the modular monolith.",
     tags: "microservices microservizi monolith modular monolith distributed monolith bounded context ddd seam independent deployment api gateway bff yarp service discovery saga compensation outbox eventual consistency availability chain strangler backgroundservice periodictimer scheduled job distributed lock lease idempotent hangfire quartz cronjob",
     extra: "“Microservizi” appears in the duties of one advert and again in its nice-to-haves, and the word occurs in this repository only where module 08 says CQRS is not it. The substance is taught in 22 and module 25; this claims the vocabulary and adds the judgement — including the scheduled-job problem that arrives with the second instance.",
+  },
+  {
+    n: "22c", id: "22c-distributed-state", part: PARTS[4],
+    title: "Distributed state: replication, conflict and offline",
+    blurb: "The same fact stored twice: replication topologies, who wins a conflict, the sync endpoint, and the degraded mode.",
+    tags: "distributed systems replication single writer primary replica read replica replication lag read your own writes multi-master multimaster sincronizzazione conflict resolution last write wins clock skew version vector crdt partition ownership cap theorem pacelc eventual consistency strong consistency idempotency key change id optimistic concurrency rowversion guid uuidv7 ulid newsequentialid offline first degraded mode outbox indexeddb sqlite dead letter high availability alta disponibilita rto rpo synchronous asynchronous failover split-brain quorum fencing always on availability group postgresql streaming logical replication",
+    extra: "“Architetture distribuite, sincronizzazione multi-master, consistenza dei dati, alta disponibilità, modalità degradate (offline)” is one line in a tracking-and-dispatching advert and was the largest hole in this course. Chapters 22 and 22b are about messages between services; this is about the same fact stored in two places, both able to change it.",
   },
   {
     n: "23", id: "23-architecture-and-cqrs", part: PARTS[5],

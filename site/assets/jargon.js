@@ -914,6 +914,107 @@ window.JARGON = [
   { t: "camelCase", where: "18b",
     plain: "Writing a name with no spaces and each later word capitalised, like shipmentReference.",
     note: "The same name with the first letter capitalised too is PascalCase, which is what C# uses — and the mismatch between the two is a real source of empty screens." },
+
+  { t: "JSX", where: "18c",
+    plain: "JavaScript with tags written directly in it, so the thing that draws the screen and the code deciding what to draw are one file." },
+
+  { t: "props", where: "18c",
+    plain: "The values a piece of screen is handed by whatever placed it, which it may read but never change." },
+
+  { t: "React hook", where: "18c",
+    plain: "A function whose name starts with use, letting a piece of screen keep something between redraws or do something after one." },
+
+  { t: "virtual DOM", where: "18c",
+    plain: "A lightweight copy of what the page should look like, compared against the previous one so only the real differences are applied to the page itself." },
+
+  { t: "dependency array", where: "18c",
+    plain: "The list of values an after-the-drawing job reads, so the framework knows when that job has to run again.",
+    note: "Leave a value out and the job keeps using the copy it captured the first time, with nothing to tell you." },
+
+  { t: "Vite", where: "18c",
+    plain: "The tool that serves a front-end project while you work on it and packs it into files a web server can hand out." },
+
+  { t: "query cache", where: "18c",
+    plain: "A store on the client holding answers already fetched from the server, keeping track of how old each one is and when to ask again." },
+
+  { t: "lifting state up", where: "18c",
+    plain: "Moving a value to the nearest piece of screen that contains everything needing it, instead of keeping a copy in each." },
+
+  { t: "StrictMode", where: "18c",
+    plain: "A development-only setting that deliberately does some work twice, so anything unsafe to repeat shows itself before it reaches users." },
+
+  /* ══════════════════════════════════════ the server speaking first (19b) */
+
+  { t: "WebSocket", where: "19b",
+    plain: "A connection that starts as an ordinary web request and then stays open, so both ends can send whenever they have something to say." },
+
+  { t: "Server-Sent Events", where: "19b",
+    plain: "One web response that is never finished, used to trickle updates down to the browser — one direction only." },
+
+  { t: "long polling", where: "19b",
+    plain: "Asking and having the answer held back until there is something to say, then asking again — the way to fake a push where nothing better is allowed through." },
+
+  { t: "SignalR", where: "19b",
+    plain: "The .NET library that picks the best of those connections available, reconnects when it drops, and lets the server call a method on the browser." },
+
+  { t: "hub", where: "19b",
+    plain: "The class on the server whose methods a connected browser may call, and through which the server calls the browser back." },
+
+  { t: "connection id", where: "19b",
+    plain: "The name of one open connection, which is new every time that connection is re-established.",
+    note: "It identifies a connection, never a person — one user with two tabs has two of them." },
+
+  { t: "backplane", where: "19b",
+    plain: "The shared channel that lets several copies of a server pass messages between them, so each can reach the people connected to it.",
+    note: "It shares messages between servers; it does not store them for anybody who was away." },
+
+  { t: "sticky session", where: "19b",
+    plain: "A load balancer sending the same visitor back to the same server every time, rather than spreading them around." },
+
+  { t: "keep-alive", where: "19b",
+    plain: "A small message sent along an idle connection purely to prove it is still there, so nothing in the middle decides it is dead." },
+
+  /* ═══════════════════════════════════ the same fact, stored twice (22c) */
+
+  { t: "read replica", where: "22c",
+    plain: "A copy of the database kept up to date from the main one, used to answer questions but never written to." },
+
+  { t: "replication lag", where: "22c",
+    plain: "How far behind a copy is running, and therefore how out of date an answer from it can be." },
+
+  { t: "multi-master", where: "22c",
+    plain: "More than one copy of the data accepting changes, rather than one place doing all the writing.",
+    note: "It is what lets a site keep working alone, and it is why two copies can end up disagreeing." },
+
+  { t: "last write wins", where: "22c",
+    plain: "Settling a disagreement by keeping whichever change carries the later time and throwing the other away." },
+
+  { t: "version vector", where: "22c",
+    plain: "A small set of counters carried with a record, enough to tell whether one change came after another or whether they were made without knowledge of each other." },
+
+  { t: "CRDT", where: "22c",
+    plain: "A way of holding data where combining two copies always gives the same result whatever order you do it in, so nobody has to decide a winner." },
+
+  { t: "CAP", where: "22c",
+    plain: "The rule that when part of a system cannot reach the rest, you either stop accepting changes there or accept them and sort it out afterwards." },
+
+  { t: "split-brain", where: "22c",
+    plain: "Two machines that cannot see each other both deciding they are in charge, and both accepting changes nobody has agreed on." },
+
+  { t: "quorum", where: "22c",
+    plain: "Requiring more than half the machines to agree before anything counts, so only one side of a break can ever act." },
+
+  { t: "fencing", where: "22c",
+    plain: "Actually preventing a machine that has been replaced from writing anything, rather than trusting it to stop." },
+
+  { t: "RTO", where: "22c",
+    plain: "How long the business has agreed it can manage with the system unavailable." },
+
+  { t: "RPO", where: "22c",
+    plain: "How much recent work the business has agreed it can afford to lose if a machine dies." },
+
+  { t: "degraded mode", where: "22c",
+    plain: "Carrying on deliberately with less than the whole system working, in a way that was designed rather than improvised." },
 ];
 
 /* The marker and the service worker both load this file with a plain <script>

@@ -1,9 +1,9 @@
 # LogiFlow Academy
 
 A W3Schools-style tutorial site built around one real job advert: a **.NET developer**
-position in Emilia-Romagna. Fifty-nine chapters, in dependency order: twenty-four cover
-every line of that posting, and thirty-five are not in it at all, because the wider Modena /
-Bologna / Reggio Emilia / Milano market asks for them anyway. Three of those thirty-five (WinForms/WPF,
+position in Emilia-Romagna. Sixty-two chapters, in dependency order: twenty-four cover
+every line of that posting, and thirty-eight are not in it at all, because the wider Modena /
+Bologna / Reggio Emilia / Milano market asks for them anyway. Three of those thirty-eight (WinForms/WPF,
 industrial/MES and Business Central) are separate regional job markets in their own right.
 
 ## Opening it
@@ -62,10 +62,10 @@ site/
   register.html         create an account
   reset.html            forgotten password, in two steps
   account.html          the area riservata — the account, its sync, and your data
-  chapters/*.html       59 chapters, one file each
+  chapters/*.html       62 chapters, one file each
   assets/
     chapters.js         THE MANIFEST — the chapter list, single source of truth
-    quizzes-1/2/3.js    THE QUESTION BANK — 592 questions, keyed by chapter id
+    quizzes-1/2/3.js    THE QUESTION BANK — 658 questions, keyed by chapter id
     rules.js            THE VIVA DECK — 384 Golden rules. GENERATED, do not edit
     glossary.js         133 Italian/English terms
     jargon.js           THE PLAIN-ENGLISH DICTIONARY — one sentence per professional word
@@ -138,7 +138,7 @@ remember it longest when the tests are **spaced out**.
 
 ### One honest percentage
 
-`dashboard.html`. A chapter is worth `1/59` of the course, and within a chapter:
+`dashboard.html`. A chapter is worth `1/62` of the course, and within a chapter:
 
 ```
 25%   for having read it
@@ -155,7 +155,7 @@ comment saying so, and `ProfileSummaryTests` is what catches them drifting apart
 
 ### Tests at the end of every chapter
 
-592 questions in `assets/quizzes-*.js`, 8 to 17 per chapter, written to be probed the way an
+658 questions in `assets/quizzes-*.js`, 8 to 17 per chapter, written to be probed the way an
 interviewer probes. The explanation appears **whether you were right or wrong** — feedback
 that only shows up on failure teaches people to guess and check.
 
@@ -219,7 +219,7 @@ from both the Golden rules and the question bank, and the next question arriving
 still annoyed about the last one.
 
 Two things make it different from the viva rather than a longer version of it. The **bank
-questions are asked without their options**, which turns 592 recognition items into recall
+questions are asked without their options**, which turns 658 recognition items into recall
 items at no content cost. And it opens with *"mi parli di lei"* and closes with *"ha domande
 per noi?"* — the two questions asked in every interview and prepared for in almost none,
 because they do not feel like knowledge.
@@ -257,7 +257,7 @@ this one is about a word you cannot *decode*.
 
 ### In italiano
 
-`italiano.html`, plus a panel on 37 of the 59 chapters.
+`italiano.html`, plus a panel on 40 of the 62 chapters.
 
 The glossary gives you the words. This gives you the **sentences** — because what goes wrong in
 a colloquio is not vocabulary. It is knowing the answer, knowing the words, and still not being
@@ -284,7 +284,7 @@ bullets are *true*, and whether they are the right three.
 
 ### Offline
 
-The site installs as an app and works with the network unplugged: `sw.js` precaches all 59
+The site installs as an app and works with the network unplugged: `sw.js` precaches all 62
 chapters and every asset on first visit, and serves them cache-first afterwards.
 
 **It never caches `/api/`.** Sign-in, sync and the leaderboard need the network and fail
