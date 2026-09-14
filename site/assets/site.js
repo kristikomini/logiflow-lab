@@ -27,6 +27,26 @@
     try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
   }
 
+  /* ------------------------------------------------------------------ text
+     Chapter metadata is hand-written prose with quotes and dashes in it, and
+     it goes into attributes as well as into elements. Escape once, here. */
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /* Every `work` line is written as "<stage> — <what you do with it there>".
+     The sidebar has room for the stage only; the rest is the title attribute,
+     the home-page card and the strip at the top of the chapter. */
+  function workStage(work) {
+    return String(work).split(/\s[—-]\s/)[0].trim();
+  }
+  function workRest(work) {
+    var i = String(work).search(/\s[—-]\s/);
+    return i === -1 ? "" : String(work).slice(i + 3).trim();
+  }
+
   /* ------------------------------------------------------------------ chrome */
   function buildTopbar() {
     var bar = document.createElement("header");
@@ -84,19 +104,34 @@
     aside.innerHTML = html;
 
     var list = aside.querySelector("#navList");
-    var lastPart = null;
+    var lastPart = null, lastSec = null;
     var out = [];
 
     window.CHAPTERS.forEach(function (c) {
       if (c.part !== lastPart) {
         out.push('<div class="nav-part" data-part="1">' + c.part + "</div>");
         lastPart = c.part;
+        lastSec = null;               // a new part always re-announces its first section
+      }
+      /* The precise heading. A part like "The platform and the language" is
+         twenty-five chapters long; what the reader is looking for is
+         "Generics, delegates and events" or "Debugging and the traps", so that
+         is what the sidebar shows them. */
+      if (c.sec && c.sec !== lastSec) {
+        out.push('<div class="nav-sec">' + c.sec + "</div>");
+        lastSec = c.sec;
       }
       var cls = "nav-link" + (c.id === current ? " current" : "");
+      var search = (c.n + " " + c.title + " " + c.blurb + " " + c.tags +
+                    " " + (c.sec || "") + " " + (c.work || "")).toLowerCase();
       out.push(
         '<a class="' + cls + '" href="' + toChap(c.id) + '" ' +
-        'data-search="' + (c.n + " " + c.title + " " + c.blurb + " " + c.tags).toLowerCase() + '">' +
-        '<span class="num">' + c.n + "</span><span>" + c.title + "</span></a>"
+        (c.work ? 'title="' + esc(c.work) + '" ' : "") +
+        'data-search="' + esc(search) + '">' +
+        '<span class="num">' + c.n + "</span>" +
+        '<span class="nav-body"><span class="nav-title">' + c.title + "</span>" +
+        (c.work ? '<span class="nav-stage">' + esc(workStage(c.work)) + "</span>" : "") +
+        "</span></a>"
       );
     });
     list.innerHTML = out.join("");
@@ -118,7 +153,7 @@
     input.addEventListener("input", function () {
       var q = input.value.trim().toLowerCase();
       var links = list.querySelectorAll("a.nav-link");
-      var parts = list.querySelectorAll(".nav-part");
+      var parts = list.querySelectorAll(".nav-part, .nav-sec");
       var hits  = 0;
 
       if (!q) {
@@ -134,10 +169,14 @@
         links[j].hidden = !match;
         if (match) hits++;
       }
-      // Hide a part heading when everything under it is hidden.
+      // Hide a heading — part or section — when everything under it is hidden.
+      // A part heading looks past its own section headings; a section heading
+      // stops at the next heading of either kind.
       for (var k = 0; k < parts.length; k++) {
+        var stopAtSec = parts[k].classList.contains("nav-sec");
         var node = parts[k].nextElementSibling, any = false;
-        while (node && !node.classList.contains("nav-part")) {
+        while (node && !node.classList.contains("nav-part") &&
+               !(stopAtSec && node.classList.contains("nav-sec"))) {
           if (node.classList.contains("nav-link") && !node.hidden) { any = true; break; }
           node = node.nextElementSibling;
         }
@@ -429,6 +468,37 @@
     host.innerHTML = '<div class="box-title">On this page</div><ul>' + items.join("") + "</ul>";
   }
 
+  /* ------------------------------------------------- where this chapter sits
+     Two facts the chapter page could not state for itself without being
+     edited in seventy-six places: the precise section it belongs to (added to
+     the crumbs, which until now stopped at the part) and the stage of the work
+     process it serves. Both come from chapters.js, so they can never disagree
+     with the sidebar. */
+  function buildPlacement() {
+    if (!current) return;
+    var c = null;
+    for (var i = 0; i < window.CHAPTERS.length; i++) {
+      if (window.CHAPTERS[i].id === current) { c = window.CHAPTERS[i]; break; }
+    }
+    if (!c) return;
+
+    var crumbs = document.querySelector("p.crumbs");
+    if (crumbs && c.sec && crumbs.textContent.indexOf(c.sec) === -1) {
+      crumbs.innerHTML = esc(c.part) + " <span>&rsaquo;</span> " + esc(c.sec) +
+        " <span>&rsaquo;</span> Chapter " + esc(c.n);
+    }
+
+    if (!c.work) return;
+    var lede = document.querySelector("p.lede");
+    var anchor = lede || document.querySelector("main.main h1");
+    if (!anchor) return;
+    var strip = document.createElement("p");
+    strip.className = "work-line";
+    strip.innerHTML = "<span>In the work process</span> <strong>" +
+      esc(workStage(c.work)) + "</strong> &mdash; " + esc(workRest(c.work));
+    anchor.parentNode.insertBefore(strip, anchor.nextSibling);
+  }
+
   function buildPager() {
     var host = document.getElementById("pager");
     if (!host) return;
@@ -470,20 +540,34 @@
   function buildCards() {
     var host = document.getElementById("cards");
     if (!host) return;
-    var lastPart = null, out = [];
+    var lastPart = null, lastSec = null, open = false, out = [];
+    function closeGrid() { if (open) { out.push("</div>"); open = false; } }
+
     window.CHAPTERS.forEach(function (c) {
       if (c.part !== lastPart) {
-        if (lastPart !== null) out.push("</div>");
-        out.push("<h2>" + c.part + '</h2><div class="grid">');
+        closeGrid();
+        out.push("<h2>" + c.part + "</h2>");
         lastPart = c.part;
+        lastSec = null;
       }
+      if (c.sec && c.sec !== lastSec) {
+        closeGrid();
+        out.push('<h3 class="sec-head">' + c.sec + "</h3>");
+        lastSec = c.sec;
+      }
+      if (!open) { out.push('<div class="grid">'); open = true; }
       out.push(
         '<a class="card" href="' + toChap(c.id) + '">' +
           '<span class="card-num">CHAPTER ' + c.n + "</span>" +
-          "<h3>" + c.title + "</h3><p>" + c.blurb + "</p></a>"
+          "<h3>" + c.title + "</h3><p>" + c.blurb + "</p>" +
+          (c.work
+            ? '<p class="card-work"><span>' + esc(workStage(c.work)) + "</span> " +
+              esc(workRest(c.work)) + "</p>"
+            : "") +
+        "</a>"
       );
     });
-    out.push("</div>");
+    closeGrid();
     host.innerHTML = out.join("");
   }
 
@@ -546,6 +630,7 @@
   wireNavToggle();
   wireCopy();
   buildToc();
+  buildPlacement();
   buildPager();
   buildCards();
   buildCoverage();

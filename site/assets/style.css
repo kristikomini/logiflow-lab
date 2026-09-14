@@ -840,3 +840,44 @@ body[data-mode="pro"] .kid { display: none; }
 @media (max-width: 680px) {
   .free-hub { margin-left: 0; }
 }
+
+/* ==========================================================================
+   Precise sections, and the work-process line
+   Both are generated from chapters.js: the sidebar sub-heading under a part,
+   the stage label beside a chapter link, the card footer and the strip under
+   a chapter's lede.
+   ========================================================================== */
+.nav-sec {
+  margin: 11px 14px 3px; font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); letter-spacing: .01em;
+}
+.nav-part + .nav-sec { margin-top: 5px; }
+.sidebar a.nav-link .nav-body { display: block; min-width: 0; }
+.sidebar a.nav-link .nav-title { display: block; }
+.sidebar a.nav-link .nav-stage {
+  display: block; font-size: 11.5px; color: var(--ink-faint);
+  line-height: 1.35; margin-top: 1px;
+}
+.sidebar a.nav-link.current .nav-stage { color: var(--brand-ink); opacity: .85; }
+
+.sec-head {
+  margin: 1.4em 0 .2em; font-size: 15px; font-weight: 600; color: var(--ink-soft);
+}
+.sec-head + .grid { margin-top: .6em; }
+
+.card .card-work {
+  margin-top: .6em; padding-top: .6em; border-top: 1px solid var(--line);
+  font-size: 12.5px; color: var(--ink-faint);
+}
+.card .card-work span { font-weight: 700; color: var(--ink-soft); }
+
+.work-line {
+  margin: .9em 0 0; padding: 9px 13px; border-left: 3px solid var(--brand);
+  background: var(--bg-sunken); border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 14px; color: var(--ink-soft); line-height: 1.5;
+}
+.work-line > span {
+  display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 2px;
+}
+.work-line strong { color: var(--ink); }
