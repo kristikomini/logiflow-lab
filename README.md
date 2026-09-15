@@ -176,14 +176,14 @@ course/             The guided path through all of it. Start at course/README.md
                     course/LAWS-OF-CSHARP.md the same knowledge by concept, in twelve books.
                     course/SOLUTIONS.md      worked answers to the labs, with the reasoning.
 
-site/               A browsable W3Schools-style tutorial: 77 ordered chapters with a
-                    sidebar, built around one real .NET job advert — fifty-two of them the advert
+site/               A browsable W3Schools-style tutorial: 79 ordered chapters with a
+                    sidebar, built around one real .NET job advert — fifty-four of them the advert
                     never mentions but the Modena/Bologna/Milano market keeps asking for,
                     including WinForms/WPF, industrial/MES, Business Central and the screening
                     test. Every idea explained twice — once simply, once the way you would
                     answer it in an interview. Open site/index.html. No build step.
 
-                    It also grades you: 958 questions, a test at the end of every chapter, a
+                    It also grades you: 998 questions, a test at the end of every chapter, a
                     spaced-repetition deck built from whatever you got wrong, a timed mock
                     exam, sticky notes, an Italian/English glossary, and one course-mastery
                     percentage that is three-quarters test score — so it cannot be moved by
@@ -215,7 +215,7 @@ site/               A browsable W3Schools-style tutorial: 77 ordered chapters wi
                     chapter 36: the GDPR line, CEFR levels, bullets that describe a result
                     rather than presence, at least one number, one page.
 
-                    The whole site works offline and installs as an app — all 77 chapters
+                    The whole site works offline and installs as an app — all 79 chapters
                     are precached on first visit. It never caches the accounts API, because
                     a cached "here is your profile" would be a lie with your progress on it.
 

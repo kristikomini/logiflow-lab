@@ -103,6 +103,18 @@
 
 <h2 id="access">Access modifiers: start at private and justify every step up</h2>
 
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Think of a class as a house. Things marked <code>private</code> live in your bedroom &mdash;
+    only you can reach them. <code>internal</code> is the rest of the house, where anyone in the
+    family (your own program) is welcome. <code>public</code> is the front porch out on the street,
+    where strangers you will never meet can lean on it &mdash; so once you put something there you
+    cannot move it without upsetting someone. The rule that follows is simple: keep everything in
+    the bedroom, and carry a thing out to the porch only when a stranger genuinely needs it.
+  </p>
+</div>
+
 <div class="table-wrap">
   <table>
     <thead>
@@ -210,6 +222,18 @@
 
 <h2 id="constructors">Constructors: the object's one chance to be valid</h2>
 
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    A constructor is the checklist an object has to pass before it is allowed to be born. To make
+    an <code>Order</code>, the constructor asks for the things an order cannot live without &mdash;
+    who it is for, its number &mdash; and refuses if any are missing or silly, like an id of zero or
+    an empty name. Because nothing can skip the checklist, you never end up holding a half-built
+    order that falls over several steps later. Do the checking here, once, and every order in the
+    whole program is guaranteed to make sense.
+  </p>
+</div>
+
 <pre><code><span class="kw">public</span> <span class="kw">class</span> <span class="ty">Order</span>
 {
     <span class="kw">private</span> <span class="kw">readonly</span> <span class="ty">List</span>&lt;<span class="ty">OrderLine</span>&gt; _lines = <span class="kw">new</span>();      <span class="cm">// field initialiser: runs FIRST</span>
@@ -280,6 +304,18 @@
 
 <h2 id="static">static: one for the type, not one per object</h2>
 
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    <code>static</code> means "one for everybody", not "one each". A normal field is like every
+    pupil having their own notebook; a <code>static</code> field is the single whiteboard at the
+    front of the class that everyone writes on. That is perfect when there is genuinely only one of
+    the thing &mdash; a little helper that tidies up a code &mdash; and a trap for anything that
+    should belong to each object, because if everyone scribbles on the one whiteboard at the same
+    moment you get a mess nobody can read.
+  </p>
+</div>
+
 <pre><code><span class="kw">public</span> <span class="kw">static</span> <span class="kw">class</span> <span class="ty">SkuFormatter</span>          <span class="cm">// a static CLASS: cannot be instantiated</span>
 {
     <span class="kw">public</span> <span class="kw">static</span> <span class="kw">string</span> <span class="ty">Normalise</span>(<span class="kw">string</span> raw) =&gt; raw.Trim().ToUpperInvariant();
@@ -322,6 +358,18 @@
 </div>
 
 <h2 id="shapes">class, record, struct: which shape is this thing</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Three shapes for three jobs. A <code>class</code> is a <em>person</em>: two people with the same
+    name and birthday are still two different people, so what makes one "the same" is who it is, not
+    what it holds. A <code>record</code> is a <em>banknote</em>: any two ten-euro notes are
+    interchangeable, so what makes them equal is their value. A <code>struct</code> is a tiny value
+    you copy rather than share &mdash; a point on a map, an amount of money. Choose by asking: does
+    this thing have a life of its own, or is it only its contents?
+  </p>
+</div>
 
 <div class="table-wrap">
   <table>
@@ -658,6 +706,22 @@ o.Customer = <span class="st">"Rossi"</span>;
     <a href="05-solid-and-patterns.html">Chapter 05</a> is where these choices become principles,
     and <a href="05b-readable-code.html">05b</a> is "make the wrong thing impossible", which is this
     chapter's whole argument in four words.
+  </p>
+</div>
+
+<div class="box note">
+  <div class="box-title">Worth knowing next</div>
+  <p>
+    Once classes and objects are comfortable, four topics turn up in nearly every interview and code
+    review. <a href="05c-design-patterns-catalogue.html">Design patterns</a> (chapter 05c) &mdash;
+    Factory, Singleton, Observer, Adapter, and the ones the framework already hands you.
+    <a href="06b-algorithms-and-complexity.html">Algorithms and complexity</a> (chapter 06b) &mdash; Big
+    O, the dictionary that turns a quadratic back into a linear pass, and the puzzle shapes a screening
+    test reuses. <a href="07-async-and-errors.html">Async and its traps</a> (chapter 07) &mdash; the
+    deadlock, fire-and-forget, and bounding a fan-out. And <a href="08-disposal-and-thread-safety.html">shared
+    state and memory</a> (chapter 08), where one object shared across requests is a bug waiting to
+    happen. The <a href="37-the-screening-test.html">screening test</a> (chapter 37) is where the
+    algorithm half is actually examined.
   </p>
 </div>
 

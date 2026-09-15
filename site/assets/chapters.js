@@ -263,6 +263,15 @@ const CHAPTERS = [
     extra: "Chapter 05 covers the class-level principles an advert names. This is the level below, which no advert names and every code review is about — and it is where a first pull request decides how much supervision a junior needs.",
   },
   {
+    n: "05c", id: "05c-design-patterns-catalogue", part: PARTS[1],
+    sec: "Design and readability",
+    title: "Design patterns worth knowing",
+    work: "Design and review — naming the shape so a decision takes three words instead of a paragraph.",
+    blurb: "Factory, Builder, Singleton, Observer, Adapter and Repository — the problem each solves, and the framework feature that already is it.",
+    tags: "design pattern factory builder singleton observer adapter repository unit of work mediator creational structural behavioural gof dependency injection ihttpclientfactory stringbuilder event iobservable dbcontext anti-pattern over-engineering",
+    extra: "Chapter 05 teaches Strategy and Decorator and names the rest. Interviewers ask which patterns you have used, and the answer that lands is three or four tied to a real problem — this is that catalogue, each mapped to the .NET feature that is already it.",
+  },
+  {
     n: "06", id: "06-collections-and-linq", part: PARTS[1],
     sec: "Collections and LINQ",
     title: "Collections and LINQ",
@@ -270,6 +279,15 @@ const CHAPTERS = [
     blurb: "List, Dictionary, IEnumerable, deferred execution, and IQueryable vs IEnumerable.",
     tags: "linq list dictionary hashset ienumerable iqueryable deferred lambda",
     req: "Ottima conoscenza del linguaggio C#",
+  },
+  {
+    n: "06b", id: "06b-algorithms-and-complexity", part: PARTS[1],
+    sec: "Algorithms and complexity",
+    title: "Algorithms and complexity worth knowing",
+    work: "Every ticket and the screening test — spotting the accidental O(n²) before it ships, and the puzzle shapes before you freeze.",
+    blurb: "Big O intuition, the dictionary that kills a quadratic, binary search, sorting with comparers, recursion and memoisation, and the interview shapes.",
+    tags: "algorithm complexity big o time complexity quadratic dictionary hashset binary search sort introsort stable comparer icomparer recursion memoisation dynamic programming stack overflow two pointers sliding window frequency map bfs dfs tree graph linq deferred",
+    extra: "Adverts say 'ottima conoscenza del C#' and screening tests probe complexity, but no chapter drew the shapes together. This is the practical algorithms a working developer needs — never write the accidental quadratic — plus the recurring interview patterns as C#.",
   },
   {
     n: "07", id: "07-async-and-errors", part: PARTS[1],

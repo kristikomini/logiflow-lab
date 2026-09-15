@@ -386,6 +386,138 @@ GetOrderAsync(id).Wait();
   </p>
 </div>
 
+<h2 id="async-traps">The async traps that survive code review</h2>
+
+<div class="box kid">
+  <div class="box-title">🧒 Simple</div>
+  <p>
+    Starting a job is not the same as finishing it. If you send someone off to do a task and then
+    walk away without ever checking they came back, you will never know if they tripped on the
+    stairs &mdash; and if you send a thousand people through one narrow door at the same moment,
+    nobody gets through. Both of these look fine on the day you write them and go wrong later, which
+    is exactly why a reviewer misses them too.
+  </p>
+</div>
+
+<h3>Fire-and-forget, and the async lambda that becomes <code>async void</code></h3>
+
+<div class="code-head">the task nobody is holding</div>
+<pre><code><span class="cm">// ✗ fire-and-forget: the Task is dropped, and any exception goes with it</span>
+_ = SendConfirmationAsync(order);                <span class="cm">// discarded; if it throws, nobody hears</span>
+orders.ForEach(<span class="kw">async</span> o =&gt; <span class="kw">await</span> SaveAsync(o));   <span class="cm">// async lambda becomes async void — crashes on throw</span>
+
+<span class="cm">// ✓ await it — or hand long work to a BackgroundService that is logged and awaited on shutdown</span>
+<span class="kw">await</span> SendConfirmationAsync(order);
+<span class="kw">await</span> <span class="ty">Parallel</span>.ForEachAsync(orders, ct, <span class="kw">async</span> (o, t) =&gt; <span class="kw">await</span> SaveAsync(o, t));</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>_ = SendConfirmationAsync(order)</code> &mdash; the discard is the honest spelling of
+        "I am ignoring this <code>Task</code> on purpose", and it still throws its exception into
+        nowhere: nothing awaits it, so a failure is invisible at the call site and, on older
+        runtimes, resurfaces much later as an <code>UnobservedTaskException</code> nowhere near the
+        cause.</li>
+    <li><code>orders.ForEach(async o =&gt; await SaveAsync(o))</code> &mdash; the lambda returns a
+        <code>Task</code>, but <code>ForEach</code> takes an <code>Action</code>, so the compiler
+        makes it <strong><code>async void</code></strong>. Every <code>SaveAsync</code> now runs
+        un-awaited <em>and</em> a thrown exception takes the process down &mdash; the trap from the
+        return-types table arriving by the back door. The tell is an <code>async</code> lambda passed
+        anywhere the parameter is <code>Action</code> or <code>Action&lt;T&gt;</code>.</li>
+    <li><code>await SendConfirmationAsync(order)</code> &mdash; the fix is almost always just to
+        <code>await</code>. Work that genuinely must outlive the request belongs in a hosted
+        <code>BackgroundService</code> or a queue, never in a dropped task, because the task tied to a
+        request can be torn down the moment the response is sent.</li>
+    <li><code>Parallel.ForEachAsync(orders, ct, …)</code> &mdash; the right tool for "run this async
+        operation across a collection": it awaits every one, propagates the exceptions, honours the
+        token, and does not launch the whole collection at once.</li>
+  </ul>
+</div>
+
+<h3>Unbounded <code>WhenAll</code>: throttling with <code>SemaphoreSlim</code></h3>
+
+<div class="code-head">a gate, so the database is not asked ten thousand questions at once</div>
+<pre><code><span class="cm">// ✗ every task in flight at the same instant — the connection pool runs dry</span>
+<span class="kw">var</span> all = ids.Select(id =&gt; LoadAsync(id, ct));
+<span class="kw">await</span> <span class="ty">Task</span>.WhenAll(all);
+
+<span class="cm">// ✓ cap how many run at the same time with a counting gate</span>
+<span class="kw">using var</span> gate = <span class="kw">new</span> <span class="ty">SemaphoreSlim</span>(<span class="nu">10</span>);
+<span class="kw">var</span> tasks = ids.Select(<span class="kw">async</span> id =&gt;
+{
+    <span class="kw">await</span> gate.WaitAsync(ct);
+    <span class="kw">try</span>     { <span class="kw">return await</span> LoadAsync(id, ct); }
+    <span class="kw">finally</span> { gate.Release(); }
+});
+<span class="kw">var</span> results = <span class="kw">await</span> <span class="ty">Task</span>.WhenAll(tasks);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>ids.Select(id =&gt; LoadAsync(id, ct))</code> &mdash; <code>Select</code> is lazy, but
+        <code>Task.WhenAll</code> enumerates it immediately and starts every task. For ten items that
+        is fine; for ten thousand it is a self-inflicted denial of service on your own database, and
+        the connection pool is exhausted long before the work finishes.</li>
+    <li><code>new SemaphoreSlim(10)</code> &mdash; a counting gate with ten tokens.
+        <code>WaitAsync</code> takes one (asynchronously, without blocking a thread) or waits until
+        one is free; <code>Release</code> hands it back. So at most ten <code>LoadAsync</code> calls
+        are ever in flight.</li>
+    <li><strong>The <code>Release</code> must be in a <code>finally</code>.</strong> If a thrown
+        <code>LoadAsync</code> skipped it, that token would be lost forever and the gate would slowly
+        close until everything waiting hangs &mdash; the same discipline as any lock.</li>
+    <li><code>using var gate</code> &mdash; <code>SemaphoreSlim</code> is <code>IDisposable</code>;
+        <code>using</code> disposes it at the end of scope (<a
+        href="08-disposal-and-thread-safety.html">chapter 08</a>).</li>
+    <li><strong>The rule:</strong> <code>WhenAll</code> means "await these", not "throttle these".
+        Bounded concurrency is <code>SemaphoreSlim</code>, or
+        <code>Parallel.ForEachAsync</code> with <code>MaxDegreeOfParallelism</code> set.</li>
+  </ul>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ <code>Task.Run</code> does not make I/O asynchronous</div>
+  <p>
+    Wrapping an async I/O call in <code>Task.Run(() =&gt; File.ReadAllTextAsync(path))</code> just
+    moves the waiting onto a different thread &mdash; the I/O was already asynchronous, so you have
+    paid for a thread-pool hop and gained nothing. <code>Task.Run</code> is for <strong>CPU-bound</strong>
+    work you want off the current thread (a heavy calculation blocking a desktop UI). For I/O, call
+    the async API directly. The reverse &mdash; a synchronous, CPU-bound method dressed up as async by
+    wrapping it in <code>Task.Run</code> inside a library &mdash; is "async over sync", and it is an
+    anti-pattern because it advertises a scalability the method does not have.
+  </p>
+</div>
+
+<h3>Streaming without buffering: <code>IAsyncEnumerable</code></h3>
+
+<div class="code-head">rows as they arrive, and a token that actually reaches the loop</div>
+<pre><code><span class="cm">// stream rows as they arrive instead of holding the whole result in memory</span>
+<span class="kw">public async</span> <span class="ty">IAsyncEnumerable</span>&lt;<span class="ty">Order</span>&gt; StreamAsync(
+    [<span class="ty">EnumeratorCancellation</span>] <span class="ty">CancellationToken</span> ct = <span class="kw">default</span>)
+{
+    <span class="kw">await foreach</span> (<span class="kw">var</span> row <span class="kw">in</span> _db.Orders.AsAsyncEnumerable().WithCancellation(ct))
+        <span class="kw">yield return</span> Map(row);
+}
+
+<span class="cm">// caller — one order in memory at a time, not a million</span>
+<span class="kw">await foreach</span> (<span class="kw">var</span> order <span class="kw">in</span> StreamAsync(ct))
+    Process(order);</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>IAsyncEnumerable&lt;Order&gt;</code> with <code>yield return</code> &mdash; an async
+        stream: the caller receives each item as it is produced, so a million-row export never sits
+        in memory at once. <code>await foreach</code> is the consuming side.</li>
+    <li><code>[EnumeratorCancellation]</code> &mdash; without this attribute the token a caller passes
+        through <code>WithCancellation</code> never reaches your loop, and cancellation silently does
+        nothing. It is the async-stream form of "pass the token down", and easy to forget because the
+        code compiles perfectly without it.</li>
+    <li><code>AsAsyncEnumerable().WithCancellation(ct)</code> &mdash; EF Core streams straight from the
+        open reader, threading the token down to the database command.</li>
+    <li><strong>The trap is a disposed context.</strong> The stream is only valid while the
+        <code>DbContext</code> and its connection are open, so handing an
+        <code>IAsyncEnumerable</code> back out of a <code>using</code> block yields, later, on a reader
+        that has already been closed.</li>
+  </ul>
+</div>
+
 <h2 id="exceptions">Exceptions</h2>
 
 <div class="box kid">
@@ -581,6 +713,17 @@ GetOrderAsync(id).Wait();
     <li>Never swallow an exception silently. If you cannot handle it, let it travel.</li>
     <li><code>using</code> for anything holding an unmanaged resource. The GC will not close your
         connections.</li>
+    <li><strong>Never drop a <code>Task</code> on the floor.</strong> Await it, or give the work to a
+        <code>BackgroundService</code>. An <code>async</code> lambda passed where an
+        <code>Action</code> is expected becomes <code>async void</code> &mdash; a crash waiting to
+        happen.</li>
+    <li><strong><code>Task.WhenAll</code> awaits; it does not throttle.</strong> Bound a large
+        fan-out with <code>SemaphoreSlim</code> or <code>Parallel.ForEachAsync</code>, or you will run
+        the connection pool dry.</li>
+    <li><strong><code>Task.Run</code> is for CPU-bound work, never to "make I/O async".</strong> The
+        I/O is already asynchronous; call its async API directly.</li>
+    <li>Stream large results with <code>IAsyncEnumerable</code>, and remember
+        <code>[EnumeratorCancellation]</code> or the token never reaches the loop.</li>
   </ol>
 </div>
 
