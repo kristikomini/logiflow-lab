@@ -113,10 +113,10 @@
         lastPart = c.part;
         lastSec = null;               // a new part always re-announces its first section
       }
-      /* The precise heading. A part like "The platform and the language" is
-         twenty-five chapters long; what the reader is looking for is
-         "Generics, delegates and events" or "Debugging and the traps", so that
-         is what the sidebar shows them. */
+      /* The precise heading. A part like "The platform and the language" runs
+         long; what the reader is looking for is "Generics, delegates and
+         events" or "Debugging and the traps", so that is what the sidebar
+         shows them. */
       if (c.sec && c.sec !== lastSec) {
         out.push('<div class="nav-sec">' + c.sec + "</div>");
         lastSec = c.sec;

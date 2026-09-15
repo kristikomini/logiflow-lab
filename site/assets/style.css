@@ -369,10 +369,20 @@ pre {
   border-radius: var(--radius); overflow-x: auto;
   font-family: var(--mono); font-size: 13.6px; line-height: 1.62;
   border: 1px solid var(--line);
+  /* Touch: momentum scroll for the code that runs past the edge, and
+     overscroll-contain so dragging the code sideways past its end does not
+     trigger the browser's back-swipe and yank the reader off the chapter —
+     the single worst thing a phone reader hits on a wide code block. */
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
 }
 pre code {
   background: none; border: 0; padding: 0; color: inherit; font-size: inherit;
   overflow-wrap: normal;
+  /* tab-size: a leading indent of 4 spaces per level eats a phone's width
+     fast; 2 keeps nested C# (a method inside a class inside a namespace)
+     inside the screen far more often. Spaces in the source are untouched;
+     this only sets how a literal tab renders. */
+  -moz-tab-size: 2; tab-size: 2;
 }
 /* ==========================================================================
    Line-by-line dissection — the box that sits under a code block
@@ -688,6 +698,18 @@ body[data-mode="pro"] .kid { display: none; }
 @media (max-width: 520px) {
   .segmented button { padding: 6px 8px; font-size: 12px; }
   .pager { flex-direction: column; }
+  /* Code on a phone. The block still scrolls sideways for lines that need it,
+     but tighter padding and a slightly smaller glyph mean far fewer lines DO —
+     17px of side padding on a 335px column was throwing three-token lines onto
+     the scrollbar. The dissection under it follows the same trim so the two
+     stay one object. Deliberately not full-bleeding to the screen edge: some
+     chapters nest a <pre> inside a note box, and a negative margin would tear
+     the code out through that box's border. */
+  pre { padding: 12px 13px; font-size: 12.6px; line-height: 1.58; }
+  .dissect { padding: 11px 13px 12px; font-size: 13.5px; }
+  /* Inline code wraps hard on phone rather than widening the line past the
+     screen; the block rule above already handles multi-line code. */
+  code { font-size: .86em; }
 }
 /* 360px and 320px phones. The mode switch is the widest thing left and the
    one worth keeping legible, so it tightens rather than disappears. */

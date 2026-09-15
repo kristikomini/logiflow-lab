@@ -344,6 +344,15 @@ const CHAPTERS = [
     req: "Buona conoscenza di T-SQL e dei principali RDBMS",
   },
   {
+    n: "11b", id: "11b-oracle", part: PARTS[2],
+    sec: "Oracle",
+    title: "Oracle, for a SQL Server developer",
+    work: "The advert line — “database relazionali, preferibilmente Oracle” — and the honest bridge from what you know.",
+    blurb: "The diff from SQL Server: VARCHAR2 and NUMBER, empty-string-is-null, ROWNUM vs FETCH FIRST, sequences, PL/SQL, MVCC and the provider swap in .NET.",
+    tags: "oracle plsql pl/sql varchar2 number clob dual rownum fetch first sequence nextval generated as identity nvl decode sysdate systimestamp mvcc read consistency nolock rcsi ora-01555 snapshot too old commit ddl auto-commit user_tables all_tab_columns odp.net oracle.manageddataaccess oracle.entityframeworkcore useoracle empty string null sql server tsql relazionali",
+    req: "conoscenza fondamentale dei database relazionali (preferibilmente Oracle)",
+  },
+  {
     n: "12", id: "12-ef-core", part: PARTS[2],
     sec: "EF Core",
     title: "Entity Framework Core",

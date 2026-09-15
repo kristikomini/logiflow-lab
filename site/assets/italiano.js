@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 76 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 77 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -394,6 +394,16 @@ self.IT_CHAPTERS = {
       "Guardo sempre il piano di esecuzione prima di aggiungere un indice: aggiungerne uno a caso peggiora le scritture senza migliorare le letture.",
     ],
     keep: ["execution plan", "SARGable", "index seek", "index scan", "statistics", "key lookup"],
+  },
+  "11b-oracle": {
+    say: [
+      "Con Oracle non ho lavorato come motore principale: uso SQL Server e PostgreSQL, ma i fondamentali relazionali sono gli stessi, quindi quello che mi manca è il dialetto, non una competenza nuova.",
+      "Le differenze che conosco: VARCHAR2 invece di VARCHAR, NUMBER come unico tipo numerico, le sequence o GENERATED AS IDENTITY per le chiavi, il PL/SQL al posto delle stored procedure T-SQL, e soprattutto che su Oracle una stringa vuota è NULL.",
+      "La differenza che conta davvero non è di sintassi ma di comportamento: di default Oracle usa la lettura consistente a più versioni, quindi chi legge non blocca chi scrive — per quello su Oracle non serve il riflesso del NOLOCK che si usa su SQL Server.",
+      "Su Oracle devo ricordarmi il COMMIT esplicito e che il DDL fa commit da solo: due cose che sorprendono chi arriva dall'autocommit di SQL Server.",
+      "Da .NET cambia poco: in EF Core è UseOracle al posto di UseSqlServer, le entità e le query LINQ restano; quello che emerge sono i nomi, i tipi e la regola della stringa vuota.",
+    ],
+    keep: ["Oracle", "VARCHAR2", "NUMBER", "sequence", "PL/SQL", "NULL", "NOLOCK", "MVCC", "COMMIT", "DDL", "UseOracle", "ROWNUM"],
   },
   "12-ef-core": {
     say: [
