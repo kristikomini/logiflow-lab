@@ -1783,10 +1783,6 @@ internal static class ExcuseList
             "§11's post-mortem of a bug that was live until 2026-09-06 and is described in the past tense"),
         new("docs/CONTENT-BACKLOG.md", "is green on all ten checks",
             "a dated status entry from 2026-09-05, when there were ten"),
-
-        // ── A figure for a project that does not exist yet. ──
-        new("docs/BLUEPRINT.md", "47 chapters and ~430 questions",
-            "the size a PHP rebuild should aim for, deliberately approximate"),
     ];
 }
 

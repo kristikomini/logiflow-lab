@@ -229,8 +229,10 @@ deploy/             Three Dockerfiles and a Kubernetes manifest. The compose fil
                     Redis, so "the in-memory cache is silently wrong the moment you scale
                     out" is something you can watch rather than believe.
 
-.github/            CI. Six jobs that fail for six different reasons, one of which is
-                    "somebody committed the answers over the lab exercises".
+.github/            CI. Five jobs that fail for five different reasons, one of which is
+                    "somebody committed the answers over the lab exercises". Three more
+                    workflows sit beside it: the site deploy, weekly mutation testing,
+                    and the container images.
 ```
 
 ### Running the tutorial with accounts

@@ -23,7 +23,7 @@ be *read* — every non-obvious decision commented in the file where it was made
 site of 81 chapters with a full learning engine (1038 quiz questions, spaced repetition, a free
 recall drill, a timed mock interview, an Italian language layer, a CV linter) plus a small
 accounts API that carries a learner's progress between devices. The two are joined by a course of
-28 markdown modules and by an integrity tool that turns every cross-reference between them into a
+29 markdown modules and by an integrity tool that turns every cross-reference between them into a
 build failure. The whole thing exists to get one person hired as a .NET developer in
 Emilia-Romagna.
 
@@ -75,7 +75,7 @@ Five deliverables. Only the first two are strictly required for a v1.
 
 ```
 site/                    THE PLATFORM.  Static HTML + vanilla JS. No build step. Works on file://
-  chapters/*.html          47 chapter pages
+  chapters/*.html          81 chapter pages
   assets/*.js              the manifest, the content banks, and the learning engine
   assets/*.css             two stylesheets, light + dark, no CDN
   sw.js + manifest.webmanifest   offline, installable
@@ -84,7 +84,7 @@ site/                    THE PLATFORM.  Static HTML + vanilla JS. No build step.
                          One process, one URL. SQLite by default so it needs no setup.
                          In this repo: src/LogiFlow.Academy.Api (C#). In a PHP build: PHP.
 
-course/                  THE DEPTH.  28 markdown modules + 50 deeper chapters + two collected
+course/                  THE DEPTH.  29 markdown modules + 58 deeper chapters + two collected
                          pages (GOLDEN-RULES.md, LAWS-OF-CSHARP.md). The site explains a topic
                          well enough to hold a conversation; the module makes you dangerous.
 
@@ -333,7 +333,7 @@ Three smaller banks, all plain arrays in JS files:
   3. **Do it** — an exercise, a lab, or a deliberate breakage to observe.
   4. **Golden rules** — the card: the module compressed into a dozen sentences.
   5. **Interview questions** — what you will be asked, with the answer sketched.
-- **50 deeper chapters** sitting beside the READMEs, one per topic, linked from a contents table
+- **58 deeper chapters** sitting beside the READMEs, one per topic, linked from a contents table
   at the top of each module. These are what the `Covered in:` comments in the source point at, so
   reading a class and reading its chapter are one gesture.
 - **`GOLDEN-RULES.md`** — every module's card, in module order, plus two priority tiers at the
@@ -996,7 +996,7 @@ weekly mutation-testing run.
 | `site/*.html`, `style.css`, `learn.css` | **Copy, then rewrite prose** | Structure, classes and chrome are subject-independent |
 | `site.js`, `learn.js`, `quiz.js`, `viva.js`, `simulate.js`, `notes.js`, `store.js`, `account.js`, `auth-page.js`, `cv.js`, `italiano*.js`, `sw.js` | **Copy verbatim** | Zero .NET-specific logic. Only `LEVELS` naming and the API base default are worth a look |
 | `chapters.js` | **Rewrite the array** | Same shape, new chapters (§9.3) |
-| `quizzes-*.js` | **Rewrite entirely** | 432 new questions |
+| `quizzes-*.js` | **Rewrite entirely** | 1038 new questions |
 | `rules.js` + `GOLDEN-RULES.md` | **Rewrite entirely** | New rules, same generator design |
 | `glossary.js`, `italiano.js` | **Adapt** | Process/contract vocabulary is identical; technical terms change |
 | Accounts API | **Rewrite in PHP** | The contract, schema and every decision in §5 transfer unchanged |
@@ -1186,7 +1186,7 @@ Nine phases. Each ends with something that works.
    `exam.html`, `dashboard.html`, `notes.html`. Write ~20 questions for the one chapter and verify
    the whole loop: answer → feedback → grade → schedule → XP → badge → mastery.
 4. **Content, in bulk.** Write the chapters and their questions. This is the bulk of the work —
-   47 chapters and ~430 questions. Append-only discipline on the bank from the first question.
+   81 chapters and 1038 questions. Append-only discipline on the bank from the first question.
 5. **The deep course.** The modules, in the five-part shape, and `GOLDEN-RULES.md` as you go.
 6. **The viva.** Write the deck generator (`GOLDEN-RULES.md` → `rules.js`, ids derived from the
    claim text), then `viva.html` and `simulate.html`.
@@ -1254,8 +1254,11 @@ because they are fixed, and kept here because a PHP build will hit both.
    detects this and fails with an instruction rather than a stack trace. Keep that behaviour, and
    keep the export-your-profile advice in the message.
 
-4. **The service worker cache name is manual.** Every content change needs a bump and nothing
-   enforces it. Consider making it part of the integrity gate, or deriving it from a content hash.
+4. **~~The service worker cache name is manual.~~ Closed.** It is still bumped by hand — deriving
+   it from a content hash was considered and not done — but forgetting is no longer silent: the
+   gate grew a `site/sw-cache` check, backed by `tools/sw-cache.lock`, which fails the build when
+   `site/` changes and the cache name does not. Do this in a PHP build too, and note which half it
+   solves: the bump is still manual, it just cannot be *forgotten*.
 
 5. **Self-marking is the weakest link in the viva and the simulator**, and it is mitigated rather
    than solved. Keep both mitigations (the learner's own words stay on screen; checkpoint terms
@@ -1267,19 +1270,19 @@ because they are fixed, and kept here because a PHP build will hit both.
 
 | Thing | Count here |
 |---|---|
-| Site chapters | 47 |
-| Quiz questions | 432 (8–17 per chapter, across 3 files) |
-| Golden rules / viva cards | 362 |
+| Site chapters | 81 |
+| Quiz questions | 1038 (8–17 per chapter, across 3 files) |
+| Golden rules / viva cards | 384 |
 | Glossary terms | 133 |
-| Italian chapter panels | 31 of 47 |
-| Course modules | 28 |
-| Deeper course chapters | 50 |
+| Italian chapter panels | 57 of 81 |
+| Course modules | 29 |
+| Deeper course chapters | 58 |
 | Badges | 21 |
 | Levels | 8 |
 | API endpoints | 14 |
 | API tables | 4 |
-| Integrity checks | 11 |
-| CI jobs | 6 |
+| Integrity checks | 15 |
+| CI jobs | 5 |
 
 Site file inventory (the complete list a PHP build must produce):
 
@@ -1287,7 +1290,7 @@ Site file inventory (the complete list a PHP build must produce):
 index.html  dashboard.html  review.html  viva.html  exam.html  simulate.html
 notes.html  glossary.html  italiano.html  cv.html
 signin.html  register.html  reset.html  account.html
-chapters/*.html  ×47
+chapters/*.html  ×81
 favicon.svg  manifest.webmanifest  sw.js
 assets/  style.css  learn.css
          chapters.js  quizzes-1.js  quizzes-2.js  quizzes-3.js  rules.js
@@ -1310,6 +1313,11 @@ Contracts                  the request/response records, and the profile-summary
 
 ---
 
-*Written from the repository as it stands on 2026-09-06. Where this document and the code
+*Written from the repository as it stands on 2026-09-06; every count in it was re-measured
+against the repository on 2026-09-16, after the site roughly doubled. Where this document and the code
 disagree, the code is right about what it does and this document is right about what it should
 do — except in §11, where the code is knowingly wrong.*
+
+*§11's figures are the exception to that re-measurement and are deliberately left alone: they are
+a post-mortem of a bug that was live until 2026-09-06, so the stale numbers in it are the
+evidence, not the drift.*
