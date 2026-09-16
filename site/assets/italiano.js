@@ -31,7 +31,7 @@
    in this industry, in this region.
 
    COVERAGE IS PARTIAL, ON PURPOSE
-   CHAPTER_IT does not cover all 79 chapters, and the panel simply does not
+   CHAPTER_IT does not cover all 81 chapters, and the panel simply does not
    appear where there is no entry. A half-written translation is worse than
    none: it teaches a sentence you would not want to say. Add entries as you
    find yourself stuck on a topic — see site/README.md.
@@ -636,5 +636,24 @@ self.IT_CHAPTERS = {
       "Se una stima si rivela sbagliata lo dico subito: il problema non è sbagliare la stima, è dirlo l'ultimo giorno.",
     ],
     keep: ["sprint", "backlog", "daily", "retrospettiva", "story point", "stand-up"],
+  },
+  "16c-a-feature-end-to-end": {
+    say: [
+      "Quasi ogni ticket ha la stessa forma: il sistema deve salvare una cosa nuova e mostrarla. Parto sempre dall'entità e finisco con la vista, perché ogni strato prende forma da quello prima.",
+      "L'entità è una classe di dominio pura, con i setter privati e il comportamento nei metodi: non sa niente del database. La configurazione del mapping sta in una IEntityTypeConfiguration, non come attributi sull'entità.",
+      "Ogni modifica allo schema è una migrazione: la genero, la leggo, la committo, e non tocco mai una migrazione già applicata.",
+      "Tengo tre forme diverse per gli stessi dati: l'entità per il dominio, il DTO per il caso d'uso, il view model per la schermata. Il controller lega l'input, delega al servizio e sceglie un risultato — una decina di righe.",
+    ],
+    keep: ["entità", "DbContext", "DbSet", "migrazione", "IEntityTypeConfiguration", "repository", "unit of work", "DTO", "view model", "controller", "vista", "dependency injection", "SaveChanges"],
+  },
+  "16d-mvc-mvvm-mvp": {
+    say: [
+      "MVC, MVVM e MVP sono la stessa idea in tre modi: separare la schermata dalla logica. La domanda che li distingue è una sola — chi aggiorna la vista?",
+      "In MVC il controller è il punto d'ingresso e la vista è senza stato: la prossima modifica è la prossima richiesta. È il modello del web, cioè ASP.NET Core MVC.",
+      "In MVP la vista è passiva dietro un'interfaccia IView e il presenter spinge gli aggiornamenti a mano: serve a rendere testabile una WinForms.",
+      "In MVVM il view model non ha nessun riferimento alla vista: cambia lo stato, solleva la notifica e il data binding aggiorna la schermata da solo. È WPF, MAUI, e in forma sfumata Blazor.",
+      "Attento al tranello: il «view model» di ASP.NET Core MVC non è il ViewModel di MVVM — è solo una classe per la schermata, senza binding.",
+    ],
+    keep: ["MVC", "MVVM", "MVP", "controller", "presenter", "view model", "vista", "data binding", "INotifyPropertyChanged", "ICommand", "IView", "WPF", "Blazor", "WinForms"],
   },
 };

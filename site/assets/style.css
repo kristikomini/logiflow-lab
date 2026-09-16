@@ -686,6 +686,14 @@ body[data-mode="pro"] .kid { display: none; }
    The rest of the collapse is in learn.css, next to the controls that layer
    adds. */
 @media (max-width: 760px) {
+  /* The bar cannot wrap — see the note on `.topbar > *` — so an item that no
+     longer fits does not fold onto a second line, it pushes the controls past
+     the right edge. Hub stays because it is how a reader leaves for the other
+     four courses; the project link goes, because the home page still carries
+     it in prose under "Where this fits in the repository", and reading source
+     on a 375px screen was never the plan anyway. */
+  .topbar .repo-link { display: none; }
+
   /* Long-hand, not the `padding` shorthand: that would reset the safe-area
      padding set on .topbar above, and a notched phone in landscape is
      exactly when this breakpoint is in force. */
