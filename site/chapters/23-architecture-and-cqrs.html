@@ -164,6 +164,33 @@
 ├── Directory.Build.props          <span class="cm">// HOW every project compiles</span>
 ├── Directory.Packages.props       <span class="cm">// WHICH VERSION of every package, declared once</span>
 └── global.json                    <span class="cm">// which SDK builds it</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>src/</code> &mdash; the four projects, listed in dependency order. Read the
+        <code>references:</code> column downwards and you have the dependency rule: each project may
+        know about the ones above it and nothing below.</li>
+    <li><code>LogiFlow.Domain</code> &mdash; <strong>references nothing</strong>. Not EF Core, not
+        ASP.NET, not even a logging package. That emptiness is the architecture, and it is why the
+        domain tests need no database.</li>
+    <li><code>LogiFlow.Application</code> &mdash; the use cases. It <em>declares</em> the interfaces
+        the outside must satisfy; it does not contain one implementation of them.</li>
+    <li><code>LogiFlow.Infrastructure</code> &mdash; every real thing: the database, the broker, SMTP,
+        the clock. Swapping a technology means rewriting only this project.</li>
+    <li><code>LogiFlow.Api</code> &mdash; HTTP, and the only project that sees all three, because
+        somebody has to bind the interfaces to the implementations at start-up.</li>
+    <li><strong>One test project per production project</strong> &mdash; the split is by how fast and
+        how isolated the tests are, not by the word "unit". Domain tests are milliseconds with no
+        I/O; Infrastructure tests need a real database.</li>
+    <li><code>LogiFlow.ArchitectureTests</code> &mdash; the dependency rule asserted as a test, so it
+        fails in CI rather than in review. Everything above is a convention until this project makes
+        it a build failure.</li>
+    <li><code>Directory.Build.props</code> vs <code>Directory.Packages.props</code> &mdash; HOW every
+        project compiles (nullable, warnings-as-errors, language version) against WHICH VERSION every
+        package is, declared once for the whole solution. Two files because they answer two
+        questions.</li>
+  </ul>
+</div>
 
 <div class="box note">
   <div class="box-title">Why projects rather than just folders</div>
@@ -209,6 +236,34 @@
 │
 ├── Results/                   <span class="cm">// Result.cs · Error.cs — expected failure as a value</span>
 └── Exceptions/                <span class="cm">// only for things that are genuinely bugs</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Orders/</code>, <code>Catalog/</code>, <code>Customers/</code> &mdash; business nouns, one
+        folder per <strong>aggregate</strong>. A reviewer reads this listing to learn what the company
+        does. <code>Entities/</code> would tell them only what C# feature you used.</li>
+    <li><code>Order.cs</code> &mdash; the <strong>aggregate root</strong>: the single entry point.
+        Nothing outside loads an <code>OrderLine</code> directly, which is what makes the invariant
+        "lines must sum to the total" enforceable at all.</li>
+    <li><code>OrderLine.cs</code> &mdash; a child <em>entity</em>: it has an identity, but only inside
+        its order.</li>
+    <li><code>OrderNumber.cs</code> &mdash; a <em>value object</em>: no identity, equal by value,
+        immutable. "AB-1029" is not a string once it has rules about its shape.</li>
+    <li><code>OrderErrors.cs</code> &mdash; the failures this aggregate can return, named once and
+        reused. Expected failure is a value here, never an exception.</li>
+    <li><code>Events/OrderEvents.cs</code> &mdash; <strong>past tense, always</strong>:
+        <code>OrderSubmitted</code>, not <code>SubmitOrder</code>. An event is a fact that already
+        happened, which is why nothing may refuse it.</li>
+    <li><code>ValueObjects/</code> &mdash; the ones no single aggregate owns. <code>Money</code> belongs
+        to the business, not to orders.</li>
+    <li><code>Common/Ids.cs</code> &mdash; <code>OrderId</code> and <code>ProductId</code> as distinct
+        types rather than bare <code>Guid</code>s, so passing a customer id where an order id is
+        expected does not compile.</li>
+    <li><code>Results/</code> vs <code>Exceptions/</code> &mdash; the two kinds of bad news, kept
+        apart on purpose: <code>Result</code> for outcomes the business expects, exceptions only for
+        bugs.</li>
+  </ul>
+</div>
 
 <div class="box trap">
   <div class="box-title">⚠ What may never appear in this project</div>
@@ -271,6 +326,34 @@
 │
 ├── Common/                    <span class="cm">// Pagination and friends</span>
 └── DependencyInjection.cs     <span class="cm">// AddApplication() — the layer registers itself</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Features/</code> &mdash; the <strong>vertical slice</strong>. One folder per aggregate,
+        one file per use case, so a change to "cancel an order" touches one file instead of four
+        horizontal folders.</li>
+    <li><code>CreateOrder.cs</code> &mdash; command, validator and handler <em>in the same file</em>.
+        They change together and are never used apart; splitting them buys navigation pain and
+        nothing else.</li>
+    <li><code>GetOrderById.cs</code>, <code>SearchOrders.cs</code> &mdash; queries sitting beside the
+        commands. CQRS separates the two <em>shapes</em>; it does not require two folders, two
+        projects or two databases.</li>
+    <li><code>IOrderQueries.cs</code> &mdash; the read contract, deliberately <em>not</em> the
+        repository. Reads project to a DTO; they do not load an aggregate and its rules just to fill
+        a grid.</li>
+    <li><code>OrderDtos.cs</code> &mdash; what crosses the boundary. Return the entity and every
+        caller becomes coupled to the domain model, and you can never rename a field again.</li>
+    <li><code>Abstractions/</code> &mdash; <strong>interfaces declared by the inner layer, implemented
+        by the outer one.</strong> This folder is the dependency inversion, made into a directory.</li>
+    <li><code>Abstractions/Services/</code> &mdash; clock, current user, id generation. Wrapping
+        <code>DateTime.UtcNow</code> looks fussy until you have to test "expires after 30 days".</li>
+    <li><code>Behaviors/</code> &mdash; validation, logging, transaction, caching as a pipeline wrapped
+        around every request. This folder is why the handler on the next page is only
+        orchestration.</li>
+    <li><code>DependencyInjection.cs</code> &mdash; each layer exposes one <code>Add…()</code> method
+        and registers itself, so <code>Program.cs</code> stays four lines rather than four hundred.</li>
+  </ul>
+</div>
 
 <div class="box pro">
   <div class="box-title">🎓 The two conventions that matter here</div>
@@ -322,6 +405,35 @@
 ├── Mailing/                   <span class="cm">// the real SMTP sender</span>
 ├── Services/                  <span class="cm">// real clock, real id generator</span>
 └── DependencyInjection.cs     <span class="cm">// AddInfrastructure(config) — binds every interface above</span></code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Persistence/</code>, <code>Messaging/</code>, <code>Mailing/</code>,
+        <code>Services/</code> &mdash; one folder per <strong>external thing</strong>. The folder names
+        here are technologies, and that is correct: this is the layer whose job is technology.</li>
+    <li><code>LogiFlowDbContext.cs</code> &mdash; the only place EF Core is configured. If a
+        <code>using Microsoft.EntityFrameworkCore;</code> appears in Domain or Application, the
+        architecture has already leaked.</li>
+    <li><code>Configurations/</code> &mdash; <code>IEntityTypeConfiguration&lt;T&gt;</code>, so mapping
+        lives here rather than as attributes on the entity. Attributes would put a database concern
+        inside the domain class.</li>
+    <li><code>Interceptors/</code> &mdash; domain events dispatched on <code>SaveChanges</code>,
+        <em>inside</em> the transaction, so an event can never describe a change that was rolled
+        back.</li>
+    <li><code>Repositories/</code> vs <code>Queries/</code> &mdash; the write side loads whole
+        aggregates so rules can run; the read side projects straight to DTOs and may be hand-written
+        SQL. CQRS visible in the directory listing.</li>
+    <li><code>Outbox/</code> &mdash; the message row is committed in the same transaction as the data
+        and published afterwards. Without it, "saved but never published" is a matter of when, not
+        whether.</li>
+    <li><code>Migrations/</code> &mdash; generated, committed, and never hand-edited once shipped: it
+        has already run somewhere you cannot reach.</li>
+    <li><code>DesignTimeDbContextFactory.cs</code> &mdash; lets <code>dotnet ef</code> build the model
+        without starting the API, which is what makes migrations runnable in CI.</li>
+    <li><code>DependencyInjection.cs</code> &mdash; <code>AddInfrastructure(config)</code> binds every
+        interface Application declared. This one method is where the arrows finally meet.</li>
+  </ul>
+</div>
 
 <p>
   <strong>The rule for this project:</strong> every public class in it implements an interface
@@ -353,6 +465,32 @@
 ├── Grpc/  Protos/             <span class="cm">// the same use cases over a second transport</span>
 ├── appsettings.json           <span class="cm">// + appsettings.Development.json</span>
 └── Properties/launchSettings.json</code></pre>
+<div class="dissect">
+  <div class="dissect-title">Line by line</div>
+  <ul>
+    <li><code>Program.cs</code> &mdash; the <strong>composition root</strong>: the one place allowed to
+        know every layer at once. Wiring concentrated here is what keeps it out of everywhere
+        else.</li>
+    <li><code>Endpoints/</code> &mdash; minimal-API groups, one file per area. An endpoint binds,
+        dispatches and translates; roughly five lines.</li>
+    <li><code>Infrastructure/</code> &mdash; edge concerns, and note the name is reused for something
+        entirely different from the project of the same name: this is HTTP plumbing, not external
+        systems.</li>
+    <li><code>GlobalExceptionHandler</code> &mdash; unhandled exception to <code>ProblemDetails</code>,
+        so a bug never reaches a client as a stack trace.</li>
+    <li><code>ResultExtensions</code> &mdash; <code>Result&lt;T&gt;</code> to 200 / 400 / 404 in ONE
+        place. Without it, every endpoint invents its own status codes and the API stops being
+        predictable.</li>
+    <li><code>CurrentUserMiddleware</code> &mdash; reads the authenticated identity once and hands it
+        to Application through an interface, so a handler never touches
+        <code>HttpContext</code>.</li>
+    <li><code>RealTime/</code>, <code>Grpc/</code> &mdash; a SignalR hub and a second transport over
+        <em>the same use cases</em>. Adding gRPC changes nothing below this project, which is the
+        payoff for all the indirection above.</li>
+    <li><code>appsettings.json</code> &mdash; configuration belongs to the host, not the layers.
+        Infrastructure receives values; it does not go looking for them.</li>
+  </ul>
+</div>
 
 <p>
   An endpoint body should be about five lines: bind, dispatch, translate the <code>Result</code>

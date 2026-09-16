@@ -168,7 +168,7 @@ labs/
                     `dotnet run labs/opc-ua.cs`.
 
 course/             The guided path through all of it. Start at course/README.md.
-                    29 modules, and 58 deeper chapters sitting beside them — one per topic,
+                    29 modules, and 59 deeper chapters sitting beside them — one per topic,
                     linked from a contents table at the top of each module. The `Covered in:`
                     comments throughout src/ and tests/ point straight at them, so reading a
                     class and reading its chapter are one gesture.
