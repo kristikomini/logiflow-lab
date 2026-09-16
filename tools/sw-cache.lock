@@ -9,4 +9,4 @@
 # Regenerate deliberately, after bumping CACHE — never to make a failure go away:
 #   dotnet run tools/doctor.cs --update
 
-logiflow-academy-v28	640721903ce9
+logiflow-academy-v29	640721903ce9

@@ -314,6 +314,14 @@ a.next-card .subtle { font-size: 13px; }
 }
 .sticky.dragging .sticky-bar { cursor: grabbing; }
 .sticky-grip { color: rgba(0,0,0,.4); font-size: 13px; }
+/* The first line of the note, shown in the bar only while it is folded, so a
+   row of collapsed notes is still readable as a list. */
+.sticky-peek {
+  display: none; min-width: 0; flex: 1 1 auto; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12.5px; font-weight: 600; color: rgba(0,0,0,.66);
+}
+.sticky.collapsed .sticky-peek { display: block; }
 .sticky-colors { display: flex; gap: 4px; margin-left: auto; }
 .sw {
   width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25);
@@ -323,6 +331,11 @@ a.next-card .subtle { font-size: 13px; }
 .sw-yellow { background: #ffd83d; } .sw-green { background: #7fd07f; }
 .sw-blue { background: #74b3f0; }   .sw-pink { background: #f28fae; }
 .sw-purple { background: #b394f2; }
+.sticky-fold {
+  border: 0; background: transparent; cursor: pointer; font-size: 11px; line-height: 1;
+  color: rgba(0,0,0,.45); padding: 0 2px;
+}
+.sticky-fold:hover { color: rgba(0,0,0,.8); }
 .sticky-x {
   border: 0; background: transparent; cursor: pointer; font-size: 18px; line-height: 1;
   color: rgba(0,0,0,.45); padding: 0 3px;
@@ -332,8 +345,39 @@ a.next-card .subtle { font-size: 13px; }
   margin: 10px 12px 0; padding-left: 9px; border-left: 3px solid rgba(0,0,0,.2);
   font-size: 13.5px; font-style: italic; color: rgba(0,0,0,.62); max-height: 116px; overflow: hidden;
 }
-.sticky-text { padding: 10px 12px 14px; min-height: 96px; outline: none; overflow-wrap: anywhere; }
+/* pre-wrap so the line breaks the editor now preserves are actually drawn —
+   without it a saved newline renders as a space and the fix is invisible. */
+.sticky-text {
+  padding: 10px 12px 14px; min-height: 96px; outline: none;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+  max-height: 46vh; overflow-y: auto;
+}
 .sticky-text:empty::before { content: attr(data-placeholder); color: rgba(0,0,0,.36); }
+/* Editing one lifts it above its neighbours — overlapping notes are the norm,
+   not the exception, and you cannot type into the one underneath. */
+.sticky:focus-within { box-shadow: 0 12px 26px rgba(20,16,50,.32); z-index: 6; }
+.sticky.collapsed { transform: rotate(0); }
+.sticky.collapsed .sticky-text,
+.sticky.collapsed .sticky-quote,
+.sticky.collapsed .sticky-colors { display: none; }
+
+/* undo, after a delete */
+.note-undo {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(8px);
+  z-index: 70; display: flex; align-items: center; gap: 12px;
+  background: var(--ink); color: var(--bg); border-radius: 9px;
+  padding: 9px 12px 9px 15px; box-shadow: var(--shadow);
+  font-size: 13.5px; font-weight: 600; opacity: 0;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.note-undo.in { opacity: 1; transform: translateX(-50%) translateY(0); }
+.note-undo[hidden] { display: none; }
+.note-undo-btn {
+  font: inherit; font-weight: 800; cursor: pointer; color: var(--bg);
+  background: transparent; border: 1px solid rgba(255,255,255,.4);
+  border-radius: 6px; padding: 4px 11px;
+}
+.note-undo-btn:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
 
 .note-bubble {
   position: absolute; transform: translate(-50%, -100%); z-index: 60;

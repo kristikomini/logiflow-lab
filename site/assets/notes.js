@@ -16,6 +16,10 @@
    layouts is not achievable without anchoring to the DOM, and anchoring to
    the DOM breaks the moment a chapter is edited.
 
+   A note can be FOLDED to its title bar, because it sits on top of the
+   chapter and a long one covers the paragraph it is about. Deleting offers
+   an undo for seven seconds rather than a confirm dialog.
+
    Below 980px the layer is hidden entirely and notes are shown as a plain
    list in a drawer, because dragging small cards around a phone screen is
    nobody's idea of studying.
@@ -100,10 +104,16 @@
              '" data-color="' + c + '" title="' + c + '"></button>';
     }).join("");
 
+    if (n.collapsed) card.classList.add("collapsed");
+
     card.innerHTML =
       '<div class="sticky-bar">' +
         '<span class="sticky-grip" title="Drag">⠿</span>' +
+        '<span class="sticky-peek"></span>' +
         '<span class="sticky-colors">' + swatches + "</span>" +
+        '<button type="button" class="sticky-fold" title="Collapse (double-click the bar)">' +
+          (n.collapsed ? "▸" : "▾") +
+        "</button>" +
         '<button type="button" class="sticky-x" title="Delete this note">×</button>' +
       "</div>" +
       (n.quote ? '<blockquote class="sticky-quote">' + esc(n.quote) + "</blockquote>" : "") +
@@ -117,20 +127,76 @@
   function wireCard(card, n) {
     var text = card.querySelector(".sticky-text");
 
+    /* NOT textContent, and NOT innerText either.
+
+       A contenteditable div stores a line break as <div>…</div> or <br>, and
+       textContent concatenates those with nothing between them: "line one" and
+       "line two" come back as "line oneline two" — every paragraph the reader
+       typed, fused into one. innerText does have the newline, but it is defined
+       in terms of RENDERED text and quietly falls back to textContent whenever
+       the element is not being drawn, which is exactly what the <980px rule
+       hiding the whole note layer does. Saving would then keep the breaks on a
+       wide window and lose them on a narrow one — the worst kind of bug.
+
+       So walk the nodes instead: deterministic, and independent of layout. */
+    function read() {
+      var BLOCK = /^(DIV|P|LI|UL|OL|BLOCKQUOTE|H[1-6]|PRE|TR)$/;
+      var out = "";
+      (function walk(node) {
+        for (var c = node.firstChild; c; c = c.nextSibling) {
+          if (c.nodeType === 3) { out += c.nodeValue; continue; }
+          if (c.nodeType !== 1) continue;
+          if (c.nodeName === "BR") { out += "\n"; continue; }
+          if (BLOCK.test(c.nodeName) && out && out.slice(-1) !== "\n") out += "\n";
+          walk(c);
+        }
+      })(text);
+      return out.replace(/\u00a0/g, " ").replace(/\n+$/, "");
+    }
+
     var saveTimer = null;
     text.addEventListener("input", function () {
+      peek(card, read());
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(function () {
-        window.LF.updateNote(n.id, { text: text.textContent });
+        window.LF.updateNote(n.id, { text: read() });
       }, 400);
     });
     text.addEventListener("blur", function () {
-      window.LF.updateNote(n.id, { text: text.textContent });
+      window.LF.updateNote(n.id, { text: read() });
     });
+
+    // Paste as plain text. A paragraph dragged in from the chapter otherwise
+    // brings its <code>, its colours and its font size with it, and a sticky
+    // full of syntax-highlighted HTML is unreadable.
+    text.addEventListener("paste", function (e) {
+      var t = (e.clipboardData || window.clipboardData).getData("text/plain");
+      e.preventDefault();
+      document.execCommand("insertText", false, t);
+    });
+
+    // Escape gets you out of the note without reaching for the mouse.
+    text.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { e.stopPropagation(); text.blur(); }
+    });
+
+    peek(card, n.text);
 
     card.querySelector(".sticky-x").addEventListener("click", function () {
       card.classList.add("going");
-      setTimeout(function () { window.LF.removeNote(n.id); render(); }, 160);
+      var doomed = snapshot(n);
+      setTimeout(function () {
+        window.LF.removeNote(n.id);
+        render();
+        offerUndo(doomed);
+      }, 160);
+    });
+
+    var fold = card.querySelector(".sticky-fold");
+    fold.addEventListener("click", function () { toggleFold(card, n); });
+    card.querySelector(".sticky-bar").addEventListener("dblclick", function (e) {
+      if (e.target.closest(".sw, .sticky-x, .sticky-fold")) return;
+      toggleFold(card, n);
     });
 
     var swatches = card.querySelectorAll(".sw");
@@ -147,6 +213,79 @@
     }
 
     drag(card, card.querySelector(".sticky-bar"), n);
+  }
+
+  /* ---------------------------------------------------------- folding
+
+     A note sits ON TOP of the chapter, so a long one parks itself over the
+     paragraph it is about. Folding leaves the bar and the first few words —
+     enough to know which note it is — and gives the text back.
+     ---------------------------------------------------------------------- */
+
+  function toggleFold(card, n) {
+    var now = !card.classList.contains("collapsed");
+    card.classList.toggle("collapsed", now);
+    card.querySelector(".sticky-fold").textContent = now ? "▸" : "▾";
+    window.LF.updateNote(n.id, { collapsed: now });
+  }
+
+  /** The first line, shown in the bar while the note is folded. */
+  function peek(card, txt) {
+    var el = card.querySelector(".sticky-peek");
+    if (!el) return;
+    var first = String(txt || "").split("\n")[0].trim();
+    if (first.length > 34) first = first.slice(0, 33) + "…";
+    el.textContent = first || "empty note";
+  }
+
+  /* ------------------------------------------------------------- undo
+
+     Deleting used to be instant and final: one mis-click on a 14px × and an
+     evening of notes was gone, with no confirmation and nothing to press.
+     A confirm dialog on every delete is worse — this is the cheap version of
+     being careful, and it is the one people actually keep.
+     ---------------------------------------------------------------------- */
+
+  var undoBar = null, undoTimer = null;
+
+  function snapshot(n) {
+    return {
+      ch: n.ch, chTitle: n.chTitle, quote: n.quote, text: n.text,
+      color: n.color, x: n.x, y: n.y, collapsed: n.collapsed,
+    };
+  }
+
+  function offerUndo(note) {
+    if (!undoBar) {
+      undoBar = document.createElement("div");
+      undoBar.className = "note-undo";
+      undoBar.innerHTML = '<span class="note-undo-text">Note deleted</span>' +
+                          '<button type="button" class="note-undo-btn">Undo</button>';
+      document.body.appendChild(undoBar);
+    }
+    var btn = undoBar.querySelector(".note-undo-btn");
+    // Replace the node to drop the previous note's click handler with it —
+    // two quick deletes must not restore the first note twice.
+    var fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    fresh.addEventListener("click", function () {
+      window.LF.addNote(note);
+      visible = true;
+      savePref();
+      render();
+      hideUndo();
+    });
+
+    undoBar.hidden = false;
+    undoBar.classList.add("in");
+    if (undoTimer) clearTimeout(undoTimer);
+    undoTimer = setTimeout(hideUndo, 7000);
+  }
+
+  function hideUndo() {
+    if (!undoBar) return;
+    undoBar.classList.remove("in");
+    undoBar.hidden = true;
   }
 
   /* ------------------------------------------------------------- dragging */
@@ -170,7 +309,9 @@
       var nx = originLeft + (e.clientX - startX);
       var ny = originTop + (e.clientY - startY);
       nx = Math.max(4, Math.min(nx, document.documentElement.clientWidth - CARD_W - 12));
-      ny = Math.max(64, ny);
+      // Below the top bar, and never past the end of the page — a note dragged
+      // into the void is unreachable without editing localStorage.
+      ny = Math.max(64, Math.min(ny, document.documentElement.scrollHeight - 80));
       card.style.left = nx + "px";
       card.style.top = ny + "px";
     });

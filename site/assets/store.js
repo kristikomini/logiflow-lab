@@ -602,6 +602,9 @@
       x: (fields && typeof fields.x === "number") ? fields.x : 24,
       y: (fields && typeof fields.y === "number") ? fields.y : 24,
       pinned: false,
+      // Folded to its title bar. Carried through addNote so that undoing a
+      // delete restores the note as it looked, not expanded over the page.
+      collapsed: !!(fields && fields.collapsed),
       quote: (fields && fields.quote) || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
