@@ -115,7 +115,7 @@
        */
       viva: {},
 
-      /** Sticky notes. Each: { id, ch, text, color, x, y, pinned, createdAt, updatedAt } */
+      /** Sticky notes. Each: { id, ch, text, color, x, y, w, h, z, pinned, createdAt, updatedAt } */
       notes: [],
 
       /** Earned badges: { badgeId: isoTimestamp } */
@@ -601,6 +601,14 @@
       color: (fields && fields.color) || "yellow",
       x: (fields && typeof fields.x === "number") ? fields.x : 24,
       y: (fields && typeof fields.y === "number") ? fields.y : 24,
+      // Size, in CSS pixels. w is the whole card, h is the writing area only —
+      // the bar and the quote size themselves. Absent means "the default",
+      // which is what every note written before resizing existed will say.
+      w: (fields && typeof fields.w === "number") ? fields.w : 0,
+      h: (fields && typeof fields.h === "number") ? fields.h : 0,
+      // Stacking order. Notes overlap by design, so the one you touched last
+      // has to come to the front and STAY there across a reload.
+      z: (fields && typeof fields.z === "number") ? fields.z : 0,
       pinned: false,
       // Folded to its title bar. Carried through addNote so that undoing a
       // delete restores the note as it looked, not expanded over the page.

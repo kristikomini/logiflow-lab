@@ -361,6 +361,69 @@ a.next-card .subtle { font-size: 13px; }
 .sticky.collapsed .sticky-quote,
 .sticky.collapsed .sticky-colors { display: none; }
 
+/* An inline height means the reader has sized this note by hand, and a hand
+   beats a heuristic — the 46vh cap above is only for notes that never were. */
+.sticky-text[style*="height"] { max-height: none; }
+
+/* "saved", for about a second after a write. Typing into a card that floats
+   over the page looks exactly like typing into something that is not being
+   kept, and this is the cheapest possible answer to that. */
+.sticky-saved {
+  margin-left: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: rgba(0,0,0,.44);
+  opacity: 0; transition: opacity .18s ease; pointer-events: none;
+}
+.sticky-saved.on { opacity: 1; }
+.sticky.collapsed .sticky-saved { display: none; }
+
+/* the resize corner */
+.sticky-resize {
+  position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+  cursor: nwse-resize; touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 48%, rgba(0,0,0,.28) 48% 56%, transparent 56% 72%,
+                    rgba(0,0,0,.28) 72% 80%, transparent 80%);
+  opacity: 0; transition: opacity .12s ease;
+}
+.sticky:hover .sticky-resize,
+.sticky:focus-within .sticky-resize,
+.sticky.sizing .sticky-resize { opacity: 1; }
+.sticky.collapsed .sticky-resize { display: none; }
+.sticky.sizing { transform: rotate(0); user-select: none; }
+
+/* arriving from the rail — two pulses of the brand colour, then gone */
+.sticky.flash { animation: stickyFlash 1.2s ease; }
+@keyframes stickyFlash {
+  0%, 100% { box-shadow: 0 6px 18px rgba(20,16,50,.22); }
+  20%, 60% { box-shadow: 0 0 0 4px var(--brand), 0 10px 26px rgba(20,16,50,.34); }
+  40%, 80% { box-shadow: 0 6px 18px rgba(20,16,50,.22); }
+}
+
+/* ------------------------------------------------------- the rail
+
+   Every note that is currently off screen, as a mark down the right edge at
+   roughly its place in the chapter. Fixed, narrow, and click-through except
+   on the marks themselves, so it never gets in the way of reading. */
+.note-rail {
+  position: fixed; right: 4px; top: 64px; bottom: 16px; width: 18px;
+  z-index: 40; pointer-events: none;
+}
+.note-rail[hidden] { display: none; }
+.note-mark {
+  position: absolute; right: 2px; width: 12px; height: 12px; padding: 0;
+  border-radius: 50%; border: 1px solid rgba(0,0,0,.28); cursor: pointer;
+  pointer-events: auto; transform: translateY(-50%);
+  box-shadow: 0 1px 3px rgba(20,16,50,.3);
+  transition: transform .12s ease, width .12s ease;
+}
+.note-mark:hover { transform: translateY(-50%) scale(1.35); }
+.note-mark-yellow { background: #ffd83d; } .note-mark-green { background: #7fd07f; }
+.note-mark-blue   { background: #74b3f0; } .note-mark-pink  { background: #f28fae; }
+.note-mark-purple { background: #b394f2; }
+
+/* the pin, while the notes are hidden */
+.btn-note.off { opacity: .5; }
+
 /* undo, after a delete */
 .note-undo {
   position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(8px);
@@ -378,6 +441,11 @@ a.next-card .subtle { font-size: 13px; }
   border-radius: 6px; padding: 4px 11px;
 }
 .note-undo-btn:hover { background: var(--brand); border-color: var(--brand); color: #fff; }
+.note-undo-kbd {
+  font: inherit; font-size: 11px; font-weight: 700; opacity: .6;
+  border: 1px solid rgba(255,255,255,.28); border-radius: 5px; padding: 2px 6px;
+}
+@media (max-width: 560px) { .note-undo-kbd { display: none; } }
 
 .note-bubble {
   position: absolute; transform: translate(-50%, -100%); z-index: 60;
@@ -402,6 +470,52 @@ a.next-card .subtle { font-size: 13px; }
   padding: 7px 10px; cursor: pointer;
 }
 .note-menu-item:hover { background: var(--brand); color: #fff; }
+
+/* ------------------------------------------------------- the drawer
+
+   Below 980px the drag layer is gone and this takes its place: the same
+   notes, as a list you can actually type into with a thumb. Reached from the
+   pin in the top bar. */
+.note-drawer { position: fixed; inset: 0; z-index: 80; }
+.note-drawer[hidden] { display: none; }
+.note-drawer-scrim { position: absolute; inset: 0; background: rgba(12,10,28,.45); }
+.note-drawer-panel {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 82vh;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+  background: var(--bg); border-radius: 14px 14px 0 0; box-shadow: var(--shadow);
+  animation: noteDrawerIn .18s ease;
+}
+@keyframes noteDrawerIn { from { transform: translateY(18px); opacity: .6; } to { transform: none; opacity: 1; } }
+.note-drawer-head { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+.note-drawer-x {
+  border: 0; background: transparent; cursor: pointer; font-size: 24px; line-height: 1;
+  color: var(--ink-faint); padding: 0 6px; min-height: 44px; min-width: 44px;
+}
+.note-drawer-list { overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.note-drawer-empty { margin: 8px 2px 4px; color: var(--ink-faint); font-size: 14px; }
+.note-drawer-item {
+  position: relative; border-radius: 6px; padding: 10px 11px 8px; color: #23201a;
+  border: 1px solid rgba(0,0,0,.12);
+}
+.note-drawer-item blockquote {
+  margin: 0 0 8px; padding-left: 9px; border-left: 3px solid rgba(0,0,0,.2);
+  font-size: 13px; font-style: italic; color: rgba(0,0,0,.62);
+}
+.note-drawer-item textarea {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical;
+  font: inherit; font-size: 15px; line-height: 1.5; color: #23201a;
+  background: rgba(255,255,255,.55); border: 1px solid rgba(0,0,0,.14);
+  border-radius: 5px; padding: 8px 9px;
+}
+.note-drawer-item textarea:focus { outline: 2px solid var(--brand); outline-offset: -1px; }
+.note-drawer-del {
+  margin-top: 6px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+  color: rgba(0,0,0,.5); background: transparent; border: 0; padding: 6px 2px;
+}
+.note-drawer-del:hover { color: #a11; }
+.note-drawer-add { align-self: flex-start; }
+body.note-drawer-open { overflow: hidden; }
 
 /* the all-notes page */
 .note-board { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); margin: 1.3em 0; }
@@ -736,15 +850,12 @@ a.next-card .subtle { font-size: 13px; }
 }
 @media (max-width: 980px) {
   .note-layer { display: none; }
-  .note-bubble, .note-menu { display: none; }
+  .note-bubble, .note-menu, .note-rail { display: none; }
 }
-/* Sticky notes are already hidden at 980px (just above), so the button that
-   adds one has nothing to show for itself by the time the bar needs the
-   room. "My notes" in the sidebar still reaches the page. Paired with
-   .brand-text in style.css, at the same width. */
-@media (max-width: 940px) {
-  .topbar .btn-note { display: none; }
-}
+/* The pin used to be dropped here, because below 980px there was nothing for
+   it to do. There is now: it opens the notes drawer, which is the only way to
+   read or write a chapter's notes on a phone, so it keeps its place in the
+   bar. Paired with .brand-text in style.css, at the same width. */
 @media (max-width: 760px) {
   .topbar .chip-streak, .topbar .chip-progress { display: none; }
 
@@ -784,7 +895,8 @@ a.next-card .subtle { font-size: 13px; }
   .part-row .part-name { flex-basis: 50%; }
 }
 @media print {
-  .toasts, .note-layer, .note-bubble, .quiz, .next-steps, .study-nav { display: none !important; }
+  .toasts, .note-layer, .note-bubble, .note-rail, .note-drawer,
+  .quiz, .next-steps, .study-nav { display: none !important; }
 }
 
 /* ==========================================================================
