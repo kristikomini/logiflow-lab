@@ -522,8 +522,10 @@ self.IT_CHAPTERS = {
     say: [
       "CQRS separa i comandi, che modificano lo stato, dalle query, che lo leggono: i due lati hanno esigenze diverse e possono avere modelli diversi.",
       "In Clean Architecture le dipendenze puntano verso l'interno: il dominio non conosce il database, e questo lo rende testabile senza infrastruttura.",
+      "La soluzione è divisa in quattro progetti: Domain, Application, Infrastructure e Api. Il dominio è organizzato per concetto di business, una cartella per aggregate, non per tipo tecnico: non esiste una cartella Entities.",
+      "Le interfacce le dichiara il layer interno e le implementa quello esterno: IOrderRepository sta in Application, l'implementazione EF Core sta in Infrastructure.",
     ],
-    keep: ["CQRS", "Clean Architecture", "dominio", "handler", "mediator", "aggregate"],
+    keep: ["CQRS", "Clean Architecture", "dominio", "handler", "mediator", "aggregate", "value object", "repository", "middleware"],
   },
   "24-testing": {
     say: [

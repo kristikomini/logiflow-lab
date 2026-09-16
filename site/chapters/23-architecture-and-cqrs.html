@@ -137,6 +137,289 @@
   </ul>
 </div>
 
+<h2 id="folders">The folder map &mdash; what actually goes where</h2>
+
+<p>
+  Four projects is the shape. This is the inside of them: the folders a real enterprise solution
+  has, the kind of file that lives in each, and the names an interviewer expects to hear. Every
+  path below is from this repository, so you can open any of them.
+</p>
+
+<div class="code-head">the solution, top level</div>
+<pre><code>LogiFlow.slnx
+│
+├── src/
+│   ├── LogiFlow.Domain            <span class="cm">// business rules.    references: NOTHING</span>
+│   ├── LogiFlow.Application       <span class="cm">// use cases.         references: Domain</span>
+│   ├── LogiFlow.Infrastructure    <span class="cm">// the outside world. references: Application</span>
+│   └── LogiFlow.Api               <span class="cm">// HTTP.              references: all three</span>
+│
+├── tests/
+│   ├── LogiFlow.Domain.Tests           <span class="cm">// unit, no I/O, milliseconds</span>
+│   ├── LogiFlow.Application.Tests      <span class="cm">// handlers over fakes</span>
+│   ├── LogiFlow.Infrastructure.Tests   <span class="cm">// EF Core against a real database</span>
+│   ├── LogiFlow.Api.IntegrationTests   <span class="cm">// WebApplicationFactory, real pipeline</span>
+│   └── LogiFlow.ArchitectureTests      <span class="cm">// asserts the arrows still point inward</span>
+│
+├── Directory.Build.props          <span class="cm">// HOW every project compiles</span>
+├── Directory.Packages.props       <span class="cm">// WHICH VERSION of every package, declared once</span>
+└── global.json                    <span class="cm">// which SDK builds it</span></code></pre>
+
+<div class="box note">
+  <div class="box-title">Why projects rather than just folders</div>
+  <p>
+    A folder is a convention &mdash; nothing stops you writing
+    <code>using Microsoft.EntityFrameworkCore;</code> inside it. A project reference is a
+    <strong>compile error</strong>. Open
+    <code>src/LogiFlow.Domain/LogiFlow.Domain.csproj</code>: there is not one
+    <code>&lt;PackageReference&gt;</code> and not one <code>&lt;ProjectReference&gt;</code> in it.
+    That emptiness <em>is</em> the architecture. If a boundary is not enforced, it does not exist.
+  </p>
+</div>
+
+<h3 id="folders-domain">Domain &mdash; organised by business concept, never by technical kind</h3>
+
+<p>
+  There is no <code>Entities/</code> folder here, and that is deliberate: <em>entity</em> is not a
+  word the business uses. One folder per <strong>aggregate</strong>, named with a plural business
+  noun.
+</p>
+
+<div class="code-head">src/LogiFlow.Domain/</div>
+<pre><code>├── Orders/                    <span class="cm">// one folder per aggregate</span>
+│   ├── Order.cs                   <span class="cm">// the aggregate ROOT — the only way in from outside</span>
+│   ├── OrderLine.cs               <span class="cm">// a child entity, reachable only through Order</span>
+│   ├── OrderNumber.cs             <span class="cm">// a value object owned by this aggregate</span>
+│   ├── OrderStatus.cs             <span class="cm">// the lifecycle, as an enum / state machine</span>
+│   ├── OrderErrors.cs             <span class="cm">// the failures it can return, named once</span>
+│   ├── OrderSpecifications.cs     <span class="cm">// reusable query predicates</span>
+│   └── Events/OrderEvents.cs      <span class="cm">// OrderSubmitted, OrderCancelled — past tense</span>
+│
+├── Catalog/      <span class="cm">// Product.cs + Events/</span>
+├── Customers/    <span class="cm">// Customer.cs + Events/</span>
+├── Inventory/    <span class="cm">// stock levels, reservations + Events/</span>
+├── Shipping/     <span class="cm">// shipments, carriers + Events/</span>
+│
+├── ValueObjects/              <span class="cm">// shared across aggregates, owned by none</span>
+│   <span class="cm">// Money · Currency · Address · EmailAddress · Sku · Weight</span>
+│
+├── Common/                    <span class="cm">// the base types the concepts are built from</span>
+│   <span class="cm">// Entity · AggregateRoot · IDomainEvent</span>
+│   <span class="cm">// Ids.cs — OrderId, ProductId: strongly-typed, not bare Guids</span>
+│
+├── Results/                   <span class="cm">// Result.cs · Error.cs — expected failure as a value</span>
+└── Exceptions/                <span class="cm">// only for things that are genuinely bugs</span></code></pre>
+
+<div class="box trap">
+  <div class="box-title">⚠ What may never appear in this project</div>
+  <p>
+    <code>DbContext</code>, <code>HttpClient</code>, <code>IConfiguration</code>,
+    <code>ILogger</code>, any ORM attribute, <code>async</code> that touches I/O, or
+    <code>DateTime.UtcNow</code> read directly (inject a clock &mdash; otherwise the rule cannot
+    be tested).
+  </p>
+  <p>
+    <strong>The test for &ldquo;does this belong in Domain?&rdquo;</strong> &mdash; <em>would this
+    rule still be true if the whole thing were a paper form processed by hand?</em> &ldquo;An order
+    cannot ship before it is paid&rdquo;: yes, Domain. &ldquo;The id must be unique in the
+    <code>orders</code> table&rdquo;: no &mdash; that is storage.
+  </p>
+</div>
+
+<p>The kinds of type you will find in there, and the words for them:</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Kind</th><th>Has identity?</th><th>Mutable?</th><th>Here</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Aggregate root</strong></td><td>yes, an id</td><td>yes, via its own methods</td><td><code>Order</code>, <code>Product</code>, <code>Customer</code></td></tr>
+    <tr><td><strong>Entity (child)</strong></td><td>yes, inside the aggregate</td><td>only through the root</td><td><code>OrderLine</code></td></tr>
+    <tr><td><strong>Value object</strong></td><td>no &mdash; equal by value</td><td>no, you replace it</td><td><code>Money</code>, <code>Address</code>, <code>Sku</code></td></tr>
+    <tr><td><strong>Strongly-typed id</strong></td><td>it <em>is</em> the identity</td><td>no</td><td><code>OrderId</code>, <code>ProductId</code></td></tr>
+    <tr><td><strong>Domain event</strong></td><td>no</td><td>no</td><td><code>OrderSubmitted</code></td></tr>
+    <tr><td><strong>Enum / state</strong></td><td>no</td><td>no</td><td><code>OrderStatus</code></td></tr>
+    <tr><td><strong>Specification</strong></td><td>no</td><td>no</td><td><code>OrderSpecifications</code></td></tr>
+    <tr><td><strong>Error</strong></td><td>no</td><td>no</td><td><code>OrderErrors.AlreadySubmitted</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3 id="folders-application">Application &mdash; one file per use case</h3>
+
+<div class="code-head">src/LogiFlow.Application/</div>
+<pre><code>├── Features/                  <span class="cm">// one folder per aggregate, one FILE per use case</span>
+│   ├── Orders/
+│   │   ├── CreateOrder.cs         <span class="cm">// command + validator + handler, ALL IN ONE FILE</span>
+│   │   ├── SubmitOrder.cs
+│   │   ├── CancelOrder.cs
+│   │   ├── AddOrderLine.cs
+│   │   ├── GetOrderById.cs        <span class="cm">// a query — read side</span>
+│   │   ├── SearchOrders.cs
+│   │   ├── IOrderQueries.cs       <span class="cm">// the read contract; bypasses the repository on purpose</span>
+│   │   ├── OrderDtos.cs           <span class="cm">// what leaves the layer — never the entity itself</span>
+│   │   └── EventHandlers/         <span class="cm">// reactions to domain events</span>
+│   └── Products/  Inventory/  Shipments/  Reporting/
+│
+├── Abstractions/              <span class="cm">// interfaces the OUTER layers must implement</span>
+│   ├── Data/       <span class="cm">// IOrderRepository … · IUnitOfWork</span>
+│   ├── Messaging/  <span class="cm">// IDispatcher · IIntegrationEventPublisher</span>
+│   ├── Mailing/    <span class="cm">// IEmailSender · IEmailQueue · EmailMessage</span>
+│   └── Services/   <span class="cm">// clock, current user, id generation</span>
+│
+├── Behaviors/                 <span class="cm">// the cross-cutting pipeline, one concern per file</span>
+│   <span class="cm">// Validation · Logging · Transaction · Caching</span>
+│
+├── Common/                    <span class="cm">// Pagination and friends</span>
+└── DependencyInjection.cs     <span class="cm">// AddApplication() — the layer registers itself</span></code></pre>
+
+<div class="box pro">
+  <div class="box-title">🎓 The two conventions that matter here</div>
+  <p>
+    <strong>1. <code>Abstractions/</code> is the inversion.</strong> <code>IOrderRepository</code>
+    is <em>declared</em> here and <em>implemented</em> in Infrastructure. The arrow points inward:
+    Infrastructure depends on Application, never the reverse. That is dependency inversion &mdash;
+    which is not the same thing as &ldquo;we use a DI container&rdquo;, a confusion worth being
+    precise about when asked.
+  </p>
+  <p>
+    <strong>2. The vertical slice.</strong> <code>CreateOrder.cs</code> holds the command record,
+    its validator <em>and</em> its handler &mdash; three types in one file, which is why
+    <code>Features/Orders/</code> above has no sub-folders.
+    <a href="#slices">Argued in full further down</a>.
+  </p>
+</div>
+
+<div class="box trap">
+  <div class="box-title">⚠ Note what is <em>not</em> in Abstractions/</div>
+  <p>
+    There is no <code>IRepository&lt;T&gt;</code> with <code>GetAll()</code>. A generic repository
+    that hands back <code>IQueryable&lt;T&gt;</code> leaks the database into every caller, makes
+    the interface a lie about what the store can do, and means a query can be written anywhere.
+    Contracts are written <strong>per aggregate</strong>, exposing only the lookups the use cases
+    actually need.
+  </p>
+</div>
+
+<h3 id="folders-infrastructure">Infrastructure &mdash; one folder per external thing</h3>
+
+<div class="code-head">src/LogiFlow.Infrastructure/</div>
+<pre><code>├── Persistence/
+│   ├── LogiFlowDbContext.cs           <span class="cm">// the ONLY place EF Core is configured</span>
+│   ├── UnitOfWork.cs                  <span class="cm">// implements Application's IUnitOfWork</span>
+│   ├── Configurations/                <span class="cm">// IEntityTypeConfiguration&lt;T&gt; — mapping lives HERE,</span>
+│   │                                  <span class="cm">// never as attributes on the domain entity</span>
+│   ├── Conventions/                   <span class="cm">// model-wide rules: typed ids, decimal precision</span>
+│   ├── Interceptors/                  <span class="cm">// DomainEventDispatchingInterceptor — events fire</span>
+│   │                                  <span class="cm">// on SaveChanges, inside the transaction</span>
+│   ├── Repositories/                  <span class="cm">// the WRITE side: loads whole aggregates</span>
+│   ├── Queries/                       <span class="cm">// the READ side: projects straight to DTOs</span>
+│   ├── Outbox/                        <span class="cm">// reliable publish: message row committed with the data</span>
+│   ├── Migrations/                    <span class="cm">// generated, committed, never hand-edited after shipping</span>
+│   ├── Seed/                          <span class="cm">// reference data</span>
+│   └── DesignTimeDbContextFactory.cs  <span class="cm">// so `dotnet ef` works without booting the API</span>
+│
+├── Messaging/                 <span class="cm">// the real broker client</span>
+├── Mailing/                   <span class="cm">// the real SMTP sender</span>
+├── Services/                  <span class="cm">// real clock, real id generator</span>
+└── DependencyInjection.cs     <span class="cm">// AddInfrastructure(config) — binds every interface above</span></code></pre>
+
+<p>
+  <strong>The rule for this project:</strong> every public class in it implements an interface
+  defined in Application. If one does not, ask why no inner layer ever needed it &mdash; usually
+  it means logic drifted outward and belongs in Application or Domain.
+</p>
+
+<p>
+  <strong>And notice that reads and writes are separated at the folder level.</strong>
+  <code>Repositories/</code> loads whole aggregates so business rules can run against them.
+  <code>Queries/</code> never loads an aggregate: it projects straight to a DTO, returns exactly
+  the columns a screen needs, and is free to be hand-written SQL. A read path that goes through a
+  repository loads objects and all their rules just to build a list you were only going to
+  display. That is the same split the <a href="#cqrs">CQRS section below</a> argues for, made
+  visible in the directory listing.
+</p>
+
+<h3 id="folders-api">Api &mdash; the thinnest project in the solution</h3>
+
+<div class="code-head">src/LogiFlow.Api/</div>
+<pre><code>├── Program.cs                 <span class="cm">// composition root: the WHOLE app is wired here, in order</span>
+├── Endpoints/                 <span class="cm">// minimal-API groups, one file per area</span>
+├── Infrastructure/            <span class="cm">// edge concerns, not business ones:</span>
+│   <span class="cm">// GlobalExceptionHandler — unhandled exception → ProblemDetails</span>
+│   <span class="cm">// ResultExtensions      — Result&lt;T&gt; → 200 / 400 / 404, in ONE place</span>
+│   <span class="cm">// Authentication        — auth wiring + CurrentUserMiddleware</span>
+│   <span class="cm">// ApiVersioning</span>
+├── RealTime/                  <span class="cm">// SignalR hub + its publisher</span>
+├── Grpc/  Protos/             <span class="cm">// the same use cases over a second transport</span>
+├── appsettings.json           <span class="cm">// + appsettings.Development.json</span>
+└── Properties/launchSettings.json</code></pre>
+
+<p>
+  An endpoint body should be about five lines: bind, dispatch, translate the <code>Result</code>
+  into a status code. If there is an <code>if</code> in it about business state, that
+  <code>if</code> has escaped from the Domain.
+</p>
+
+<div class="box note">
+  <div class="box-title">Middleware is not a folder &mdash; it is an order</div>
+  <p>
+    The one piece of this project that is a <em>sequence</em> rather than a directory is the
+    pipeline in <code>Program.cs</code>: exception handler first (it must wrap everything to catch
+    anything), then logging, then <code>UseRouting</code>, then
+    <code>UseAuthentication</code> before <code>UseAuthorization</code> &mdash; you cannot check
+    permissions for a user you have not identified yet &mdash; then rate limiting, current-user
+    resolution, output caching, and finally the endpoint mappings. Chapter 14 covers
+    <a href="14-web-api.html#middleware">why that nesting works and how to write one</a>.
+  </p>
+  <p>
+    <strong>The architectural point:</strong> validation, transactions, use-case logging and
+    caching are <em>not</em> middleware here &mdash; they are <code>Behaviors/</code> in
+    Application. Middleware is HTTP-only by construction, and those concerns must apply just as
+    much when a command arrives over gRPC, from a background job, or in a test.
+  </p>
+</div>
+
+<h3 id="folders-decide">Where does a new <em>file</em> go?</h3>
+
+<p>
+  The table in the next section answers this for a <em>rule</em>. This is the same question for a
+  file you are about to create. Ask these top to bottom, and stop at the first yes.
+</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Ask</th><th>Then it goes in</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Is it a rule that would be true on paper, without a computer?</td><td><code>Domain/&lt;Aggregate&gt;/</code></td></tr>
+    <tr><td>2</td><td>Is it something a user can ask the system to <em>do</em>?</td><td><code>Application/Features/&lt;Aggregate&gt;/</code> &mdash; one file</td></tr>
+    <tr><td>3</td><td>Does it only read data for a screen?</td><td>a query in <code>Features/</code> + <code>Infrastructure/Persistence/Queries/</code></td></tr>
+    <tr><td>4</td><td>Does it talk to something outside the process?</td><td><code>Infrastructure/&lt;Thing&gt;/</code>, behind an interface in <code>Abstractions/</code></td></tr>
+    <tr><td>5</td><td>Does it apply to every use case, whatever the transport?</td><td><code>Application/Behaviors/</code></td></tr>
+    <tr><td>6</td><td>Does it apply to every HTTP request specifically?</td><td>middleware, in <code>Api/Infrastructure/</code></td></tr>
+    <tr><td>7</td><td>Is it about turning HTTP into a call?</td><td><code>Api/Endpoints/</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>If a file seems to fit two of those, it is doing two things. Split it.</p>
+
+<div class="box trap">
+  <div class="box-title">⚠ Layouts that tell an interviewer the layers are decorative</div>
+  <ul>
+    <li><code>Domain/Services/OrderService.cs</code> doing all the work &mdash; anemic model; the
+        entities are structs and the rules live outside them.</li>
+    <li><code>[Table]</code> and <code>[Column]</code> attributes on <code>Order</code> &mdash;
+        persistence has leaked into Domain.</li>
+    <li><code>Application</code> with a package reference to EF Core &mdash; the inversion is gone.</li>
+    <li>Entities returned from endpoints &mdash; your public API <em>is</em> your database schema,
+        and now you can refactor neither.</li>
+    <li>A 400-line <code>Program.cs</code> full of business <code>if</code>s &mdash; the composition
+        root became the application.</li>
+    <li><code>Commands/ Validators/ Handlers/</code> as top-level folders &mdash; three navigations
+        per change, and features that cannot be deleted cleanly.</li>
+  </ul>
+</div>
+
 <h2 id="where">Where does this rule go?</h2>
 
 <p>

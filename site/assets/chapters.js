@@ -564,8 +564,8 @@ const CHAPTERS = [
     sec: "How the solution is laid out",
     title: "Layers, clean architecture and CQRS",
     work: "Onboarding — the folder structure you must read correctly on your first day.",
-    blurb: "Where a rule belongs, which way the arrows point, and what CQRS is really separating.",
-    tags: "architecture clean architecture layer domain application infrastructure cqrs command query mediator dependency rule ddd",
+    blurb: "The folder map of an enterprise solution, where a rule belongs, which way the arrows point, and what CQRS is really separating.",
+    tags: "architecture clean architecture layer domain application infrastructure cqrs command query mediator dependency rule ddd folder structure solution layout project folders aggregate entity value object repository abstractions behaviors middleware order composition root vertical slice",
     extra: "“Clean architecture”, “DDD” and “CQRS” appear in Italian backend adverts constantly, and the question “where would you put this rule?” is how a reviewer finds out whether you have ever worked on a real codebase.",
   },
   {

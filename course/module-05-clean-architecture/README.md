@@ -12,6 +12,7 @@ and the interview answer.
 
 | | Chapter | |
 |---|---|---|
+| 1 | [The solution layout — what folder holds what](01-solution-layout.md) | the four projects, every folder, and where a new file goes |
 | 2 | [Entities vs value objects](02-entities-and-value-objects.md) | identity, immutability, and the EF proxy equality trap |
 | 3 | [Aggregates — the transactional boundary](03-aggregates.md) | where to draw the line, and one transaction per aggregate |
 | 4 | [`Result<T>` instead of exceptions](05-result-vs-exceptions.md) | expected failure is a return value |

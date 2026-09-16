@@ -1,6 +1,7 @@
 # 2. Entities vs value objects
 
 > Part of [Module 05 — Clean Architecture and Domain-Driven Design](README.md), section 2.
+> Previous: [1. The solution layout](01-solution-layout.md) ·
 > Next: [3. Aggregates — the transactional boundary](03-aggregates.md)
 
 ---
