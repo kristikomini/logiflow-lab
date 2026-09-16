@@ -343,6 +343,22 @@ a.next-card .subtle { font-size: 13px; }
 }
 .note-bubble:hover { background: var(--brand); color: #fff; }
 
+/* the right-click menu — our own, so a note can be made without selecting
+   anything. Absolutely positioned against the document like the notes are. */
+.note-menu {
+  position: absolute; z-index: 61; min-width: 172px; padding: 4px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 9px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column;
+}
+.note-menu[hidden] { display: none; }
+.note-menu-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  font: inherit; font-size: 13px; font-weight: 600; text-align: left;
+  color: var(--ink); background: transparent; border: 0; border-radius: 6px;
+  padding: 7px 10px; cursor: pointer;
+}
+.note-menu-item:hover { background: var(--brand); color: #fff; }
+
 /* the all-notes page */
 .note-board { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); margin: 1.3em 0; }
 .note-item {
@@ -676,7 +692,7 @@ a.next-card .subtle { font-size: 13px; }
 }
 @media (max-width: 980px) {
   .note-layer { display: none; }
-  .note-bubble { display: none; }
+  .note-bubble, .note-menu { display: none; }
 }
 /* Sticky notes are already hidden at 980px (just above), so the button that
    adds one has nothing to show for itself by the time the bar needs the
