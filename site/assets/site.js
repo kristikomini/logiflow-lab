@@ -79,8 +79,8 @@
          when the name of a file stops being enough.
          rel="noopener" because target="_blank" otherwise hands the new tab a
          window.opener onto this one. */
-      '<a class="btn repo-link" href="https://github.com/kristikomini/LogiFlow" ' +
-        'target="_blank" rel="noopener" title="The LogiFlow platform this course is built on — the source on GitHub">Project</a>' +
+      '<a class="btn repo-link" href="https://logiflow.testdemo.it" ' +
+        'target="_blank" rel="noopener" title="The LogiFlow platform this course is built on — running live">Live demo</a>' +
       '<a class="btn hub-link" href="https://hub.testdemo.it" title="All five free courses">Hub</a>' +
       '<button class="btn" id="themeToggle" aria-label="Toggle dark mode">&#9789;</button>';
     body.insertBefore(bar, body.firstChild);
